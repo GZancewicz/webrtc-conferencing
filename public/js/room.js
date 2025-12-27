@@ -16,6 +16,8 @@ class WebConference {
     this.aiAvailable = false;
     this.aiEnabled = false;
     this.aiSpeaking = false;
+    this.isListening = false;
+    this.recognition = null;
 
     this.iceServers = {
       iceServers: [
@@ -73,10 +75,179 @@ class WebConference {
 
       if (this.aiAvailable) {
         document.getElementById('toggle-ai').style.display = 'flex';
+        this.setupSpeechRecognition();
       }
     } catch (error) {
       console.error('Failed to check AI availability:', error);
     }
+  }
+
+  setupSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.log('Speech recognition not supported');
+      return;
+    }
+
+    this.recognition = new SpeechRecognition();
+    this.recognition.continuous = false;
+    this.recognition.interimResults = true;
+    this.recognition.lang = 'en-US';
+
+    this.recognition.onstart = () => {
+      this.isListening = true;
+      this.updateTalkToAIButton();
+      this.showToast('Listening... speak now', 'info');
+    };
+
+    this.recognition.onresult = (event) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      // Show interim results in the AI container
+      if (interimTranscript) {
+        this.showListeningText(interimTranscript);
+      }
+
+      // When we have a final result, send to AI
+      if (finalTranscript) {
+        this.showListeningText('');
+        this.handleVoiceInput(finalTranscript);
+      }
+    };
+
+    this.recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      this.isListening = false;
+      this.updateTalkToAIButton();
+
+      if (event.error === 'no-speech') {
+        this.showToast('No speech detected. Try again.', 'error');
+      } else if (event.error === 'not-allowed') {
+        this.showToast('Microphone access denied', 'error');
+      }
+    };
+
+    this.recognition.onend = () => {
+      this.isListening = false;
+      this.updateTalkToAIButton();
+      this.showListeningText('');
+    };
+  }
+
+  startListening() {
+    if (!this.recognition) {
+      this.showToast('Speech recognition not supported in this browser', 'error');
+      return;
+    }
+
+    if (this.aiSpeaking) {
+      this.showToast('Wait for AI to finish speaking', 'info');
+      return;
+    }
+
+    if (this.isListening) {
+      this.recognition.stop();
+    } else {
+      try {
+        this.recognition.start();
+      } catch (error) {
+        console.error('Failed to start recognition:', error);
+      }
+    }
+  }
+
+  handleVoiceInput(transcript) {
+    // Add to chat as user message
+    this.addChatMessage(this.username, transcript, new Date().toISOString(), true);
+
+    // Broadcast to other participants
+    this.socket.emit('chat-message', {
+      roomId: this.roomId,
+      message: transcript
+    });
+
+    // Send to AI (no prefix needed for voice)
+    this.handleAIMessageDirect(transcript, this.username);
+  }
+
+  async handleAIMessageDirect(message, fromUsername) {
+    const contextMessage = `${fromUsername} says: ${message}`;
+
+    try {
+      this.showAITyping(true);
+
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: contextMessage,
+          roomId: this.roomId
+        })
+      });
+
+      if (!response.ok) throw new Error('AI request failed');
+
+      const data = await response.json();
+      const aiResponse = data.response;
+
+      this.addChatMessage('AI Assistant', aiResponse, new Date().toISOString(), false, true);
+
+      this.socket.emit('chat-message', {
+        roomId: this.roomId,
+        message: `[AI Assistant]: ${aiResponse}`
+      });
+
+      await this.playAIResponse(aiResponse);
+
+    } catch (error) {
+      console.error('AI error:', error);
+      this.showToast('AI failed to respond', 'error');
+    } finally {
+      this.showAITyping(false);
+    }
+  }
+
+  showListeningText(text) {
+    const container = document.getElementById('video-ai-assistant');
+    if (!container) return;
+
+    let listeningEl = container.querySelector('.listening-text');
+
+    if (text) {
+      if (!listeningEl) {
+        listeningEl = document.createElement('div');
+        listeningEl.className = 'listening-text';
+        container.appendChild(listeningEl);
+      }
+      listeningEl.textContent = text;
+    } else if (listeningEl) {
+      listeningEl.remove();
+    }
+  }
+
+  updateTalkToAIButton() {
+    const btn = document.getElementById('talk-to-ai');
+    if (!btn) return;
+
+    btn.classList.toggle('active', this.isListening);
+    btn.classList.toggle('listening', this.isListening);
+
+    const icon = btn.querySelector('.control-icon');
+    const label = btn.querySelector('.control-label');
+
+    if (icon) icon.textContent = this.isListening ? '🎙️' : '🗣️';
+    if (label) label.textContent = this.isListening ? 'Listening...' : 'Talk to AI';
   }
 
   async getLocalMedia() {
@@ -485,6 +656,20 @@ class WebConference {
       </div>
     `;
     list.appendChild(item);
+
+    // Add "Talk to AI" button to controls
+    const controls = document.querySelector('.room-controls');
+    const leaveBtn = document.getElementById('leave-room');
+    const talkBtn = document.createElement('button');
+    talkBtn.id = 'talk-to-ai';
+    talkBtn.className = 'control-btn talk-to-ai-btn';
+    talkBtn.title = 'Talk to AI';
+    talkBtn.innerHTML = `
+      <span class="control-icon">🗣️</span>
+      <span class="control-label">Talk to AI</span>
+    `;
+    talkBtn.addEventListener('click', () => this.startListening());
+    controls.insertBefore(talkBtn, leaveBtn);
   }
 
   removeAIParticipant() {
@@ -493,6 +678,15 @@ class WebConference {
 
     const participant = document.getElementById('participant-ai-assistant');
     if (participant) participant.remove();
+
+    // Remove "Talk to AI" button
+    const talkBtn = document.getElementById('talk-to-ai');
+    if (talkBtn) talkBtn.remove();
+
+    // Stop listening if active
+    if (this.isListening && this.recognition) {
+      this.recognition.stop();
+    }
   }
 
   isMessageForAI(message) {
@@ -780,5 +974,5 @@ class WebConference {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  new WebConference();
+  window.conference = new WebConference();
 });

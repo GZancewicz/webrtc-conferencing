@@ -526,6 +526,45 @@ body {
   color: var(--primary-color);
 }
 
+/* Talk to AI button */
+.talk-to-ai-btn {
+  background: linear-gradient(135deg, var(--primary-color), #7c3aed);
+}
+
+.talk-to-ai-btn:hover {
+  background: linear-gradient(135deg, var(--primary-hover), #6d28d9);
+}
+
+.talk-to-ai-btn.listening {
+  background: linear-gradient(135deg, var(--success-color), #16a34a);
+  animation: pulse-btn 1s ease-in-out infinite;
+}
+
+@keyframes pulse-btn {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Listening text overlay */
+.listening-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: var(--text-color);
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  max-width: 80%;
+  text-align: center;
+  border: 2px solid var(--success-color);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {

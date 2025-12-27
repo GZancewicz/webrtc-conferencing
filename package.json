@@ -1,0 +1,22 @@
+{
+  "name": "web-conference",
+  "version": "1.0.0",
+  "description": "A simple web conference application using WebRTC",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "keywords": [
+    "webrtc",
+    "video-conference",
+    "socket.io"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.1"
+  }
+}

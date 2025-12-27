@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting Room - Web Conference</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="room-container">
+    <!-- Header -->
+    <header class="room-header">
+      <div class="room-info">
+        <h1>Web Conference</h1>
+        <span class="room-id" id="room-id-display"></span>
+        <button class="btn btn-small" id="copy-link-btn" title="Copy invite link">Copy Link</button>
+      </div>
+      <div class="participant-count">
+        <span id="participant-count">0</span> participant(s)
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="room-main">
+      <!-- Video grid -->
+      <div class="video-grid" id="video-grid">
+        <!-- Local video -->
+        <div class="video-container" id="local-video-container">
+          <video id="local-video" autoplay muted playsinline></video>
+          <div class="video-label">
+            <span id="local-username">You</span>
+          </div>
+          <div class="video-status">
+            <span class="status-icon" id="local-mic-status">🎤</span>
+            <span class="status-icon" id="local-cam-status">📷</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar (chat + participants) -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="chat">Chat</button>
+          <button class="tab-btn" data-tab="participants">Participants</button>
+        </div>
+
+        <div class="tab-content active" id="chat-tab">
+          <div class="chat-messages" id="chat-messages"></div>
+          <form class="chat-input-form" id="chat-form">
+            <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off">
+            <button type="submit" class="btn btn-small">Send</button>
+          </form>
+        </div>
+
+        <div class="tab-content" id="participants-tab">
+          <ul class="participants-list" id="participants-list"></ul>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Controls -->
+    <footer class="room-controls">
+      <button class="control-btn" id="toggle-audio" title="Toggle Microphone">
+        <span class="control-icon">🎤</span>
+        <span class="control-label">Mute</span>
+      </button>
+      <button class="control-btn" id="toggle-video" title="Toggle Camera">
+        <span class="control-icon">📷</span>
+        <span class="control-label">Stop Video</span>
+      </button>
+      <button class="control-btn" id="toggle-screen" title="Share Screen">
+        <span class="control-icon">🖥️</span>
+        <span class="control-label">Share Screen</span>
+      </button>
+      <button class="control-btn" id="toggle-chat" title="Toggle Chat">
+        <span class="control-icon">💬</span>
+        <span class="control-label">Chat</span>
+      </button>
+      <button class="control-btn control-btn-danger" id="leave-room" title="Leave Meeting">
+        <span class="control-icon">📞</span>
+        <span class="control-label">Leave</span>
+      </button>
+    </footer>
+  </div>
+
+  <!-- Toast notifications -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/room.js"></script>
+</body>
+</html>

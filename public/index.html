@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Conference</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="landing-container">
+    <div class="landing-card">
+      <h1>Web Conference</h1>
+      <p class="subtitle">Simple video conferencing for everyone</p>
+
+      <form id="join-form">
+        <div class="form-group">
+          <label for="username">Your Name</label>
+          <input type="text" id="username" placeholder="Enter your name" required>
+        </div>
+
+        <div class="form-group">
+          <label for="room-id">Room ID (optional)</label>
+          <input type="text" id="room-id" placeholder="Leave empty to create new room">
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          <span id="btn-text">Create Room</span>
+        </button>
+      </form>
+
+      <div class="features">
+        <div class="feature">
+          <span class="feature-icon">🎥</span>
+          <span>HD Video</span>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">🔊</span>
+          <span>Crystal Audio</span>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">💬</span>
+          <span>Live Chat</span>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">🖥️</span>
+          <span>Screen Share</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

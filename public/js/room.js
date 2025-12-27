@@ -12,6 +12,11 @@ class WebConference {
     this.isScreenSharing = false;
     this.isChatVisible = true;
 
+    // AI Assistant state
+    this.aiAvailable = false;
+    this.aiEnabled = false;
+    this.aiSpeaking = false;
+
     this.iceServers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -43,6 +48,9 @@ class WebConference {
     document.getElementById('room-id-display').textContent = this.roomId;
     document.getElementById('local-username').textContent = `${this.username} (You)`;
 
+    // Check if AI is available
+    await this.checkAIAvailability();
+
     // Set up event listeners
     this.setupEventListeners();
     this.setupSocketListeners();
@@ -54,6 +62,20 @@ class WebConference {
     } catch (error) {
       console.error('Failed to get media:', error);
       this.showToast('Failed to access camera/microphone', 'error');
+    }
+  }
+
+  async checkAIAvailability() {
+    try {
+      const response = await fetch('/api/ai/status');
+      const data = await response.json();
+      this.aiAvailable = data.available;
+
+      if (this.aiAvailable) {
+        document.getElementById('toggle-ai').style.display = 'flex';
+      }
+    } catch (error) {
+      console.error('Failed to check AI availability:', error);
     }
   }
 
@@ -108,6 +130,11 @@ class WebConference {
     // Toggle chat
     document.getElementById('toggle-chat').addEventListener('click', () => {
       this.toggleChat();
+    });
+
+    // Toggle AI
+    document.getElementById('toggle-ai').addEventListener('click', () => {
+      this.toggleAI();
     });
 
     // Leave room
@@ -187,6 +214,11 @@ class WebConference {
     // Chat messages
     this.socket.on('chat-message', ({ userId, username, message, timestamp }) => {
       this.addChatMessage(username, message, timestamp, userId === this.socket.id);
+
+      // If AI is enabled and message is not from self, check if it's directed at AI
+      if (this.aiEnabled && userId !== this.socket.id && this.isMessageForAI(message)) {
+        this.handleAIMessage(message, username);
+      }
     });
 
     // Media state changes
@@ -267,7 +299,7 @@ class WebConference {
       container.innerHTML = `
         <video autoplay playsinline></video>
         <div class="video-label">
-          <span>${username}</span>
+          <span>${this.escapeHtml(username)}</span>
         </div>
         <div class="video-status">
           <span class="status-icon" id="mic-${userId}">🎤</span>
@@ -406,6 +438,176 @@ class WebConference {
     sidebar.classList.toggle('visible', this.isChatVisible);
   }
 
+  // AI Assistant methods
+  toggleAI() {
+    this.aiEnabled = !this.aiEnabled;
+    const btn = document.getElementById('toggle-ai');
+    btn.classList.toggle('active', this.aiEnabled);
+
+    if (this.aiEnabled) {
+      this.addAIParticipant();
+      this.showToast('AI Assistant joined the meeting');
+    } else {
+      this.removeAIParticipant();
+      this.showToast('AI Assistant left the meeting');
+    }
+
+    this.updateParticipantCount();
+  }
+
+  addAIParticipant() {
+    const videoGrid = document.getElementById('video-grid');
+
+    // Add AI video container with static image
+    const container = document.createElement('div');
+    container.id = 'video-ai-assistant';
+    container.className = 'video-container ai-participant';
+    container.innerHTML = `
+      <img src="/images/ai-avatar.svg" alt="AI Assistant" class="ai-avatar">
+      <div class="video-label">
+        <span>AI Assistant</span>
+      </div>
+      <div class="video-status">
+        <span class="status-icon" id="ai-speaking-indicator">🔊</span>
+      </div>
+    `;
+    videoGrid.appendChild(container);
+
+    // Add to participants list
+    const list = document.getElementById('participants-list');
+    const item = document.createElement('li');
+    item.id = 'participant-ai-assistant';
+    item.className = 'participant-item';
+    item.innerHTML = `
+      <span class="participant-name">AI Assistant</span>
+      <div class="participant-status">
+        <span class="status-icon">🤖</span>
+      </div>
+    `;
+    list.appendChild(item);
+  }
+
+  removeAIParticipant() {
+    const container = document.getElementById('video-ai-assistant');
+    if (container) container.remove();
+
+    const participant = document.getElementById('participant-ai-assistant');
+    if (participant) participant.remove();
+  }
+
+  isMessageForAI(message) {
+    const lowerMessage = message.toLowerCase();
+    return lowerMessage.startsWith('@ai') ||
+           lowerMessage.startsWith('ai,') ||
+           lowerMessage.startsWith('hey ai') ||
+           lowerMessage.startsWith('ai:');
+  }
+
+  async handleAIMessage(message, fromUsername) {
+    // Remove the AI trigger prefix
+    let cleanMessage = message
+      .replace(/^@ai\s*/i, '')
+      .replace(/^ai,\s*/i, '')
+      .replace(/^hey ai\s*/i, '')
+      .replace(/^ai:\s*/i, '')
+      .trim();
+
+    // Add context about who is asking
+    const contextMessage = `${fromUsername} asks: ${cleanMessage}`;
+
+    try {
+      // Show typing indicator
+      this.showAITyping(true);
+
+      // Get AI response
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: contextMessage,
+          roomId: this.roomId
+        })
+      });
+
+      if (!response.ok) throw new Error('AI request failed');
+
+      const data = await response.json();
+      const aiResponse = data.response;
+
+      // Send AI response to chat
+      this.addChatMessage('AI Assistant', aiResponse, new Date().toISOString(), false, true);
+
+      // Broadcast AI response to all participants
+      this.socket.emit('chat-message', {
+        roomId: this.roomId,
+        message: `[AI Assistant]: ${aiResponse}`
+      });
+
+      // Generate and play TTS
+      await this.playAIResponse(aiResponse);
+
+    } catch (error) {
+      console.error('AI error:', error);
+      this.showToast('AI failed to respond', 'error');
+    } finally {
+      this.showAITyping(false);
+    }
+  }
+
+  async playAIResponse(text) {
+    try {
+      this.setAISpeaking(true);
+
+      const response = await fetch('/api/ai/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: 'nova' })
+      });
+
+      if (!response.ok) throw new Error('TTS request failed');
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        this.setAISpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = () => {
+        this.setAISpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error('TTS error:', error);
+      this.setAISpeaking(false);
+    }
+  }
+
+  setAISpeaking(speaking) {
+    this.aiSpeaking = speaking;
+    const indicator = document.getElementById('ai-speaking-indicator');
+    if (indicator) {
+      indicator.style.opacity = speaking ? '1' : '0.5';
+      indicator.textContent = speaking ? '🔊' : '🔇';
+    }
+
+    const container = document.getElementById('video-ai-assistant');
+    if (container) {
+      container.classList.toggle('speaking', speaking);
+    }
+  }
+
+  showAITyping(typing) {
+    const container = document.getElementById('video-ai-assistant');
+    if (container) {
+      container.classList.toggle('typing', typing);
+    }
+  }
+
   leaveRoom() {
     // Stop all streams
     if (this.localStream) {
@@ -445,11 +647,17 @@ class WebConference {
         roomId: this.roomId,
         message
       });
+
+      // If AI is enabled and message is for AI, handle it
+      if (this.aiEnabled && this.isMessageForAI(message)) {
+        this.handleAIMessage(message, this.username);
+      }
+
       input.value = '';
     }
   }
 
-  addChatMessage(username, message, timestamp, isOwn) {
+  addChatMessage(username, message, timestamp, isOwn, isAI = false) {
     const container = document.getElementById('chat-messages');
     const time = new Date(timestamp).toLocaleTimeString([], {
       hour: '2-digit',
@@ -457,10 +665,10 @@ class WebConference {
     });
 
     const messageEl = document.createElement('div');
-    messageEl.className = 'chat-message';
+    messageEl.className = `chat-message${isAI ? ' ai-message' : ''}`;
     messageEl.innerHTML = `
       <div class="chat-message-header">
-        <span class="chat-username">${isOwn ? 'You' : username}</span>
+        <span class="chat-username">${isOwn ? 'You' : this.escapeHtml(username)}</span>
         <span class="chat-time">${time}</span>
       </div>
       <div class="chat-text">${this.escapeHtml(message)}</div>
@@ -478,7 +686,7 @@ class WebConference {
       item.id = `participant-${userId}`;
       item.className = 'participant-item';
       item.innerHTML = `
-        <span class="participant-name">${username}</span>
+        <span class="participant-name">${this.escapeHtml(username)}</span>
         <div class="participant-status">
           <span class="status-icon" id="p-mic-${userId}">🎤</span>
           <span class="status-icon" id="p-cam-${userId}">📷</span>
@@ -489,7 +697,8 @@ class WebConference {
   }
 
   updateParticipantCount() {
-    const count = this.peers.size + 1; // +1 for self
+    let count = this.peers.size + 1; // +1 for self
+    if (this.aiEnabled) count++; // +1 for AI
     document.getElementById('participant-count').textContent = count;
   }
 

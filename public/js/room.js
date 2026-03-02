@@ -5,6 +5,7 @@ class WebConference {
     this.localStream = null;
     this.screenStream = null;
     this.peers = new Map();
+    this.pendingCandidates = new Map();
     this.roomId = null;
     this.username = null;
     this.isAudioEnabled = true;
@@ -357,28 +358,45 @@ class WebConference {
 
     // WebRTC signaling
     this.socket.on('offer', async ({ from, username, offer }) => {
-      const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);
-      await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await peer.connection.createAnswer();
-      await peer.connection.setLocalDescription(answer);
-      this.socket.emit('answer', { to: from, answer });
+      try {
+        const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);
+        await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));
+        this.flushPendingCandidates(from);
+        const answer = await peer.connection.createAnswer();
+        await peer.connection.setLocalDescription(answer);
+        this.socket.emit('answer', { to: from, answer });
+      } catch (error) {
+        console.error('Error handling offer:', error);
+      }
     });
 
     this.socket.on('answer', async ({ from, answer }) => {
-      const peer = this.peers.get(from);
-      if (peer) {
-        await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));
+      try {
+        const peer = this.peers.get(from);
+        if (peer) {
+          await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));
+          this.flushPendingCandidates(from);
+        }
+      } catch (error) {
+        console.error('Error handling answer:', error);
       }
     });
 
     this.socket.on('ice-candidate', async ({ from, candidate }) => {
+      if (!candidate) return;
       const peer = this.peers.get(from);
-      if (peer && candidate) {
+      if (peer && peer.connection.remoteDescription) {
         try {
           await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (error) {
           console.error('Error adding ICE candidate:', error);
         }
+      } else {
+        // Buffer candidates that arrive before remote description is set
+        if (!this.pendingCandidates.has(from)) {
+          this.pendingCandidates.set(from, []);
+        }
+        this.pendingCandidates.get(from).push(candidate);
       }
     });
 
@@ -449,6 +467,21 @@ class WebConference {
     return peer;
   }
 
+  async flushPendingCandidates(userId) {
+    const candidates = this.pendingCandidates.get(userId);
+    if (!candidates) return;
+    const peer = this.peers.get(userId);
+    if (!peer) return;
+    for (const candidate of candidates) {
+      try {
+        await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error('Error adding buffered ICE candidate:', error);
+      }
+    }
+    this.pendingCandidates.delete(userId);
+  }
+
   async createAndSendOffer(userId, connection) {
     try {
       const offer = await connection.createOffer();
@@ -468,7 +501,7 @@ class WebConference {
       container.id = `video-${userId}`;
       container.className = 'video-container';
       container.innerHTML = `
-        <video autoplay playsinline></video>
+        <video autoplay playsinline muted></video>
         <div class="video-label">
           <span>${this.escapeHtml(username)}</span>
         </div>
@@ -482,6 +515,16 @@ class WebConference {
 
     const video = container.querySelector('video');
     video.srcObject = stream;
+
+    // Start muted to satisfy autoplay policy, then unmute
+    video.play().then(() => {
+      video.muted = false;
+    }).catch(() => {
+      video.addEventListener('click', () => {
+        video.muted = false;
+        video.play();
+      }, { once: true });
+    });
   }
 
   removePeer(userId) {
@@ -490,6 +533,7 @@ class WebConference {
       peer.connection.close();
       this.peers.delete(userId);
     }
+    this.pendingCandidates.delete(userId);
 
     // Remove video container
     const container = document.getElementById(`video-${userId}`);

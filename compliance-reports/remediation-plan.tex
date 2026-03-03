@@ -1,0 +1,1314 @@
+\documentclass[11pt,letterpaper]{article}
+
+% Packages
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{makecell}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{multirow}
+\usepackage{caption}
+
+% Color definitions (matching compliance report)
+\definecolor{compliant}{HTML}{27AE60}
+\definecolor{partial}{HTML}{F39C12}
+\definecolor{noncompliant}{HTML}{E74C3C}
+\definecolor{notapplicable}{HTML}{95A5A6}
+\definecolor{critical}{HTML}{C0392B}
+\definecolor{major}{HTML}{E67E22}
+\definecolor{minor}{HTML}{F1C40F}
+\definecolor{informational}{HTML}{3498DB}
+\definecolor{sectionbg}{HTML}{ECF0F1}
+\definecolor{headerbg}{HTML}{2C3E50}
+\definecolor{headertext}{HTML}{FFFFFF}
+\definecolor{lightgray}{HTML}{F8F9FA}
+
+% Priority commands
+\newcommand{\pricritical}{\colorbox{critical}{\textcolor{white}{\small\textbf{CRITICAL}}}}
+\newcommand{\prihigh}{\colorbox{major}{\textcolor{white}{\small\textbf{HIGH}}}}
+\newcommand{\primedium}{\colorbox{minor!80!black}{\textcolor{white}{\small\textbf{MEDIUM}}}}
+\newcommand{\prilow}{\colorbox{notapplicable}{\textcolor{white}{\small\textbf{LOW}}}}
+
+% Effort commands
+\newcommand{\efftrivial}{\colorbox{compliant!20}{\small\textbf{Trivial}}}
+\newcommand{\effsmall}{\colorbox{compliant!30}{\small\textbf{Small}}}
+\newcommand{\effmedium}{\colorbox{partial!30}{\small\textbf{Medium}}}
+\newcommand{\efflarge}{\colorbox{noncompliant!20}{\small\textbf{Large}}}
+
+% Phase badge commands
+\newcommand{\phaseone}{\colorbox{critical}{\textcolor{white}{\small\textbf{~Phase 1~}}}}
+\newcommand{\phasetwo}{\colorbox{major}{\textcolor{white}{\small\textbf{~Phase 2~}}}}
+\newcommand{\phasethree}{\colorbox{minor!80!black}{\textcolor{white}{\small\textbf{~Phase 3~}}}}
+\newcommand{\phasefour}{\colorbox{notapplicable}{\textcolor{white}{\small\textbf{~Phase 4~}}}}
+
+% Header/footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textsc{Web Conference --- Remediation Plan}}
+\fancyhead[R]{\small\textsc{March 2026}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Section formatting
+\titleformat{\section}{\Large\bfseries\color{headerbg}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{headerbg!80}}{}{0em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{headerbg!60}}{}{0em}{}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=headerbg,
+    urlcolor=informational,
+    citecolor=headerbg,
+    pdftitle={Web Conference Application - Remediation Plan},
+    pdfauthor={Compliance Remediation},
+    pdfsubject={WebRTC Standards Compliance Remediation}
+}
+
+% Custom column types
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{headerbg} Remediation Plan\par}
+\vspace{0.5cm}
+{\LARGE\color{headerbg!70} Web Conference Application\par}
+\vspace{1cm}
+{\large Addressing findings from the Standards Compliance Report\\of March 2, 2026\par}
+\vspace{2cm}
+
+\begin{tabular}{ll}
+\toprule
+\textbf{Application} & web-conference \\
+\textbf{Plan Date} & March 3, 2026 \\
+\textbf{Compliance Report} & \texttt{compliance-reports/compliance-report.tex} \\
+\textbf{Findings Addressed} & 58 (25 non-compliant, 33 partial) \\
+\textbf{Recommendations} & 21 consolidated items \\
+\textbf{Implementation Phases} & 4 (Critical, High, Medium, Low) \\
+\bottomrule
+\end{tabular}
+
+\vspace{2cm}
+
+\begin{tabular}{lccc}
+\toprule
+\textbf{Phase} & \textbf{Items} & \textbf{Est.\ Effort} & \textbf{Findings Resolved} \\
+\midrule
+\rowcolor{critical!15} Phase 1 --- Critical & 3 & Small--Medium & 18 \\
+\rowcolor{major!15} Phase 2 --- High Priority & 5 & Small--Medium & 22 \\
+\rowcolor{minor!15} Phase 3 --- Medium Priority & 3 & Trivial--Medium & 8 \\
+\rowcolor{notapplicable!10} Phase 4 --- Low Priority & 7 & Trivial--Medium & 10 \\
+\midrule
+\textbf{Total} & \textbf{18} & & \textbf{58} \\
+\bottomrule
+\end{tabular}
+
+\vfill
+{\small\textit{Companion document to the Standards Compliance Report.\\Addresses all 20 consolidated recommendations across 8 applicable standards.}\par}
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{Executive Summary}
+%=============================================================================
+
+This document presents a phased remediation plan for the \textbf{web-conference} application, addressing all 58 non-compliant and partially compliant findings identified in the Standards Compliance Report of March 2, 2026.
+
+\subsection{Motivation}
+
+The compliance report assessed the application against 8 applicable standards (5 direct, 3 indirect) and identified critical gaps in three areas:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Connectivity} --- The absence of TURN servers causes complete media failure for users behind symmetric NATs or restrictive firewalls. Users can join the signaling channel (Socket.IO over HTTP) but receive zero audio and video because the WebRTC peer-to-peer media path cannot be established. This is the most likely root cause of reported ``join but no audio/video'' incidents.
+    \item \textbf{Security} --- Wildcard CORS (\texttt{origin: '*'}), no user authentication, and HTTP-only signaling create an open attack surface exploitable by any website.
+    \item \textbf{Resilience} --- Aggressive peer removal on transient connection state changes, no ICE restart capability, and no renegotiation support mean the application cannot recover from temporary network disruptions.
+\end{enumerate}
+
+\subsection{Audio/Video Failure Analysis}
+\label{sec:av-failure}
+
+Users have reported being able to join a conference room but experiencing no audio or video. The following findings from the compliance report explain this behavior:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{C{1.2cm}L{3.5cm}L{8.5cm}}
+\toprule
+\textbf{Priority} & \textbf{Root Cause} & \textbf{Mechanism} \\
+\midrule
+\rowcolor{critical!10}
+\pricritical & No TURN servers & Users behind symmetric NATs or firewalls connect to the signaling server (Socket.IO over HTTP works through any firewall) but the WebRTC peer connection fails because ICE can only gather host and server-reflexive candidates via STUN. Without TURN relay candidates, there is no fallback path. The media connection silently fails: no audio, no video. \textit{This is the most probable cause.} \\
+\midrule
+\rowcolor{major!10}
+\prihigh & No ICE restart & When a connection momentarily degrades, the peer is permanently removed instead of attempting recovery via \texttt{restartIce()} or \texttt{createOffer(\{ iceRestart: true \})}. \\
+\midrule
+\rowcolor{major!10}
+\prihigh & \texttt{disconnected} = \texttt{failed} & The \texttt{disconnected} state (often transient) is treated identically to \texttt{failed} (permanent), causing premature peer removal during brief network fluctuations. \\
+\midrule
+\rowcolor{minor!10}
+\primedium & No ICE state monitoring & No \texttt{oniceconnectionstatechange} handler means no visibility into why ICE failed or how to recover. \\
+\midrule
+\rowcolor{minor!10}
+\primedium & No \texttt{getStats()} & No connection quality monitoring means no way to detect or diagnose degraded connections before they fail. \\
+\midrule
+\rowcolor{notapplicable!10}
+\prilow & Browser permissions & If a user never responds to the browser's camera/microphone permission prompt, \texttt{getUserMedia()} hangs indefinitely and \texttt{joinRoom()} never executes. The user sees the room page but never actually joins. This is a browser UX issue, not a bug, but could be mitigated with a timeout and user guidance. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Key insight:} The signaling channel (Socket.IO) and the media channel (WebRTC) use completely different network paths. Socket.IO connects over HTTP/WebSocket, which works through virtually any firewall. WebRTC requires a direct or relayed UDP/TCP path between peers, which fails without TURN in restrictive network environments. This is why users appear to ``join'' (signaling succeeds) but have no audio or video (media path fails).
+
+\subsection{Plan Structure}
+
+The 20 consolidated recommendations from the compliance report are organized into four implementation phases:
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Phase 1 (Critical)} --- Three items that fix connectivity failures and close critical security gaps. Phase 1 alone would resolve the reported audio/video issue for the majority of affected users.
+    \item \textbf{Phase 2 (High Priority)} --- Five items that improve connection resilience, enforce HTTPS, and add privacy controls.
+    \item \textbf{Phase 3 (Medium Priority)} --- Three items that improve code quality and standards compliance.
+    \item \textbf{Phase 4 (Low Priority)} --- Six items that add monitoring, polish error handling, and implement minor enhancements.
+\end{itemize}
+
+\newpage
+
+%=============================================================================
+\section{Phase 1: Critical --- Connectivity and Core Security}
+%=============================================================================
+
+These three items address the most impactful findings. Phase 1 directly fixes the ``join but no audio/video'' problem and closes the most dangerous security gaps.
+
+%-----------------------------------------------------------------------------
+\subsection{1.1 Add TURN Server Configuration}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \pricritical \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{public/js/room.js}, \texttt{server/index.js}, \texttt{.env.example} \\
+\textbf{Findings:} & F-002, F-029 (WebRTC 1.0); F-001 (WebRTC ED); F-001, F-002, F-015 (RFC 8445); \\
+& F-006 (RFC 8826); F-008 (RFC 8827) \\
+\textbf{Standards:} & 6 of 8 applicable standards cite this issue \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+The application configures only Google STUN servers:
+
+\begin{verbatim}
+iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+]
+\end{verbatim}
+
+STUN servers only help discover a peer's public IP address. They cannot relay media traffic. When either peer is behind a symmetric NAT or restrictive firewall (common in corporate networks, many ISPs, and mobile carriers), STUN-only candidates cannot establish a direct path. Without TURN relay candidates, the WebRTC connection fails silently --- no audio, no video.
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Server: Add \texttt{/api/ice-servers} endpoint} (\texttt{server/index.js})
+
+    Create a new API endpoint that returns the ICE server configuration dynamically. This ensures TURN credentials are never hardcoded in client JavaScript and enables server-side credential rotation.
+
+    \begin{verbatim}
+app.get('/api/ice-servers', (req, res) => {
+    const iceServers = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ];
+
+    if (process.env.TURN_URL) {
+        iceServers.push({
+            urls: process.env.TURN_URL,
+            username: process.env.TURN_USERNAME,
+            credential: process.env.TURN_CREDENTIAL
+        });
+    }
+    if (process.env.TURNS_URL) {
+        iceServers.push({
+            urls: process.env.TURNS_URL,
+            username: process.env.TURN_USERNAME,
+            credential: process.env.TURN_CREDENTIAL
+        });
+    }
+
+    res.json({ iceServers });
+});
+    \end{verbatim}
+
+    \item \textbf{Client: Fetch ICE servers before joining} (\texttt{public/js/room.js})
+
+    Replace the hardcoded \texttt{iceServers} configuration with a dynamic fetch in the \texttt{init()} method. The \texttt{iceServers} property should be populated from the server response before any \texttt{RTCPeerConnection} is created.
+
+    \begin{verbatim}
+async fetchIceServers() {
+    try {
+        const response = await fetch('/api/ice-servers');
+        const data = await response.json();
+        this.iceServers = { iceServers: data.iceServers };
+    } catch (error) {
+        console.error('Failed to fetch ICE servers:', error);
+        // Fall back to STUN-only
+    }
+}
+    \end{verbatim}
+
+    Call \texttt{await this.fetchIceServers()} in \texttt{init()} before \texttt{getLocalMedia()}.
+
+    \item \textbf{Environment: Add TURN variables} (\texttt{.env.example})
+
+    \begin{verbatim}
+TURN_URL=turn:your-turn-server.example.com:3478
+TURNS_URL=turns:your-turn-server.example.com:5349
+TURN_USERNAME=your-username
+TURN_CREDENTIAL=your-credential
+    \end{verbatim}
+\end{enumerate}
+
+\subsubsection{TURN Server Options}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{L{3cm}L{4cm}L{6cm}}
+\toprule
+\textbf{Provider} & \textbf{Type} & \textbf{Notes} \\
+\midrule
+coturn & Self-hosted (open source) & Full control; requires server infrastructure \\
+Metered TURN & Managed service & Pay-per-use; free tier available \\
+Twilio Network Traversal & Managed service & Temporary credentials via REST API \\
+Xirsys & Managed service & Global PoPs; straightforward API \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{1.2 Restrict CORS to Trusted Origins}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \pricritical \\
+\textbf{Effort:} & \efftrivial \\
+\textbf{Files:} & \texttt{server/index.js} \\
+\textbf{Findings:} & F-009, F-014 (RFC 8826); F-014 (RFC 8827); F-030 (WebRTC 1.0); F-035 (RFC 8829) \\
+\textbf{Standards:} & Cited in 4 reports \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+Both the Express CORS middleware and the Socket.IO server are configured with \texttt{origin: '*'}:
+
+\begin{verbatim}
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
+\end{verbatim}
+
+This allows any website on the internet to connect to the signaling server, send WebRTC offers, join rooms, and potentially intercept SDP containing DTLS fingerprints. Combined with no authentication, this creates an open signaling server exploitable by any origin.
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Add \texttt{ALLOWED\_ORIGINS} environment variable} (\texttt{.env.example})
+
+    \begin{verbatim}
+ALLOWED_ORIGINS=https://your-app.example.com
+    \end{verbatim}
+
+    \item \textbf{Configure CORS dynamically} (\texttt{server/index.js})
+
+    \begin{verbatim}
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : (process.env.NODE_ENV === 'production' ? [] : '*');
+
+const corsConfig = {
+    origin: allowedOrigins === '*' ? '*' : (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS not allowed'));
+        }
+    },
+    methods: ['GET', 'POST']
+};
+    \end{verbatim}
+
+    Apply \texttt{corsConfig} to both the Express middleware and the Socket.IO \texttt{Server} constructor.
+
+    \item \textbf{Default behavior:}
+    \begin{itemize}
+        \item Development (no \texttt{ALLOWED\_ORIGINS} set, \texttt{NODE\_ENV} not \texttt{production}): allow all origins (preserves current development workflow)
+        \item Production (no \texttt{ALLOWED\_ORIGINS} set, \texttt{NODE\_ENV=production}): reject cross-origin requests (fail-safe)
+        \item Explicit configuration: honor the comma-separated list
+    \end{itemize}
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{1.3 Implement Room Access Control}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \pricritical \\
+\textbf{Effort:} & \effmedium \\
+\textbf{Files:} & \texttt{server/index.js}, \texttt{public/index.html}, \texttt{public/js/main.js}, \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-010 (RFC 8826); F-015 (RFC 8827) \\
+\textbf{Standards:} & Both security RFCs cite this as critical severity \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+There is no authentication or authorization. Anyone can join any room by knowing (or guessing) the room ID. Usernames are self-assigned strings stored in \texttt{sessionStorage} with no verification:
+
+\begin{verbatim}
+socket.on('join-room', ({ roomId, username }) => {
+    socket.join(roomId);
+    // No authentication check
+    // ...
+});
+\end{verbatim}
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Landing page: Add optional room password field} (\texttt{public/index.html}, \texttt{public/js/main.js})
+
+    Add a password input field to the join form. When creating a room, the password is optional. When joining an existing password-protected room, the password is required.
+
+    Store the password in \texttt{sessionStorage} alongside the username so it can be passed to the signaling server when joining.
+
+    \item \textbf{Server: Validate room credentials on join} (\texttt{server/index.js})
+
+    Extend the room data structure to store a hashed password:
+
+    \begin{verbatim}
+const crypto = require('crypto');
+
+function hashPassword(password) {
+    return crypto.createHash('sha256')
+        .update(password).digest('hex');
+}
+
+socket.on('join-room', ({ roomId, username, password }) => {
+    const room = rooms.get(roomId);
+
+    if (room && room.password) {
+        if (!password || hashPassword(password) !== room.password) {
+            socket.emit('join-error', {
+                message: 'Incorrect room password'
+            });
+            return;
+        }
+    }
+
+    // Create room with password if provided
+    if (!room) {
+        rooms.set(roomId, {
+            participants: new Map(),
+            password: password ? hashPassword(password) : null
+        });
+    }
+
+    // ... proceed with join
+});
+    \end{verbatim}
+
+    \item \textbf{Client: Handle join errors} (\texttt{public/js/room.js})
+
+    Listen for \texttt{join-error} events and display the error to the user. If the password is wrong, redirect back to the landing page with an error message.
+\end{enumerate}
+
+\subsubsection{Scope Limitation}
+
+This implements room-level password protection, not full user authentication (OAuth, JWT sessions, etc.). Full user authentication is a larger architectural change documented as a future consideration but not included in this plan. Room passwords address the most critical finding (``anyone can join any room'') with proportionate effort.
+
+\newpage
+
+%=============================================================================
+\section{Phase 2: High Priority --- Connection Resilience}
+%=============================================================================
+
+These five items prevent the aggressive peer-removal behavior that makes transient network issues permanent, and enforce transport security.
+
+%-----------------------------------------------------------------------------
+\subsection{2.1 Implement ICE Restart}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prihigh \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-032 (WebRTC 1.0); F-015 (WebRTC ED); F-024, F-033 (RFC 8829); \\
+& F-003, F-018 (RFC 8445) \\
+\textbf{Standards:} & Cited in 4 reports \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+When a peer connection reaches the \texttt{failed} state, the peer is immediately and permanently removed:
+
+\begin{verbatim}
+connection.onconnectionstatechange = () => {
+    if (connection.connectionState === 'disconnected' ||
+        connection.connectionState === 'failed') {
+        this.removePeer(userId);
+    }
+};
+\end{verbatim}
+
+The WebRTC specification provides \texttt{restartIce()} and \texttt{createOffer(\{ iceRestart: true \})} specifically for this scenario, but neither is used.
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Add ICE restart method with exponential backoff}
+
+    \begin{verbatim}
+async attemptIceRestart(userId) {
+    const peer = this.peers.get(userId);
+    if (!peer) return;
+
+    const maxRetries = 3;
+    peer.iceRestartCount = (peer.iceRestartCount || 0) + 1;
+
+    if (peer.iceRestartCount > maxRetries) {
+        this.showToast(
+            `Connection to ${peer.username} lost`, 'error');
+        this.removePeer(userId);
+        return;
+    }
+
+    const backoffMs = 1000 * Math.pow(2,
+        peer.iceRestartCount - 1);
+
+    this.showToast(
+        `Reconnecting to ${peer.username}...`, 'info');
+
+    await new Promise(r => setTimeout(r, backoffMs));
+
+    try {
+        const offer = await peer.connection.createOffer({
+            iceRestart: true
+        });
+        await peer.connection.setLocalDescription(offer);
+        this.socket.emit('offer', { to: userId, offer });
+    } catch (error) {
+        console.error('ICE restart failed:', error);
+        this.removePeer(userId);
+    }
+}
+    \end{verbatim}
+
+    \item \textbf{Reset restart counter on successful connection}
+
+    When \texttt{connectionState} transitions to \texttt{connected}, reset \texttt{peer.iceRestartCount = 0}.
+
+    \item \textbf{Trigger ICE restart on \texttt{failed} state} (replaces immediate \texttt{removePeer})
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{2.2 Differentiate \texttt{disconnected} from \texttt{failed}}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prihigh \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-013, F-023 (WebRTC 1.0); F-018 (RFC 8445) \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+Both \texttt{disconnected} and \texttt{failed} states trigger immediate peer removal. Per the WebRTC specification, \texttt{disconnected} is often transient (e.g., brief WiFi dropout) and may self-resolve, while \texttt{failed} indicates ICE has exhausted all candidates.
+
+\subsubsection{Proposed Changes}
+
+Replace the current \texttt{onconnectionstatechange} handler with granular state handling:
+
+\begin{verbatim}
+connection.onconnectionstatechange = () => {
+    const state = connection.connectionState;
+
+    switch (state) {
+        case 'connected':
+            // Clear any pending disconnect timeout
+            if (peer.disconnectTimeout) {
+                clearTimeout(peer.disconnectTimeout);
+                peer.disconnectTimeout = null;
+            }
+            // Reset ICE restart counter
+            peer.iceRestartCount = 0;
+            break;
+
+        case 'disconnected':
+            // Wait before taking action; may self-resolve
+            peer.disconnectTimeout = setTimeout(() => {
+                if (connection.connectionState === 'disconnected') {
+                    this.attemptIceRestart(userId);
+                }
+            }, 10000); // 10-second grace period
+            break;
+
+        case 'failed':
+            // Attempt ICE restart immediately
+            this.attemptIceRestart(userId);
+            break;
+
+        case 'closed':
+            this.removePeer(userId);
+            break;
+    }
+};
+\end{verbatim}
+
+Additionally, add an \texttt{oniceconnectionstatechange} handler for ICE-specific state monitoring:
+
+\begin{verbatim}
+connection.oniceconnectionstatechange = () => {
+    console.log(`ICE state for ${username}: ` +
+        connection.iceConnectionState);
+};
+\end{verbatim}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{2.3 Implement \texttt{onnegotiationneeded} with Glare Handling}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prihigh \\
+\textbf{Effort:} & \effmedium \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-014 (WebRTC 1.0); F-026 (WebRTC ED); F-023, F-028 (RFC 8829) \\
+\textbf{Standards:} & Cited in 3 reports \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+No \texttt{onnegotiationneeded} handler exists. The application creates offers only at initial setup. This prevents mid-session renegotiation (e.g., adding/removing tracks) and leaves the application unable to handle ``glare'' scenarios where both peers send offers simultaneously.
+
+\subsubsection{Proposed Changes}
+
+Implement the \textbf{perfect negotiation pattern} as recommended by the W3C WebRTC specification:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Track polite/impolite roles per peer}
+
+    When creating a peer connection, store whether this peer is the ``polite'' side (the non-initiator, willing to roll back) or the ``impolite'' side (the initiator, ignores incoming offers during \texttt{have-local-offer}):
+
+    \begin{verbatim}
+const peer = {
+    connection,
+    username,
+    polite: !initiator,
+    makingOffer: false
+};
+    \end{verbatim}
+
+    \item \textbf{Add \texttt{onnegotiationneeded} handler}
+
+    \begin{verbatim}
+connection.onnegotiationneeded = async () => {
+    try {
+        peer.makingOffer = true;
+        await connection.setLocalDescription();
+        this.socket.emit('offer', {
+            to: userId,
+            offer: connection.localDescription
+        });
+    } catch (error) {
+        console.error('Negotiation error:', error);
+    } finally {
+        peer.makingOffer = false;
+    }
+};
+    \end{verbatim}
+
+    \item \textbf{Update offer handler with glare resolution}
+
+    \begin{verbatim}
+this.socket.on('offer', async ({ from, username, offer }) => {
+    const peer = this.peers.get(from) ||
+        this.createPeerConnection(from, username, false);
+    const conn = peer.connection;
+
+    const offerCollision = peer.makingOffer ||
+        conn.signalingState !== 'stable';
+
+    const ignoreOffer = !peer.polite && offerCollision;
+    if (ignoreOffer) return;
+
+    try {
+        await conn.setRemoteDescription(offer);
+        this.flushPendingCandidates(from);
+        if (conn.signalingState === 'have-remote-offer') {
+            await conn.setLocalDescription();
+            this.socket.emit('answer', {
+                to: from,
+                answer: conn.localDescription
+            });
+        }
+    } catch (error) {
+        console.error('Error handling offer:', error);
+    }
+});
+    \end{verbatim}
+
+    \item \textbf{Remove explicit \texttt{createAndSendOffer} call for initiator}
+
+    With \texttt{onnegotiationneeded} in place, the browser will fire the event automatically after \texttt{addTrack()}, making the explicit \texttt{createAndSendOffer()} call on the initiator redundant.
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{2.4 Enforce HTTPS at Application Level}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prihigh \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{server/index.js}, \texttt{package.json} \\
+\textbf{Findings:} & F-002, F-003 (RFC 8826); F-001 (RFC 8827); F-030 (WebRTC ED) \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+The server uses \texttt{http.createServer()} with no HTTPS enforcement. HTTPS termination is delegated entirely to Render.com. If accessed directly (or through a different hosting platform), all traffic --- including SDP with DTLS fingerprints --- transits in plaintext.
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Add \texttt{helmet} dependency} (\texttt{package.json})
+
+    \begin{verbatim}
+"helmet": "^7.1.0"
+    \end{verbatim}
+
+    \item \textbf{Add HTTP-to-HTTPS redirect and security headers} (\texttt{server/index.js})
+
+    \begin{verbatim}
+const helmet = require('helmet');
+app.use(helmet());
+
+// Redirect HTTP to HTTPS in production
+if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        if (req.headers['x-forwarded-proto'] !== 'https') {
+            return res.redirect(301,
+                'https://' + req.headers.host + req.url);
+        }
+        next();
+    });
+}
+    \end{verbatim}
+
+    The \texttt{x-forwarded-proto} check works with reverse proxies (Render, Heroku, AWS ALB). Helmet adds HSTS, X-Frame-Options, X-Content-Type-Options, and other security headers.
+\end{enumerate}
+
+%-----------------------------------------------------------------------------
+\subsection{2.5 Add IP Address Privacy Controls}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prihigh \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-029 (WebRTC 1.0); F-006 (RFC 8826); F-008, F-018 (RFC 8827); F-010 (RFC 8445) \\
+\textbf{Prerequisite:} & Requires TURN servers from item 1.1 \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+The default \texttt{iceTransportPolicy: 'all'} exposes the user's real IP address via host ICE candidates. No option exists to restrict candidates to relay-only mode. ICE gathering begins immediately on room join with no user consent step.
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Add relay-only mode configuration}
+
+    When the user opts in to enhanced privacy, set \texttt{iceTransportPolicy: 'relay'} in the \texttt{RTCConfiguration}. This ensures only TURN relay candidates are used, hiding the user's real IP address from peers.
+
+    \begin{verbatim}
+this.iceServers = {
+    iceServers: data.iceServers,
+    iceTransportPolicy: this.relayOnly ? 'relay' : 'all'
+};
+    \end{verbatim}
+
+    \item \textbf{Expose as a UI toggle} (pre-join screen or room settings)
+
+    Add a ``Hide my IP address (relay only)'' checkbox. This option requires TURN servers to be configured; if no TURN servers are available, the toggle should be disabled with a tooltip explaining why.
+\end{enumerate}
+
+\newpage
+
+%=============================================================================
+\section{Phase 3: Medium Priority --- Code Quality and Standards Compliance}
+%=============================================================================
+
+%-----------------------------------------------------------------------------
+\subsection{3.1 Remove Deprecated Constructor Usage}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \primedium \\
+\textbf{Effort:} & \efftrivial \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-021 (WebRTC 1.0); F-009, F-012 (WebRTC ED); F-029 (RFC 8829) \\
+\textbf{Standards:} & Cited in 3 reports \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+The code uses deprecated explicit constructors for \texttt{RTCSessionDescription} and \texttt{RTCIceCandidate}:
+
+\begin{verbatim}
+// Deprecated usage (current):
+await peer.connection.setRemoteDescription(
+    new RTCSessionDescription(offer));
+await peer.connection.addIceCandidate(
+    new RTCIceCandidate(candidate));
+\end{verbatim}
+
+The WebRTC Editor's Draft deprecates these constructors. Modern browsers accept plain objects directly.
+
+\subsubsection{Proposed Changes}
+
+Replace all instances (5 locations in \texttt{room.js}) with plain objects:
+
+\begin{verbatim}
+// Correct usage:
+await peer.connection.setRemoteDescription(offer);
+await peer.connection.addIceCandidate(candidate);
+\end{verbatim}
+
+\textbf{Locations to update:}
+\begin{enumerate}[leftmargin=2em]
+    \item Line 363: \texttt{setRemoteDescription} in offer handler
+    \item Line 377: \texttt{setRemoteDescription} in answer handler
+    \item Line 390: \texttt{addIceCandidate} in ice-candidate handler
+    \item Line 477: \texttt{addIceCandidate} in \texttt{flushPendingCandidates}
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{3.2 Add Encryption Status UI}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \primedium \\
+\textbf{Effort:} & \effmedium \\
+\textbf{Files:} & \texttt{public/js/room.js}, \texttt{public/css/style.css} \\
+\textbf{Findings:} & F-013 (RFC 8827); F-013 (RFC 3711) \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+No UI element indicates whether media streams are encrypted. Users have no way to verify that DTLS-SRTP is active. RFC~8827 recommends displaying security characteristics to the user.
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Add encryption verification via \texttt{getStats()}}
+
+    Periodically call \texttt{getStats()} on each peer connection and check for the \texttt{transport} stat's \texttt{dtlsState === 'connected'} and \texttt{tlsVersion} fields.
+
+    \item \textbf{Display lock icon in video containers}
+
+    Add a lock icon (\texttt{.encryption-status}) to each remote video container's \texttt{.video-status} area. Show a green lock when DTLS is confirmed active; show a warning icon otherwise.
+
+    \item \textbf{Add CSS for encryption indicator}
+
+    \begin{verbatim}
+.encryption-status {
+    font-size: 14px;
+    opacity: 0.8;
+}
+.encryption-status.secure {
+    color: var(--success-color);
+}
+.encryption-status.insecure {
+    color: var(--danger-color);
+}
+    \end{verbatim}
+\end{enumerate}
+
+%-----------------------------------------------------------------------------
+\subsection{3.3 Optimize Muted Track Bandwidth}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \primedium \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-014 (RFC 3550) \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+Muting is implemented via \texttt{track.enabled = false}, which causes the browser to send black frames (video) or silence (audio) rather than stopping the RTP stream. This wastes bandwidth, especially for video.
+
+\subsubsection{Proposed Changes}
+
+When muting video, additionally deactivate the encoding via \texttt{RTCRtpSender.setParameters()}:
+
+\begin{verbatim}
+async toggleVideo() {
+    if (this.localStream) {
+        const videoTrack = this.localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            this.isVideoEnabled = !this.isVideoEnabled;
+            videoTrack.enabled = this.isVideoEnabled;
+
+            // Deactivate encoding to save bandwidth
+            this.peers.forEach((peer) => {
+                const sender = peer.connection.getSenders()
+                    .find(s => s.track?.kind === 'video');
+                if (sender) {
+                    const params = sender.getParameters();
+                    params.encodings.forEach(e => {
+                        e.active = this.isVideoEnabled;
+                    });
+                    sender.setParameters(params);
+                }
+            });
+
+            this.updateVideoButton();
+            this.socket.emit('toggle-video', {
+                roomId: this.roomId,
+                enabled: this.isVideoEnabled
+            });
+        }
+    }
+}
+\end{verbatim}
+
+\newpage
+
+%=============================================================================
+\section{Phase 4: Low Priority --- Polish and Monitoring}
+%=============================================================================
+
+%-----------------------------------------------------------------------------
+\subsection{4.1 Add \texttt{getStats()} Connection Quality Monitoring}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prilow \\
+\textbf{Effort:} & \effmedium \\
+\textbf{Files:} & \texttt{public/js/room.js}, \texttt{public/css/style.css} \\
+\textbf{Findings:} & F-028 (WebRTC 1.0) \\
+\end{tabular}
+
+\subsubsection{Proposed Changes}
+
+\begin{enumerate}[leftmargin=2em]
+    \item Periodically call \texttt{getStats()} on each peer connection (every 5 seconds).
+    \item Extract key metrics: packet loss percentage, jitter, round-trip time (RTT), bytes sent/received.
+    \item Display a connection quality indicator in each video container:
+    \begin{itemize}
+        \item Green bar: packet loss $<1\%$, RTT $<150$ms
+        \item Yellow bar: packet loss $1$--$5\%$ or RTT $150$--$300$ms
+        \item Red bar: packet loss $>5\%$ or RTT $>300$ms
+    \end{itemize}
+    \item Log metrics to console for debugging.
+\end{enumerate}
+
+%-----------------------------------------------------------------------------
+\subsection{4.2 Enhance Error Handling with User Notifications}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prilow \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-022 (WebRTC 1.0) \\
+\end{tabular}
+
+\subsubsection{Proposed Changes}
+
+Replace \texttt{console.error}-only error handling with user-facing toast notifications for actionable errors:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{L{4cm}L{4cm}L{5cm}}
+\toprule
+\textbf{Error Location} & \textbf{Current Handling} & \textbf{Proposed Handling} \\
+\midrule
+Offer creation & \texttt{console.error} & Toast: ``Connection setup failed'' + retry \\
+Answer handling & \texttt{console.error} & Toast: ``Peer connection error'' \\
+ICE candidate & \texttt{console.error} & Silent (non-critical) \\
+Screen share & \texttt{console.error} & Toast: ``Screen sharing failed'' (unless user cancelled) \\
+replaceTrack & No handling & Toast: ``Failed to switch video source'' \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+%-----------------------------------------------------------------------------
+\subsection{4.3 Add \texttt{beforeunload} Cleanup Handler}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prilow \\
+\textbf{Effort:} & \efftrivial \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-006 (WebRTC ED) \\
+\end{tabular}
+
+\subsubsection{Proposed Changes}
+
+Add a \texttt{beforeunload} event listener in \texttt{setupEventListeners()} to gracefully close all peer connections when the tab or window is closed:
+
+\begin{verbatim}
+window.addEventListener('beforeunload', () => {
+    this.peers.forEach((peer) => {
+        peer.connection.close();
+    });
+    if (this.localStream) {
+        this.localStream.getTracks().forEach(t => t.stop());
+    }
+    if (this.screenStream) {
+        this.screenStream.getTracks().forEach(t => t.stop());
+    }
+});
+\end{verbatim}
+
+This ensures peers receive a clean \texttt{closed} state transition rather than relying on the server's disconnect timeout to notify others.
+
+%-----------------------------------------------------------------------------
+\subsection{4.4 Make ICE Server Configuration Dynamic}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prilow \\
+\textbf{Effort:} & \effsmall \\
+\textbf{Files:} & \texttt{public/js/room.js}, \texttt{server/index.js} \\
+\textbf{Findings:} & F-017 (RFC 8445) \\
+\end{tabular}
+
+\subsubsection{Note}
+
+This item is largely addressed by item 1.1 (the \texttt{/api/ice-servers} endpoint). The remaining work is to support time-limited TURN credentials for managed TURN services (e.g., Twilio, which issues temporary credentials via REST API). The server endpoint would generate fresh credentials on each request rather than serving static values from environment variables.
+
+%-----------------------------------------------------------------------------
+\subsection{4.5 Add \texttt{replaceTrack} Error Handling}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prilow \\
+\textbf{Effort:} & \efftrivial \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-013 (RFC 3550) \\
+\end{tabular}
+
+\subsubsection{Proposed Changes}
+
+Wrap \texttt{replaceTrack()} calls in \texttt{startScreenShare()} and \texttt{stopScreenShare()} with try/catch and user notification:
+
+\begin{verbatim}
+try {
+    await sender.replaceTrack(screenTrack);
+} catch (error) {
+    console.error('Failed to replace track:', error);
+    this.showToast('Failed to switch video source', 'error');
+}
+\end{verbatim}
+
+Note: \texttt{replaceTrack()} returns a Promise, but the current code does not \texttt{await} it. The fix should also add \texttt{await}.
+
+%-----------------------------------------------------------------------------
+\subsection{4.6 Enhance Screen Sharing Warnings}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prilow \\
+\textbf{Effort:} & \efftrivial \\
+\textbf{Files:} & \texttt{public/js/room.js} \\
+\textbf{Findings:} & F-013 (RFC 8826) \\
+\end{tabular}
+
+\subsubsection{Proposed Changes}
+
+Before calling \texttt{getDisplayMedia()}, show an application-level confirmation dialog warning the user about the risks of screen sharing (e.g., ``Other participants will be able to see everything on your shared screen, including notifications and personal information.'').
+
+The browser already shows its own consent dialog for screen sharing, so this is an \textit{additional} application-level warning. Implement using a simple \texttt{confirm()} dialog or a custom modal.
+
+%-----------------------------------------------------------------------------
+\subsection{4.7 Connection Analytics Panel}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Priority:} & \prilow \\
+\textbf{Effort:} & \effmedium \\
+\textbf{Files:} & \texttt{public/js/room.js}, \texttt{public/room.html}, \texttt{public/css/style.css} \\
+\textbf{Findings:} & F-028 (WebRTC 1.0) --- extends item 4.1 \\
+\end{tabular}
+
+\subsubsection{Problem}
+
+There is no visibility into connection internals from the application UI. Diagnosing connectivity issues (such as the ``join but no audio/video'' problem) currently requires navigating to \texttt{chrome://webrtc-internals}, which is inaccessible to end users and unavailable in non-Chromium browsers.
+
+\subsubsection{Proposed Changes}
+
+Add a toggleable analytics panel in the room UI (activated via a control button or keyboard shortcut) that displays per-peer connection details sourced entirely from the browser's \texttt{RTCStatsReport}. No server changes required.
+
+\textbf{Network / ICE:}
+\begin{center}
+\begin{tabularx}{\textwidth}{L{5cm}L{4cm}L{4.5cm}}
+\toprule
+\textbf{Metric} & \textbf{Stats API Source} & \textbf{Why It Matters} \\
+\midrule
+Local candidate type & \texttt{candidate-pair} $\to$ \texttt{local-candidate} & Shows if TURN relay is in use \\
+Remote candidate type & \texttt{candidate-pair} $\to$ \texttt{remote-candidate} & Identifies peer's network path \\
+TURN server address & Relay candidate \texttt{ip:port} & Confirms TURN connectivity \\
+Selected candidate pair & \texttt{selectedCandidatePairId} & Active network path \\
+Transport protocol & Candidate \texttt{protocol} (UDP/TCP) & Identifies transport type \\
+ICE / connection state & \texttt{iceConnectionState}, \texttt{connectionState} & Current connection health \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Quality Metrics} (polled every 5 seconds):
+\begin{center}
+\begin{tabularx}{\textwidth}{L{5cm}L{4.5cm}L{4cm}}
+\toprule
+\textbf{Metric} & \textbf{Stats API Source} & \textbf{Notes} \\
+\midrule
+Round-trip time & \texttt{currentRoundTripTime} & On \texttt{candidate-pair} \\
+Available bandwidth & \texttt{availableOutgoingBitrate} & On \texttt{candidate-pair} \\
+Packet loss \% & \texttt{packetsLost / packetsReceived} & On \texttt{inbound-rtp} \\
+Jitter & \texttt{jitter} & On \texttt{inbound-rtp} \\
+Bytes sent / received & \texttt{bytesSent}, \texttt{bytesReceived} & On \texttt{candidate-pair} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Media:}
+\begin{center}
+\begin{tabularx}{\textwidth}{L{5cm}L{4.5cm}L{4cm}}
+\toprule
+\textbf{Metric} & \textbf{Stats API Source} & \textbf{Notes} \\
+\midrule
+Audio/video codec & \texttt{mimeType} & On \texttt{codec} stats \\
+Video resolution (send/recv) & \texttt{frameWidth}, \texttt{frameHeight} & On \texttt{outbound-rtp} / \texttt{inbound-rtp} \\
+Framerate & \texttt{framesPerSecond} & On \texttt{outbound-rtp} / \texttt{inbound-rtp} \\
+Audio level & \texttt{audioLevel} & On \texttt{inbound-rtp} (audio) \\
+Bitrate & Computed: $\Delta$bytes / $\Delta$time & Per audio/video track \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Security:}
+\begin{center}
+\begin{tabularx}{\textwidth}{L{5cm}L{4.5cm}L{4cm}}
+\toprule
+\textbf{Metric} & \textbf{Stats API Source} & \textbf{Notes} \\
+\midrule
+DTLS state & \texttt{dtlsState} & On \texttt{transport} \\
+DTLS cipher suite & \texttt{dtlsCipher} & On \texttt{transport} \\
+SRTP cipher & \texttt{srtpCipher} & On \texttt{transport} \\
+TLS version & \texttt{tlsVersion} & On \texttt{transport} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Connection:}
+\begin{itemize}[leftmargin=2em]
+    \item Time since connected (session duration)
+    \item ICE candidates gathered by type (host / server-reflexive / relay counts)
+    \item Candidate pairs checked vs.\ succeeded
+\end{itemize}
+
+\subsubsection{UI Design}
+
+The panel should be togglable (hidden by default) via a control bar button. Display one section per remote peer, or an aggregated summary when multiple peers are connected. Use the existing dark theme styling. Auto-refresh metrics every 5 seconds while the panel is open; stop polling when closed to avoid unnecessary overhead.
+
+\newpage
+
+%=============================================================================
+\section{Implementation Summary}
+%=============================================================================
+
+\subsection{Files Modified Per Phase}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{C{1.2cm}L{5cm}L{7cm}}
+\toprule
+\textbf{Phase} & \textbf{File} & \textbf{Changes} \\
+\midrule
+\rowcolor{critical!8}
+\phaseone & \texttt{server/index.js} & ICE servers endpoint, CORS restriction, room password validation, \texttt{join-error} event \\
+\rowcolor{critical!8}
+\phaseone & \texttt{public/js/room.js} & Fetch ICE servers, pass password on join, handle join errors \\
+\rowcolor{critical!8}
+\phaseone & \texttt{public/index.html} & Room password input field \\
+\rowcolor{critical!8}
+\phaseone & \texttt{public/js/main.js} & Store/pass room password \\
+\rowcolor{critical!8}
+\phaseone & \texttt{.env.example} & TURN and CORS environment variables \\
+\midrule
+\rowcolor{major!8}
+\phasetwo & \texttt{public/js/room.js} & ICE restart, connection state handling, negotiationneeded, IP privacy toggle \\
+\rowcolor{major!8}
+\phasetwo & \texttt{server/index.js} & Helmet middleware, HTTPS redirect \\
+\rowcolor{major!8}
+\phasetwo & \texttt{package.json} & Add \texttt{helmet} dependency \\
+\midrule
+\rowcolor{minor!8}
+\phasethree & \texttt{public/js/room.js} & Remove deprecated constructors, muted bandwidth optimization \\
+\rowcolor{minor!8}
+\phasethree & \texttt{public/css/style.css} & Encryption status indicator styles \\
+\midrule
+\rowcolor{notapplicable!8}
+\phasefour & \texttt{public/js/room.js} & getStats monitoring, error handling, beforeunload, replaceTrack errors, screen share warnings, connection analytics panel \\
+\rowcolor{notapplicable!8}
+\phasefour & \texttt{public/room.html} & Analytics panel toggle button \\
+\rowcolor{notapplicable!8}
+\phasefour & \texttt{public/css/style.css} & Connection quality indicator and analytics panel styles \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{New Dependencies}
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Package} & \textbf{Version} & \textbf{Phase} & \textbf{Purpose} \\
+\midrule
+\texttt{helmet} & \^{}7.1.0 & Phase 2 & Security headers (HSTS, X-Frame-Options, etc.) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{New Environment Variables}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{L{4cm}C{1cm}L{8cm}}
+\toprule
+\textbf{Variable} & \textbf{Phase} & \textbf{Description} \\
+\midrule
+\texttt{TURN\_URL} & 1 & TURN server URL (e.g., \texttt{turn:turn.example.com:3478}) \\
+\texttt{TURNS\_URL} & 1 & TURN-over-TLS URL (e.g., \texttt{turns:turn.example.com:5349}) \\
+\texttt{TURN\_USERNAME} & 1 & TURN server username \\
+\texttt{TURN\_CREDENTIAL} & 1 & TURN server credential \\
+\texttt{ALLOWED\_ORIGINS} & 1 & Comma-separated list of allowed CORS origins \\
+\texttt{NODE\_ENV} & 2 & Set to \texttt{production} to enable HTTPS redirect and strict CORS \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\newpage
+
+%=============================================================================
+\section{Verification Plan}
+%=============================================================================
+
+\begin{longtable}{C{0.5cm}L{3.5cm}L{4cm}L{5.5cm}}
+\toprule
+\textbf{\#} & \textbf{Test} & \textbf{Method} & \textbf{Expected Result} \\
+\midrule
+\endhead
+1 & TURN connectivity & Two peers on different networks; one behind symmetric NAT or corporate firewall & Media flows via TURN relay; audio and video work \\
+\midrule
+2 & ICE restart recovery & Toggle WiFi off for 5 seconds, then back on & Connection recovers without peer removal; toast shows ``Reconnecting\ldots'' then clears \\
+\midrule
+3 & Disconnect grace period & Simulate brief network interruption ($<10$s) & Peer is not removed during \texttt{disconnected} state; recovers automatically \\
+\midrule
+4 & CORS rejection & Connect from unauthorized origin & Socket.IO connection rejected; HTTP requests return CORS error \\
+\midrule
+5 & Room password & Join password-protected room without credentials & \texttt{join-error} event received; user redirected to landing page with error message \\
+\midrule
+6 & Room password (correct) & Join with correct password & Normal join flow; audio and video work \\
+\midrule
+7 & HTTPS redirect & Access HTTP URL in production & Redirected to HTTPS with 301 \\
+\midrule
+8 & Security headers & Inspect response headers in production & HSTS, X-Frame-Options, X-Content-Type-Options present \\
+\midrule
+9 & Deprecated constructors & Search codebase & No \texttt{new RTCSessionDescription} or \texttt{new RTCIceCandidate} calls remain \\
+\midrule
+10 & Renegotiation & Add/remove tracks mid-call & \texttt{onnegotiationneeded} fires; new offer/answer exchange succeeds \\
+\midrule
+11 & Glare handling & Both peers trigger renegotiation simultaneously & One side rolls back; connection remains stable \\
+\midrule
+12 & Relay-only mode & Enable ``Hide my IP'' toggle & Only relay candidates gathered (verify via \texttt{chrome://webrtc-internals}) \\
+\midrule
+13 & Encryption indicator & Establish connection & Lock icon appears in video container after DTLS handshake completes \\
+\midrule
+14 & Muted bandwidth & Mute video; check \texttt{getStats()} & Outbound video bitrate drops to near-zero (encoding deactivated) \\
+\midrule
+15 & Tab close cleanup & Close browser tab during active call & Other participants see peer removed promptly; no zombie connections \\
+\midrule
+16 & Connection quality & Simulate packet loss (e.g., \texttt{tc netem}) & Quality indicator changes from green to yellow/red \\
+\midrule
+17 & Connection analytics panel & Open analytics panel during active call & Panel shows candidate types, TURN address (if relay), RTT, packet loss, codec, encryption status \\
+\bottomrule
+\end{longtable}
+
+\newpage
+
+%=============================================================================
+\section{Standards Coverage Matrix}
+%=============================================================================
+
+The following matrix maps each remediation item to the findings it resolves, grouped by standard. Items that resolve findings across multiple standards are highlighted.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{C{0.5cm}L{3.2cm}C{1.1cm}C{1.1cm}C{1.1cm}C{1.1cm}C{1.1cm}C{1.1cm}C{1.1cm}C{1.1cm}}
+\toprule
+\textbf{\#} & \textbf{Item} & \rotatebox{70}{\textbf{WebRTC}} & \rotatebox{70}{\textbf{WebRTC ED}} & \rotatebox{70}{\textbf{RFC 8829}} & \rotatebox{70}{\textbf{RFC 8826}} & \rotatebox{70}{\textbf{RFC 8827}} & \rotatebox{70}{\textbf{RFC 8445}} & \rotatebox{70}{\textbf{RFC 3550}} & \rotatebox{70}{\textbf{RFC 3711}} \\
+\midrule
+1.1 & TURN servers & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & & \\
+1.2 & Restrict CORS & $\bullet$ & & $\bullet$ & $\bullet$ & $\bullet$ & & & \\
+1.3 & Room access & & & & $\bullet$ & $\bullet$ & & & \\
+2.1 & ICE restart & $\bullet$ & $\bullet$ & $\bullet$ & & & $\bullet$ & & \\
+2.2 & State handling & $\bullet$ & & & & & $\bullet$ & & \\
+2.3 & Negotiation & $\bullet$ & $\bullet$ & $\bullet$ & & & & & \\
+2.4 & HTTPS & & $\bullet$ & & $\bullet$ & $\bullet$ & & & \\
+2.5 & IP privacy & $\bullet$ & & & $\bullet$ & $\bullet$ & $\bullet$ & & \\
+3.1 & Constructors & $\bullet$ & $\bullet$ & $\bullet$ & & & & & \\
+3.2 & Encryption UI & & & & & $\bullet$ & & & $\bullet$ \\
+3.3 & Muted BW & & & & & & & $\bullet$ & \\
+4.1 & getStats & $\bullet$ & & & & & & $\bullet$ & \\
+4.2 & Error handling & $\bullet$ & & & & & & & \\
+4.3 & beforeunload & & $\bullet$ & & & & & & \\
+4.4 & Dynamic ICE & & & & & & $\bullet$ & & \\
+4.5 & replaceTrack & & & & & & & $\bullet$ & \\
+4.6 & Screen warn & & & & $\bullet$ & & & & \\
+4.7 & Analytics panel & $\bullet$ & & & & & & $\bullet$ & \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\vspace{1cm}
+\begin{center}
+\textit{--- End of Remediation Plan ---}
+\end{center}
+
+\end{document}

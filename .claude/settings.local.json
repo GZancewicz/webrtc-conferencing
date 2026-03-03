@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/gregzancewicz/Documents/Other/Projects/web-conference log --oneline -20)",
+      "Bash(git -C /Users/gregzancewicz/Documents/Other/Projects/web-conference show 26002b4 --stat)",
+      "Bash(git -C /Users/gregzancewicz/Documents/Other/Projects/web-conference show b95debe --stat)",
+      "Bash(git -C /Users/gregzancewicz/Documents/Other/Projects/web-conference show dc13ef7 --stat)",
+      "Bash(git -C /Users/gregzancewicz/Documents/Other/Projects/web-conference show:*)",
+      "Bash(git -C /Users/gregzancewicz/Documents/Other/Projects/web-conference log --all --grep=\"ai\\\\|AI\\\\|chatbot\" --oneline)",
+      "Bash(pdflatex:*)",
+      "Bash(/Library/TeX/texbin/pdflatex:*)",
+      "Bash(mdfind:*)",
+      "Read(//usr/local/texlive/2024/bin/universal-darwin/**)",
+      "Bash(python3:*)"
+    ]
+  }
+}

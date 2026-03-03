@@ -1,0 +1,659 @@
+{
+  "meta": {
+    "standard": {
+      "title": "HTTP/3 (RFC 9114)",
+      "identifier": "RFC 9114",
+      "source_file": "standards/http3/rfc9114-http3.txt",
+      "line_count": 3234
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "not-applicable",
+    "applicability_rationale": "RFC 9114 defines HTTP/3, a mapping of HTTP semantics over the QUIC transport protocol. The web-conference application uses Express.js with Node.js's built-in http module, which creates an HTTP/1.1 server. The application is deployed on Render.com, which may provide HTTP/3 at the CDN/edge layer, but the application server itself operates exclusively over HTTP/1.1 (TCP). Socket.io handles the WebSocket upgrade on HTTP/1.1. The application does not use QUIC, does not send or receive HTTP/3 frames, and has no HTTP/3 connection management.",
+    "overall_compliance_level": "not-applicable",
+    "total_requirements_assessed": 40,
+    "compliant_count": 0,
+    "partially_compliant_count": 0,
+    "non_compliant_count": 0,
+    "not_applicable_count": 40,
+    "not_assessable_count": 0
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "1. Introduction",
+      "requirement": "HTTP/3 maps HTTP semantics over the QUIC transport protocol, providing stream multiplexing, per-stream flow control, and low-latency connection establishment.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-9",
+            "code_snippet": "const express = require('express');\nconst http = require('http');\nconst { Server } = require('socket.io');\n...\nconst server = http.createServer(app);"
+          }
+        ],
+        "observation": "The application uses Node.js http module (HTTP/1.1 over TCP). Express.js and Socket.io operate on this HTTP/1.1 foundation. No QUIC transport or HTTP/3 framing is present.",
+        "gap_description": "HTTP/3 requires QUIC as its transport protocol. The application uses TCP-based HTTP/1.1."
+      },
+      "remediation": "To adopt HTTP/3, the server would need a QUIC-capable runtime or reverse proxy (e.g., Caddy, nginx with quiche). Node.js does not natively support HTTP/3 as of the application's dependency versions."
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "1.1-1.2. Prior Versions of HTTP / Delegation to QUIC",
+      "requirement": "HTTP/3 addresses HTTP/2's head-of-line blocking issue by using QUIC's independent stream multiplexing. QUIC incorporates TLS 1.3 at the transport layer.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "package.json",
+            "lines": "17-23",
+            "code_snippet": "\"dependencies\": {\n    \"dotenv\": \"^16.3.1\",\n    \"express\": \"^4.18.2\",\n    \"openai\": \"^4.24.0\",\n    \"socket.io\": \"^4.7.2\",\n    \"uuid\": \"^9.0.1\"\n  }"
+          }
+        ],
+        "observation": "The application depends on express@4 and socket.io@4, neither of which support HTTP/3 or QUIC. The TCP-based transport means the application is subject to head-of-line blocking described in this section.",
+        "gap_description": "The application uses HTTP/1.1 which suffers from the limitations described here (no multiplexing, TCP head-of-line blocking). HTTP/3 over QUIC would address these limitations."
+      },
+      "remediation": "Migrating to HTTP/3 could improve signaling performance by eliminating TCP head-of-line blocking for concurrent requests (e.g., AI chat API calls during active signaling)."
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "2. HTTP/3 Protocol Overview",
+      "requirement": "HTTP/3 uses QUIC transport with an internal framing layer. Each request-response pair consumes a single QUIC stream. Streams are independent so packet loss does not block other streams.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not use QUIC streams. HTTP/1.1 serializes requests on TCP connections. Socket.io provides application-level multiplexing but is still subject to TCP constraints.",
+        "gap_description": "Not applicable — the application does not use HTTP/3 protocol."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "3.1. Discovering an HTTP/3 Endpoint",
+      "requirement": "The client MUST verify the server certificate against the URI's origin. A client MAY attempt HTTP/3 access by establishing a QUIC connection. The ALPN token 'h3' is used during TLS handshake. Clients SHOULD attempt TCP-based HTTP when UDP connectivity problems exist.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "render.yaml",
+            "lines": "1-11",
+            "code_snippet": "services:\n  - type: web\n    name: web-conference\n    runtime: node\n    buildCommand: npm install\n    startCommand: node server/index.js"
+          }
+        ],
+        "observation": "The application server does not advertise HTTP/3 availability. No Alt-Svc headers are sent. Render.com's CDN may handle HTTP/3 at the edge, but the application server itself only accepts HTTP/1.1 connections.",
+        "gap_description": "No HTTP/3 endpoint discovery mechanism is present. No ALPN 'h3' negotiation occurs at the application server level."
+      },
+      "remediation": "If deploying behind an HTTP/3-capable CDN (Render.com may provide this), the CDN would handle HTTP/3 negotiation transparently. No application changes needed for CDN-level HTTP/3."
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "3.1.1. HTTP Alternative Services",
+      "requirement": "An HTTP origin can advertise HTTP/3 availability via Alt-Svc header or HTTP/2 ALTSVC frame using the 'h3' ALPN token.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "28-30",
+            "code_snippet": "app.use(express.static(path.join(__dirname, '../public')));\napp.use(express.json());"
+          }
+        ],
+        "observation": "The Express.js server does not send Alt-Svc headers. No HTTP/3 alternative service is advertised.",
+        "gap_description": "No Alt-Svc header is configured to advertise HTTP/3 availability."
+      },
+      "remediation": "If HTTP/3 were supported (e.g., via CDN), adding an Alt-Svc header could help clients discover it. This would typically be handled by the CDN/reverse proxy."
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "3.2. Connection Establishment",
+      "requirement": "HTTP/3 relies on QUIC version 1. HTTP/3 clients MUST support SNI during TLS handshake. A SETTINGS frame MUST be sent by each endpoint as the initial frame of their HTTP control stream.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "232-234",
+            "code_snippet": "server.listen(PORT, () => {\n  console.log(`Server running on port ${PORT}`);\n});"
+          }
+        ],
+        "observation": "The server listens on a TCP port (HTTP/1.1). No QUIC connections are established, no SNI is handled at the application level, and no HTTP/3 SETTINGS frames are exchanged.",
+        "gap_description": "Not applicable — no QUIC/HTTP/3 connection establishment."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "3.3. Connection Reuse",
+      "requirement": "HTTP/3 connections are persistent. Clients MUST validate certificates for new origins. Clients SHOULD NOT open more than one HTTP/3 connection to a given IP and port. The terminating endpoint SHOULD send a GOAWAY frame.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 connections exist to be reused. Socket.io maintains its own persistent connection over WebSocket.",
+        "gap_description": "Not applicable — no HTTP/3 connections."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "4.1. HTTP Message Framing",
+      "requirement": "A client MUST send only a single request on a given stream. Receipt of invalid frame sequences MUST be treated as H3_FRAME_UNEXPECTED. Transfer-Encoding MUST NOT be used. Endpoints SHOULD begin processing partial messages.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application uses HTTP/1.1 framing handled by Express.js and Node.js http module. No HTTP/3 frames (HEADERS, DATA) are used.",
+        "gap_description": "Not applicable — HTTP/1.1 framing is used, not HTTP/3."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "4.1.1. Request Cancellation and Rejection",
+      "requirement": "Requests MAY be cancelled by either endpoint. Servers SHOULD send HTTP responses rather than cancelling. The server SHOULD abort with H3_REQUEST_REJECTED for unprocessed requests. Clients MUST NOT use H3_REQUEST_REJECTED.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 stream-level request cancellation exists. Express.js handles request completion at the HTTP/1.1 level.",
+        "gap_description": "Not applicable — no HTTP/3 stream management."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "4.1.2. Malformed Requests and Responses",
+      "requirement": "Intermediaries MUST NOT forward malformed requests/responses. Malformed messages MUST be treated as stream error H3_MESSAGE_ERROR. Clients MUST NOT accept malformed responses.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "HTTP/1.1 malformation handling is provided by Express.js/Node.js. No HTTP/3-specific malformation detection.",
+        "gap_description": "Not applicable — HTTP/3 malformation rules do not apply to HTTP/1.1."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "4.2. HTTP Fields",
+      "requirement": "Field names MUST be converted to lowercase. Uppercase characters in field names MUST be treated as malformed. Connection-specific fields MUST NOT be generated. TE header MAY be present but MUST only contain 'trailers'.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "108-111",
+            "code_snippet": "res.set({\n  'Content-Type': 'audio/mpeg',\n  'Content-Length': buffer.length\n});"
+          }
+        ],
+        "observation": "The application sets HTTP headers via Express.js (res.set). Express.js handles HTTP/1.1 field conventions. HTTP/3-specific field rules do not apply.",
+        "gap_description": "Not applicable — HTTP/3 field encoding rules are for HTTP/3 implementations."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "4.2.1. Field Compression",
+      "requirement": "HTTP/3 uses QPACK for header compression. Cookie header MAY be split before compression; decompressed multiple cookie lines MUST be concatenated before passing to HTTP/1.1.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No QPACK compression is used. The application operates over HTTP/1.1 with standard header encoding.",
+        "gap_description": "Not applicable — no QPACK or HTTP/3 field compression."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "4.2.2. Header Size Constraints",
+      "requirement": "Implementations MAY impose limits on header section size. SETTINGS_MAX_FIELD_SECTION_SIZE can be used to advise peers. Servers MAY send 431 (Request Header Fields Too Large).",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not set HTTP/3 SETTINGS_MAX_FIELD_SECTION_SIZE. Express.js has its own header size limits for HTTP/1.1.",
+        "gap_description": "Not applicable — HTTP/3 header size constraints are for HTTP/3 implementations."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-014",
+      "standard_section": "4.3. HTTP Control Data (Pseudo-Header Fields)",
+      "requirement": "HTTP/3 uses pseudo-header fields (:method, :scheme, :authority, :path, :status). Endpoints MUST NOT generate undefined pseudo-header fields. All pseudo-header fields MUST appear before regular fields.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "HTTP/1.1 uses request lines and status lines, not pseudo-header fields. Express.js handles HTTP/1.1 request parsing.",
+        "gap_description": "Not applicable — HTTP/3 pseudo-headers are not used in HTTP/1.1."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-015",
+      "standard_section": "4.3.1. Request Pseudo-Header Fields",
+      "requirement": "HTTP/3 requests MUST include exactly one :method, :scheme, and :path (except CONNECT). :authority MUST NOT include deprecated userinfo.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "Not applicable — HTTP/1.1 uses request lines, not pseudo-headers.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-016",
+      "standard_section": "4.3.2. Response Pseudo-Header Fields",
+      "requirement": "Responses MUST include a :status pseudo-header field.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "Not applicable — HTTP/1.1 uses status lines, not pseudo-headers.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-017",
+      "standard_section": "4.4. The CONNECT Method",
+      "requirement": "CONNECT in HTTP/3 establishes a tunnel over a single stream. :scheme and :path MUST be omitted. Proxy MUST close TCP connection on stream/QUIC errors.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not implement a proxy or use the CONNECT method. It is an origin server serving static files and API endpoints.",
+        "gap_description": "Not applicable — no CONNECT method or tunneling."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-018",
+      "standard_section": "4.5. HTTP Upgrade",
+      "requirement": "HTTP/3 does not support the HTTP Upgrade mechanism or 101 Switching Protocols.",
+      "rfc_keyword": "N/A (normative exclusion)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/room.html",
+            "lines": "93",
+            "code_snippet": "<script src=\"/socket.io/socket.io.js\"></script>"
+          }
+        ],
+        "observation": "Socket.io uses the HTTP Upgrade mechanism (101 Switching Protocols) to upgrade HTTP/1.1 to WebSocket. This mechanism is not available in HTTP/3. If the application migrated to HTTP/3, Socket.io would need to use WebSocket over HTTP/2 extended CONNECT or an alternative transport.",
+        "gap_description": "Not applicable to the current HTTP/1.1 setup. However, this is a notable consideration for future HTTP/3 adoption: Socket.io's WebSocket upgrade mechanism is incompatible with HTTP/3."
+      },
+      "remediation": "If migrating to HTTP/3, Socket.io's WebSocket transport would need to use HTTP/2's extended CONNECT (RFC 8441) or be replaced with WebTransport."
+    },
+    {
+      "finding_id": "F-019",
+      "standard_section": "4.6. Server Push",
+      "requirement": "Server push allows servers to push responses in anticipation of client requests. A server SHOULD use push IDs sequentially. A client MUST treat receipt of push stream without MAX_PUSH_ID as H3_ID_ERROR.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not use server push. Static assets are served on demand via Express.js.",
+        "gap_description": "Not applicable — no HTTP/3 server push."
+      },
+      "remediation": "HTTP/3 server push could preload JavaScript, CSS, or other static assets, but its practical benefit for this application is limited given its small resource footprint."
+    },
+    {
+      "finding_id": "F-020",
+      "standard_section": "5.1. Idle Connections",
+      "requirement": "HTTP/3 implementations SHOULD open new connections if approaching idle timeout. Servers SHOULD NOT actively keep connections open.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No QUIC idle timeout management. Socket.io manages its own keep-alive via ping/pong frames.",
+        "gap_description": "Not applicable — no QUIC connections."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-021",
+      "standard_section": "5.2. Connection Shutdown",
+      "requirement": "Endpoints SHOULD send GOAWAY frames for graceful shutdown. Endpoints MUST NOT initiate new requests after receiving GOAWAY. The identifier MUST NOT be greater than previous GOAWAY values.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 GOAWAY frames. Socket.io handles disconnect events for connection shutdown.",
+        "gap_description": "Not applicable — no HTTP/3 connection shutdown."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-022",
+      "standard_section": "5.3-5.4. Immediate Application Closure / Transport Closure",
+      "requirement": "HTTP/3 implementations can close QUIC connections immediately via CONNECTION_CLOSE. If connection terminates without GOAWAY, clients MUST assume requests might have been processed.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No QUIC CONNECTION_CLOSE frames. TCP connection closure is handled by Node.js.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-023",
+      "standard_section": "6.1. Bidirectional Streams",
+      "requirement": "All client-initiated bidirectional streams are for HTTP requests. Server SHOULD configure non-zero minimum stream limits (at least 100). Clients MUST treat server-initiated bidirectional streams as H3_STREAM_CREATION_ERROR.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No QUIC bidirectional streams. HTTP/1.1 request/response pairs use TCP.",
+        "gap_description": "Not applicable — no QUIC streams."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-024",
+      "standard_section": "6.2. Unidirectional Streams",
+      "requirement": "Transport parameters MUST allow peer to create at least three unidirectional streams with at least 1,024 bytes flow control each. Recipients of unknown stream types MUST either abort reading or discard data.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No QUIC unidirectional streams exist. The application does not negotiate QUIC transport parameters.",
+        "gap_description": "Not applicable — no QUIC transport."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-025",
+      "standard_section": "6.2.1. Control Streams",
+      "requirement": "Each side MUST initiate a single control stream and send SETTINGS as the first frame. Only one control stream per peer; second stream MUST be H3_STREAM_CREATION_ERROR. Sender MUST NOT close the control stream.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 control streams or SETTINGS frames.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-026",
+      "standard_section": "6.2.2. Push Streams",
+      "requirement": "Push streams have type 0x01 followed by push ID. Client-initiated push stream MUST be treated as H3_STREAM_CREATION_ERROR. Each push ID MUST only be used once.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No push streams exist.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-027",
+      "standard_section": "6.2.3. Reserved Stream Types",
+      "requirement": "Stream types of format 0x1f*N+0x21 are reserved. Endpoints MUST NOT consider them meaningful. MAY be used for padding.",
+      "rfc_keyword": "MUST NOT",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No QUIC stream types are used.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-028",
+      "standard_section": "7.1. Frame Layout",
+      "requirement": "All HTTP/3 frames have Type(i), Length(i), Frame Payload format. Frame payload MUST contain exactly the identified fields. Truncated last frame MUST be treated as H3_FRAME_ERROR.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 frames are sent or received. HTTP/1.1 uses text-based framing.",
+        "gap_description": "Not applicable — no HTTP/3 framing."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-029",
+      "standard_section": "7.2.1. DATA Frame",
+      "requirement": "DATA frames (type 0x00) convey HTTP content. MUST be associated with request or response. DATA on control stream MUST result in H3_FRAME_UNEXPECTED.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 DATA frames. HTTP/1.1 content is transmitted as message body.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-030",
+      "standard_section": "7.2.2. HEADERS Frame",
+      "requirement": "HEADERS frames (type 0x01) carry QPACK-encoded field sections. MUST only be on request or push streams.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 HEADERS frames. HTTP/1.1 uses text headers.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-031",
+      "standard_section": "7.2.3. CANCEL_PUSH Frame",
+      "requirement": "CANCEL_PUSH (type 0x03) requests cancellation of server push. MUST be on control stream. Push ID greater than currently allowed MUST be H3_ID_ERROR.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No push cancellation mechanism is used.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-032",
+      "standard_section": "7.2.4. SETTINGS Frame",
+      "requirement": "SETTINGS (type 0x04) MUST be sent as the first frame of each control stream. MUST NOT be sent subsequently or on non-control streams. Same identifier MUST NOT occur more than once. Implementation MUST ignore unknown parameters.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 SETTINGS frames are exchanged. The application does not negotiate HTTP/3 settings.",
+        "gap_description": "Not applicable — no HTTP/3 settings exchange."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-033",
+      "standard_section": "7.2.4.1. Defined SETTINGS Parameters",
+      "requirement": "SETTINGS_MAX_FIELD_SECTION_SIZE (0x06) is defined. Reserved HTTP/2 settings MUST NOT be sent; their receipt MUST be H3_SETTINGS_ERROR.",
+      "rfc_keyword": "MUST NOT",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 settings parameters are defined or sent.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-034",
+      "standard_section": "7.2.4.2. Initialization",
+      "requirement": "Endpoints MUST NOT require peer data before sending SETTINGS. Settings MUST be sent as soon as transport is ready. Clients MUST comply with stored 0-RTT settings. Server MUST NOT accept 0-RTT if settings are incompatible.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 settings initialization. No 0-RTT handling.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-035",
+      "standard_section": "7.2.5. PUSH_PROMISE Frame",
+      "requirement": "PUSH_PROMISE (type 0x05) carries promised request headers. Server MUST NOT use push ID larger than client-provided MAX_PUSH_ID. Client MUST NOT send PUSH_PROMISE.",
+      "rfc_keyword": "MUST NOT",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No PUSH_PROMISE frames are used.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-036",
+      "standard_section": "7.2.6-7.2.7. GOAWAY and MAX_PUSH_ID Frames",
+      "requirement": "GOAWAY (type 0x07) on control stream for graceful shutdown. MAX_PUSH_ID (type 0x0d) controls server push limits. Server MUST NOT send MAX_PUSH_ID.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No GOAWAY or MAX_PUSH_ID frames.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-037",
+      "standard_section": "7.2.8. Reserved Frame Types",
+      "requirement": "Frame types of format 0x1f*N+0x21 are reserved. Endpoints MUST NOT consider them meaningful. HTTP/2 frame types without HTTP/3 equivalents MUST NOT be sent; receipt MUST be H3_FRAME_UNEXPECTED.",
+      "rfc_keyword": "MUST NOT",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 frames of any kind are used.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-038",
+      "standard_section": "8. Error Handling / 8.1. HTTP/3 Error Codes",
+      "requirement": "Defines error codes H3_NO_ERROR through H3_VERSION_FALLBACK. Unknown error codes MUST be treated as equivalent to H3_NO_ERROR. Implementations SHOULD select reserved error codes with some probability.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 error codes are used. The application handles errors through HTTP/1.1 status codes and Socket.io error events.",
+        "gap_description": "Not applicable — no HTTP/3 error handling."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-039",
+      "standard_section": "9. Extensions to HTTP/3",
+      "requirement": "Extensions can use new frame types, settings, error codes, or stream types. Implementations MUST ignore unknown values. Extensions changing semantics MUST be negotiated. Default values MUST disable extensions when omitted.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 extensions are implemented or consumed.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-040",
+      "standard_section": "10. Security Considerations",
+      "requirement": "Covers server authority, cross-protocol attacks (ALPN), intermediary-encapsulation attacks, cacheability of pushed responses, DoS considerations, compression attacks (BREACH), padding/traffic analysis, frame parsing safety, 0-RTT replay, migration, and privacy. Shared-tenant servers MUST ensure push isolation. Compression MUST NOT mix confidential and attacker-controlled data.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "10-14",
+            "code_snippet": "const io = new Server(server, {\n  cors: {\n    origin: '*',\n    methods: ['GET', 'POST']\n  }\n});"
+          }
+        ],
+        "observation": "HTTP/3-specific security considerations do not apply to this HTTP/1.1 application. However, the application has its own security considerations: the CORS configuration allows all origins (origin: '*'), which is permissive. TLS is provided by Render.com at the edge.",
+        "gap_description": "Not applicable — HTTP/3 security considerations are for HTTP/3 implementations. The application's own security posture (permissive CORS, edge TLS) is outside the scope of this standard."
+      },
+      "remediation": "No action needed for HTTP/3 security. Consider tightening CORS configuration for general security best practices."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Consider HTTP/3 adoption for reduced latency",
+      "description": "HTTP/3 over QUIC offers 0-RTT connection establishment, independent stream multiplexing (eliminating TCP head-of-line blocking), and built-in TLS 1.3. For a video conferencing application where signaling latency directly impacts call setup time, HTTP/3 could reduce the time to establish signaling connections, especially for mobile users or those on lossy networks. The practical benefit depends on whether the CDN (Render.com) already provides HTTP/3 at the edge.",
+      "affected_findings": ["F-001", "F-002", "F-004"],
+      "effort_estimate": "architectural"
+    },
+    {
+      "priority": "medium",
+      "category": "interoperability",
+      "title": "Evaluate HTTP/3 impact on WebSocket/Socket.io",
+      "description": "HTTP/3 does not support the HTTP Upgrade mechanism (101 Switching Protocols) used by WebSocket. If the deployment infrastructure upgrades to HTTP/3, Socket.io's WebSocket transport would need to use the WebSocket over HTTP/2 extended CONNECT mechanism (RFC 8441/RFC 9220) or fall back to HTTP long-polling. This is a critical consideration for any HTTP/3 migration path.",
+      "affected_findings": ["F-018"],
+      "effort_estimate": "large"
+    },
+    {
+      "priority": "low",
+      "category": "best-practice",
+      "title": "Leverage CDN-level HTTP/3 transparently",
+      "description": "Render.com and other modern CDN platforms may already provide HTTP/3 at the edge, transparently upgrading client connections while communicating with the origin server over HTTP/1.1. The application can benefit from HTTP/3's client-facing advantages (0-RTT, multiplexing) without any code changes, as long as the CDN handles the protocol translation. Verify Render.com's HTTP/3 support status.",
+      "affected_findings": ["F-004", "F-005"],
+      "effort_estimate": "large"
+    }
+  ]
+}

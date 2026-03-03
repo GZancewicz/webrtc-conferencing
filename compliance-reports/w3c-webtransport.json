@@ -1,0 +1,519 @@
+{
+  "meta": {
+    "standard": {
+      "title": "W3C WebTransport (Official Release)",
+      "identifier": "W3C Working Draft — WebTransport",
+      "source_file": "standards/webtransport/w3c-webtransport.html",
+      "line_count": 7533
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "not-applicable",
+    "applicability_rationale": "The web-conference application uses Socket.io (WebSocket-based) for real-time signaling and WebRTC for peer-to-peer media transport. It does not implement or use the WebTransport API in any capacity. The server is an Express.js HTTP/1.1 server that does not support HTTP/3 or QUIC, which are prerequisites for WebTransport. No WebTransport constructor, session, stream, or datagram APIs are referenced anywhere in the codebase.",
+    "overall_compliance_level": "not-applicable",
+    "total_requirements_assessed": 30,
+    "compliant_count": 0,
+    "partially_compliant_count": 0,
+    "non_compliant_count": 0,
+    "not_applicable_count": 30,
+    "not_assessable_count": 0
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "1. Introduction",
+      "requirement": "WebTransport provides a general-purpose, bidirectional communication capability for the web using HTTP/3 as the underlying transport protocol.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-15",
+            "code_snippet": "const express = require('express');\nconst http = require('http');\nconst { Server } = require('socket.io');\n...\nconst server = http.createServer(app);"
+          }
+        ],
+        "observation": "The application uses Node.js http module with Express.js, creating an HTTP/1.1 server. Socket.io is used for real-time signaling over WebSocket protocol. No HTTP/3 or QUIC transport is present.",
+        "gap_description": "WebTransport requires HTTP/3 (over QUIC) as its underlying transport. The application uses HTTP/1.1 with WebSocket fallback via Socket.io, which is a fundamentally different transport architecture."
+      },
+      "remediation": "To adopt WebTransport, the server would need to support HTTP/3 via QUIC (e.g., using a library like webtransport-nodejs or deploying behind an HTTP/3-capable reverse proxy), and the client would need to use the WebTransport API instead of Socket.io."
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "2. Conformance",
+      "requirement": "Conformance requirements apply to user agents implementing the WebTransport API. Algorithms, steps, and requirements phrased as conformance requirements using RFC 2119 keywords apply to user agents.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "This application is a web application, not a user agent (browser). Conformance to this section is the responsibility of browsers implementing the WebTransport API.",
+        "gap_description": "Not applicable — the conformance requirements are directed at user agent (browser) implementors, not web application developers."
+      },
+      "remediation": "No action needed. If adopting WebTransport, ensure the target browsers support the WebTransport API."
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "3. Protocol concepts",
+      "requirement": "Defines the abstract protocol concepts underlying WebTransport including sessions, streams, and datagrams over HTTP/3.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not use WebTransport protocol concepts. It uses WebRTC data channels for peer-to-peer media and Socket.io for signaling.",
+        "gap_description": "No WebTransport protocol concepts are implemented or used in the application."
+      },
+      "remediation": "No action required unless migrating to WebTransport."
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "3.1. WebTransport session",
+      "requirement": "A WebTransport session represents a client-server connection established over HTTP/3. Sessions have states (connecting, connected, closed, failed), support datagrams and streams.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "4",
+            "code_snippet": "this.socket = io();"
+          }
+        ],
+        "observation": "The application establishes sessions via Socket.io (this.socket = io()), which creates a WebSocket connection. No WebTransport session is created.",
+        "gap_description": "Socket.io sessions are fundamentally different from WebTransport sessions. WebTransport sessions provide multiplexed streams and unreliable datagrams over QUIC; Socket.io provides a message-based abstraction over WebSocket."
+      },
+      "remediation": "To adopt WebTransport sessions, replace Socket.io connection with: const transport = new WebTransport(url); await transport.ready;"
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "3.2. WebTransport stream",
+      "requirement": "WebTransport streams are independent bidirectional or unidirectional byte streams multiplexed over a session, with support for backpressure and flow control.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "280-284",
+            "code_snippet": "this.socket.emit('join-room', {\n  roomId: this.roomId,\n  username: this.username\n});"
+          }
+        ],
+        "observation": "The application uses Socket.io event emission (socket.emit) for all signaling communication. No WebTransport streams are created or consumed.",
+        "gap_description": "Socket.io provides message-level multiplexing through event names, not stream-level multiplexing. WebTransport streams would allow true concurrent independent streams with backpressure."
+      },
+      "remediation": "WebTransport streams could replace Socket.io events for signaling, potentially providing better concurrent signaling performance during peer connection setup."
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "4. WebTransportDatagramsWritable Interface",
+      "requirement": "Defines the WebTransportDatagramsWritable interface for sending unreliable datagrams through a WebTransport session.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No datagram-based communication is used in the application. All signaling is reliable message-based via Socket.io.",
+        "gap_description": "The application does not use any datagram interface. WebTransportDatagramsWritable would enable sending unreliable data, which is not a pattern used in the current architecture."
+      },
+      "remediation": "Unreliable datagrams could potentially be useful for non-critical signaling data like cursor position or presence updates, where occasional loss is acceptable."
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "4.1. Internal slots (WebTransportDatagramsWritable)",
+      "requirement": "WebTransportDatagramsWritable must maintain internal slots including [[session]] and [[writeAlgorithm]].",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransportDatagramsWritable objects exist in the application.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "4.2-4.3. Attributes and Procedures (WebTransportDatagramsWritable)",
+      "requirement": "Defines attributes and write algorithms for the datagram writable stream interface.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport datagram writable streams are used.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "5. WebTransportDatagramDuplexStream Interface",
+      "requirement": "Provides duplex (bidirectional) datagram stream interface combining readable and writable datagram streams with configurable high/low water marks.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No datagram duplex streams are used. The application uses Socket.io for bidirectional communication.",
+        "gap_description": "Not applicable — the application does not use WebTransport datagrams."
+      },
+      "remediation": "WebTransport datagram duplex streams could provide lower-latency bidirectional communication for chat messages or signaling that can tolerate occasional loss."
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "5.1-5.4. Internal slots, Methods, Attributes, Procedures (DatagramDuplexStream)",
+      "requirement": "Defines internal slots (maxDatagramSize, incomingMaxAge, outgoingMaxAge, etc.), methods, attributes, and procedures for configuring datagram behavior.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport datagram duplex streams or their configuration are used in the application.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "6. WebTransport Interface",
+      "requirement": "The main WebTransport interface provides the constructor, attributes, and methods for establishing WebTransport sessions and creating streams/datagrams.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-4",
+            "code_snippet": "class WebConference {\n  constructor() {\n    this.socket = io();\n    ..."
+          }
+        ],
+        "observation": "The application uses Socket.io (io()) to establish connections, not the WebTransport constructor (new WebTransport(url)). The WebTransport API is not referenced.",
+        "gap_description": "The WebTransport interface is not used. The equivalent functionality (connection establishment, data exchange) is provided by Socket.io."
+      },
+      "remediation": "To adopt WebTransport, replace io() with new WebTransport('https://server/path') and use its streams/datagrams for signaling."
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "6.1. Internal slots (WebTransport)",
+      "requirement": "WebTransport objects must maintain internal slots including [[State]], [[Session]], [[ReadyPromise]], [[ClosedPromise]], [[IncomingBidirectionalStreams]], [[IncomingUnidirectionalStreams]], [[Datagrams]], etc.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport objects are instantiated in the application. Socket.io manages connection state internally.",
+        "gap_description": "Not applicable — no WebTransport objects exist."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "6.2. Constructor (WebTransport)",
+      "requirement": "The WebTransport(url, options) constructor must validate the URL (must be https), handle certificate hashes, establish an HTTP/3 connection, and create a WebTransport session. The URL scheme MUST be https.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "4",
+            "code_snippet": "this.socket = io();"
+          }
+        ],
+        "observation": "Socket.io automatically connects to the same origin. No WebTransport constructor is invoked. The application does not use HTTPS-only connection semantics at the application layer (Socket.io handles transport negotiation).",
+        "gap_description": "Not applicable — WebTransport constructor is not used."
+      },
+      "remediation": "If adopting WebTransport, the HTTPS requirement is beneficial for security. The application already deploys to Render.com which provides HTTPS."
+    },
+    {
+      "finding_id": "F-014",
+      "standard_section": "6.3. Attributes (WebTransport)",
+      "requirement": "Defines attributes including ready (Promise), reliability, congestionControl, closed (Promise), draining (Promise), datagrams, and stream creation methods.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport attributes are accessed. Socket.io provides its own connection state management.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-015",
+      "standard_section": "6.4. Methods (WebTransport)",
+      "requirement": "Defines methods including getStats(), close(), createBidirectionalStream(), createUnidirectionalStream(), and createSendGroup().",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "None of these WebTransport methods are called in the application. Connection management is handled by Socket.io's connect/disconnect methods.",
+        "gap_description": "Not applicable — no WebTransport methods are used."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-016",
+      "standard_section": "6.5. Procedures (WebTransport)",
+      "requirement": "Defines procedures for creating send/receive streams and bidirectional streams on the session.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport stream creation procedures are executed.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-017",
+      "standard_section": "6.6. Session termination not initiated by the client",
+      "requirement": "Defines how sessions are terminated when the server or network initiates closure, including error handling and promise rejection.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "449-454",
+            "code_snippet": "connection.onconnectionstatechange = () => {\n  if (connection.connectionState === 'disconnected' ||\n      connection.connectionState === 'failed') {\n    this.removePeer(userId);\n  }\n};"
+          }
+        ],
+        "observation": "The application handles connection state changes on WebRTC peer connections, not WebTransport sessions. Socket.io handles reconnection logic internally.",
+        "gap_description": "Not applicable — no WebTransport session termination handling exists."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-018",
+      "standard_section": "6.7-6.8. Context cleanup steps and Garbage Collection",
+      "requirement": "Defines cleanup and garbage collection behavior for WebTransport objects.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport objects exist to be garbage collected.",
+        "gap_description": "Not applicable — no WebTransport objects are created."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-019",
+      "standard_section": "6.9. Configuration (WebTransportOptions)",
+      "requirement": "Defines WebTransportOptions dictionary including allowPooling, requireUnreliable, serverCertificateHashes, and congestionControl.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport configuration options are used in the application.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-020",
+      "standard_section": "6.10-6.12. WebTransportCloseInfo, SendOptions, SendStreamOptions",
+      "requirement": "Defines dictionaries for close info (closeCode, reason), send options, and send stream options.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport close info or send options are used.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-021",
+      "standard_section": "6.13-6.14. WebTransportConnectionStats and DatagramStats",
+      "requirement": "Defines statistics dictionaries for connection-level and datagram-level metrics (bytes sent/received, packets sent/received, etc.).",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not collect transport-layer statistics. WebRTC provides its own getStats() API, but the application does not call it.",
+        "gap_description": "Not applicable — no WebTransport statistics are collected."
+      },
+      "remediation": "If adopting WebTransport, the statistics API could be useful for monitoring signaling performance."
+    },
+    {
+      "finding_id": "F-022",
+      "standard_section": "7. Interface WebTransportSendStream",
+      "requirement": "Defines the WebTransportSendStream interface extending WritableStream for sending data with methods including getStats() and sendOrder attribute.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport send streams are used. Data is sent via Socket.io emit().",
+        "gap_description": "Not applicable — no WebTransport streams are created."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-023",
+      "standard_section": "8. Interface WebTransportSendGroup",
+      "requirement": "Defines WebTransportSendGroup for grouping multiple send streams with shared priority.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport send groups are used.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-024",
+      "standard_section": "9. Interface WebTransportReceiveStream",
+      "requirement": "Defines WebTransportReceiveStream extending ReadableStream for receiving data with methods including getStats().",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport receive streams are used. Data is received via Socket.io event listeners.",
+        "gap_description": "Not applicable — no WebTransport streams are created."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-025",
+      "standard_section": "10. Interface WebTransportBidirectionalStream",
+      "requirement": "Defines WebTransportBidirectionalStream combining a readable and writable stream into a bidirectional stream.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransport bidirectional streams are used. Socket.io provides inherent bidirectionality at the message level.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-026",
+      "standard_section": "11. WebTransportWriter Interface",
+      "requirement": "Extends WritableStreamDefaultWriter with atomicWrite() method for transactional writes.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransportWriter is used in the application.",
+        "gap_description": "Not applicable — no WebTransport API usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-027",
+      "standard_section": "12. WebTransportError Interface",
+      "requirement": "Defines WebTransportError extending DOMException with source and streamErrorCode attributes.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No WebTransportError handling exists in the application. Errors are handled through Socket.io events and try/catch blocks.",
+        "gap_description": "Not applicable — no WebTransport error handling is needed."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-028",
+      "standard_section": "13. Protocol Mappings",
+      "requirement": "Defines how the WebTransport API maps to underlying protocol features (HTTP/3 over QUIC), including session establishment, stream creation, datagram sending/receiving, and session termination.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "9-15",
+            "code_snippet": "const server = http.createServer(app);\nconst io = new Server(server, {\n  cors: {\n    origin: '*',\n    methods: ['GET', 'POST']\n  }\n});"
+          }
+        ],
+        "observation": "The server uses Node.js http.createServer() which creates an HTTP/1.1 server. Socket.io upgrades this to WebSocket. There is no HTTP/3 or QUIC protocol mapping.",
+        "gap_description": "The application has no HTTP/3 or QUIC protocol support. WebTransport protocol mappings require HTTP/3 at minimum."
+      },
+      "remediation": "Adopting WebTransport protocol mappings would require a significant architectural change: HTTP/3 server support, QUIC transport, and WebTransport session handling on the server side."
+    },
+    {
+      "finding_id": "F-029",
+      "standard_section": "14. Privacy and Security Considerations",
+      "requirement": "WebTransport mandates HTTPS, addresses confidentiality, state persistence, protocol security, certificate hash authentication, and fingerprinting concerns.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "render.yaml",
+            "lines": "1-11",
+            "code_snippet": "services:\n  - type: web\n    name: web-conference\n    runtime: node"
+          }
+        ],
+        "observation": "The application deploys to Render.com which provides HTTPS at the edge. However, the application server itself runs HTTP/1.1. WebTransport's security model (mandatory TLS 1.3 via QUIC) is not in effect.",
+        "gap_description": "While the application uses HTTPS through Render.com, it does not implement the WebTransport-specific security requirements such as certificate hash validation, QUIC-level encryption, or the specific privacy protections defined in section 14."
+      },
+      "remediation": "No immediate action needed. If adopting WebTransport, its mandatory HTTPS/TLS 1.3 provides strong security guarantees that align with current deployment practices."
+    },
+    {
+      "finding_id": "F-030",
+      "standard_section": "15. Examples",
+      "requirement": "Provides non-normative examples of WebTransport usage including sending/receiving datagrams, streams, and using server certificate hashes.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "These are informative examples for developers adopting WebTransport. Not applicable to the current application.",
+        "gap_description": "Not applicable — informative section."
+      },
+      "remediation": "These examples would be useful reference material if the application were to adopt WebTransport."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Evaluate WebTransport for signaling channel",
+      "description": "WebTransport could replace Socket.io for WebRTC signaling, potentially reducing connection establishment latency through QUIC's 0-RTT handshake and providing independent streams for different signaling message types (offers, answers, ICE candidates, chat). This would eliminate head-of-line blocking that TCP-based WebSocket connections can suffer from.",
+      "affected_findings": ["F-001", "F-004", "F-005", "F-011"],
+      "effort_estimate": "architectural"
+    },
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Consider WebTransport datagrams for ephemeral signaling data",
+      "description": "Unreliable datagrams via WebTransport could be used for non-critical signaling data such as typing indicators, presence updates, or cursor position sharing. These types of data are time-sensitive and can tolerate occasional loss, making unreliable delivery more appropriate than guaranteed delivery.",
+      "affected_findings": ["F-006", "F-009"],
+      "effort_estimate": "architectural"
+    },
+    {
+      "priority": "medium",
+      "category": "interoperability",
+      "title": "Monitor WebTransport browser support maturity",
+      "description": "WebTransport is supported in Chrome, Edge, and Opera, with ongoing implementation in Firefox and Safari. As browser support matures, WebTransport could become a viable alternative to WebSocket for real-time applications. Socket.io currently provides broader compatibility through its fallback mechanisms.",
+      "affected_findings": ["F-002", "F-028"],
+      "effort_estimate": "large"
+    }
+  ]
+}

@@ -1,0 +1,831 @@
+{
+  "meta": {
+    "standard": {
+      "title": "JavaScript Session Establishment Protocol (JSEP)",
+      "identifier": "RFC-8829",
+      "source_file": "standards/webrtc/rfc8829-jsep.txt",
+      "line_count": 4896
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "direct",
+    "applicability_rationale": "RFC 8829 (JSEP) defines the JavaScript API patterns for controlling WebRTC session establishment, including the offer/answer exchange model, ICE candidate handling, and signaling state machine. The web-conference application directly implements the JSEP signaling flow: it creates offers and answers, manages the offer/answer state machine, relays SDP and ICE candidates through a signaling server, and handles the ICE candidate trickling process. Every signaling interaction in room.js is governed by JSEP.",
+    "overall_compliance_level": "mostly-compliant",
+    "total_requirements_assessed": 35,
+    "compliant_count": 20,
+    "partially_compliant_count": 6,
+    "non_compliant_count": 4,
+    "not_applicable_count": 4,
+    "not_assessable_count": 1
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "3.1 - Signaling Model",
+      "requirement": "JSEP does not specify a particular signaling model. The application has complete control over which offers and answers get handed to the implementation, and when. The signaling channel is provided by unspecified means.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "160-181",
+            "code_snippet": "socket.on('offer', ({ to, offer }) => {\n    socket.to(to).emit('offer', {\n      from: socket.id,\n      username: socket.username,\n      offer\n    });\n  });\n  socket.on('answer', ({ to, answer }) => {\n    socket.to(to).emit('answer', {\n      from: socket.id,\n      answer\n    });\n  });\n  socket.on('ice-candidate', ({ to, candidate }) => {\n    socket.to(to).emit('ice-candidate', {\n      from: socket.id,\n      candidate\n    });\n  });"
+          }
+        ],
+        "observation": "The application implements a custom signaling model using Socket.IO (WebSocket-based) as the signaling transport. The server acts as a transparent relay for offers, answers, and ICE candidates. This aligns with the JSEP architecture diagram (Figure 1) where the web app controls signaling via an app-specific protocol, and SDP is passed to/from the JSEP implementation.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "3.2 - Session Descriptions and State Machine",
+      "requirement": "JSEP addresses session description handling by having setLocalDescription and setRemoteDescription methods. The offerer first calls setLocalDescription(offer) then setRemoteDescription(answer). The answerer first calls setRemoteDescription(offer) then setLocalDescription(answer).",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "485-493",
+            "code_snippet": "async createAndSendOffer(userId, connection) {\n    try {\n      const offer = await connection.createOffer();\n      await connection.setLocalDescription(offer);\n      this.socket.emit('offer', { to: userId, offer });\n    } catch (error) {\n      console.error('Error creating offer:', error);\n    }\n  }"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "360-371",
+            "code_snippet": "this.socket.on('offer', async ({ from, username, offer }) => {\n      try {\n        const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);\n        await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));\n        this.flushPendingCandidates(from);\n        const answer = await peer.connection.createAnswer();\n        await peer.connection.setLocalDescription(answer);\n        this.socket.emit('answer', { to: from, answer });\n      } catch (error) {\n        console.error('Error handling offer:', error);\n      }\n    });"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "373-383",
+            "code_snippet": "this.socket.on('answer', async ({ from, answer }) => {\n      try {\n        const peer = this.peers.get(from);\n        if (peer) {\n          await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));\n          this.flushPendingCandidates(from);\n        }\n      } catch (error) {\n        console.error('Error handling answer:', error);\n      }\n    });"
+          }
+        ],
+        "observation": "The application correctly implements the JSEP state machine. Offerer flow: createOffer() -> setLocalDescription(offer) -> send offer -> receive answer -> setRemoteDescription(answer). Answerer flow: receive offer -> setRemoteDescription(offer) -> createAnswer() -> setLocalDescription(answer) -> send answer. Both flows match the JSEP state machine diagram (Figure 2 in RFC 8829).",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "3.2 - Session Descriptions and State Machine (State Transitions)",
+      "requirement": "The JSEP state machine defines transitions: stable -> have-local-offer (via setLocal(OFFER)) -> stable (via setRemote(ANSWER)) for the offerer, and stable -> have-remote-offer (via setRemote(OFFER)) -> stable (via setLocal(ANSWER)) for the answerer.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "485-493",
+            "code_snippet": "const offer = await connection.createOffer();\nawait connection.setLocalDescription(offer);\nthis.socket.emit('offer', { to: userId, offer });"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "363-367",
+            "code_snippet": "await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));\nthis.flushPendingCandidates(from);\nconst answer = await peer.connection.createAnswer();\nawait peer.connection.setLocalDescription(answer);\nthis.socket.emit('answer', { to: from, answer });"
+          }
+        ],
+        "observation": "The application follows the correct JSEP state transitions for both sides. The offerer transitions from stable -> have-local-offer -> stable. The answerer transitions from stable -> have-remote-offer -> stable. No pranswer or rollback states are used, which is typical for a simple call setup application.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "3.5.2 - ICE Candidate Trickling",
+      "requirement": "JSEP supports optional candidate trickling by providing APIs that provide control and feedback on the ICE candidate gathering process. Applications that support candidate trickling can send the initial offer immediately and send individual candidates when they get notified of a new candidate.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "434-441",
+            "code_snippet": "connection.onicecandidate = (event) => {\n      if (event.candidate) {\n        this.socket.emit('ice-candidate', {\n          to: userId,\n          candidate: event.candidate\n        });\n      }\n    };"
+          }
+        ],
+        "observation": "The application implements Full Trickle ICE: it sends the offer/answer immediately after setLocalDescription and trickles ICE candidates as they are gathered via onicecandidate events. Each candidate is sent individually over the signaling channel. This is the recommended approach per JSEP for faster connection setup.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "3.5.2.1 - ICE Candidate Format",
+      "requirement": "The IceCandidate object contains fields to indicate which 'm=' section it is associated with, identifiable by 'm=' section index or MID. If the MID field is present in a received IceCandidate, it MUST be used for identification.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-assessable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "385-401",
+            "code_snippet": "this.socket.on('ice-candidate', async ({ from, candidate }) => {\n      if (!candidate) return;\n      const peer = this.peers.get(from);\n      if (peer && peer.connection.remoteDescription) {\n        try {\n          await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));\n        } catch (error) {\n          console.error('Error adding ICE candidate:', error);\n        }\n      } else {\n        ...\n      }\n    });"
+          }
+        ],
+        "observation": "The application passes the full ICE candidate object (which includes sdpMid, sdpMLineIndex, and candidate fields) through the signaling channel. The browser's addIceCandidate implementation handles the MID/index resolution. Since the application does not strip or modify these fields, compliance depends on the browser implementation, which is outside the app's control.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "3.5.3 - ICE Candidate Policy",
+      "requirement": "The default ICE candidate policy MUST be set to 'all'. The JSEP implementation MUST allow the candidate policy to be changed in mid-session.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "23-28",
+            "code_snippet": "this.iceServers = {\n  iceServers: [\n    { urls: 'stun:stun.l.google.com:19302' },\n    { urls: 'stun:stun1.l.google.com:19302' }\n  ]\n};"
+          }
+        ],
+        "observation": "The application does not set an explicit iceTransportPolicy, which means the browser default of 'all' is used. This is the correct default per JSEP Section 4.1.1.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "3.5.4 - ICE Candidate Pool",
+      "requirement": "The default candidate pool size MUST be zero. Pre-gathering MUST only occur upon application request.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "23-28",
+            "code_snippet": "this.iceServers = {\n  iceServers: [...]\n};"
+          }
+        ],
+        "observation": "The application does not set iceCandidatePoolSize, so the browser default of 0 is used. This is correct per JSEP.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "4.1.1 - PeerConnection Constructor",
+      "requirement": "The PeerConnection constructor allows the application to specify global parameters including STUN/TURN servers, ICE candidate policy, pool size, and bundle policy. The default bundle policy MUST be set to 'balanced'. The default multiplexing policy MUST be set to 'require'.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "The application passes only iceServers to the constructor, relying on browser defaults for bundlePolicy ('balanced') and rtcpMuxPolicy ('require'). These defaults match the JSEP requirements.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "4.1.2 - addTrack",
+      "requirement": "addTrack adds a MediaStreamTrack to the PeerConnection, using the MediaStream argument to associate the track with other tracks in the same MediaStream for lip synchronization (LS group).",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "427-431",
+            "code_snippet": "if (this.localStream) {\n      this.localStream.getTracks().forEach(track => {\n        connection.addTrack(track, this.localStream);\n      });\n    }"
+          }
+        ],
+        "observation": "The application passes both the track and the MediaStream to addTrack. Since both audio and video tracks are from the same localStream, they will be in the same LS group, ensuring proper lip synchronization.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "4.1.8 - createOffer",
+      "requirement": "createOffer generates an SDP offer. Session descriptions generated by createOffer MUST be immediately usable by setLocalDescription. Calling this method does not change the PeerConnection state or trigger candidate gathering; the offer does not become the pending local description until setLocalDescription is called.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "486-488",
+            "code_snippet": "const offer = await connection.createOffer();\nawait connection.setLocalDescription(offer);\nthis.socket.emit('offer', { to: userId, offer });"
+          }
+        ],
+        "observation": "The application correctly calls createOffer(), immediately passes the result to setLocalDescription(), and then sends the offer. The sequence is correct per JSEP. No modifications are made to the SDP between createOffer and setLocalDescription.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "4.1.9 - createAnswer",
+      "requirement": "createAnswer generates an SDP answer compatible with the remote description. setRemoteDescription MUST have been called prior to calling createAnswer. Session descriptions generated by createAnswer MUST be immediately usable by setLocalDescription.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "363-367",
+            "code_snippet": "await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));\nthis.flushPendingCandidates(from);\nconst answer = await peer.connection.createAnswer();\nawait peer.connection.setLocalDescription(answer);\nthis.socket.emit('answer', { to: from, answer });"
+          }
+        ],
+        "observation": "setRemoteDescription is called before createAnswer, as required. The answer is immediately passed to setLocalDescription without modification, then sent to the remote peer. The ordering is correct per JSEP.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "4.1.10 - SessionDescriptionType",
+      "requirement": "Session description objects may be of type 'offer', 'pranswer', 'answer', or 'rollback'. The type field indicates how the description should be parsed and how media state should be changed.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "485-493",
+            "code_snippet": "const offer = await connection.createOffer();\nawait connection.setLocalDescription(offer);"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "365-366",
+            "code_snippet": "const answer = await peer.connection.createAnswer();\nawait peer.connection.setLocalDescription(answer);"
+          }
+        ],
+        "observation": "The application correctly uses 'offer' and 'answer' types (set automatically by createOffer/createAnswer). The application does not use 'pranswer' or 'rollback', which is acceptable for a simple conferencing application.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "4.1.10.2 - Rollback",
+      "requirement": "The concept of 'rollback' allows discarding proposed changes to the session, returning the state machine to 'stable'. A rollback is performed by supplying a session description of type 'rollback' with empty contents.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not implement rollback. This is acceptable for a simple conferencing scenario where only initial offer/answer exchanges occur (no renegotiation scenarios that might require rollback). However, if onnegotiationneeded handling were added, rollback support might become important for handling glare scenarios.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-014",
+      "standard_section": "4.1.11 - setLocalDescription",
+      "requirement": "setLocalDescription instructs the PeerConnection to apply the supplied session description as its local configuration. This API indirectly controls the candidate gathering process.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "488",
+            "code_snippet": "await connection.setLocalDescription(offer);"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "366",
+            "code_snippet": "await peer.connection.setLocalDescription(answer);"
+          }
+        ],
+        "observation": "setLocalDescription is called correctly in both offer and answer scenarios. The application awaits the promise, ensuring that the description is applied before proceeding. Candidate gathering begins after setLocalDescription with an offer.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-015",
+      "standard_section": "4.1.12 - setRemoteDescription",
+      "requirement": "setRemoteDescription instructs the PeerConnection to apply the supplied session description as the desired remote configuration.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "363",
+            "code_snippet": "await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "377",
+            "code_snippet": "await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));"
+          }
+        ],
+        "observation": "setRemoteDescription is called correctly for both incoming offers and answers. The application properly awaits the promise before proceeding with dependent operations (createAnswer after setting remote offer, flushing pending candidates after setting remote description).",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-016",
+      "standard_section": "4.1.19 - addIceCandidate",
+      "requirement": "addIceCandidate provides an update to the ICE agent via an IceCandidate object. If both 'm=' section index and MID fields are null for a new remote candidate, this MUST be treated as an invalid condition. If any IceCandidate fields contain invalid values, the supplied IceCandidate MUST be ignored and an error MUST be returned.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "385-401",
+            "code_snippet": "this.socket.on('ice-candidate', async ({ from, candidate }) => {\n      if (!candidate) return;\n      const peer = this.peers.get(from);\n      if (peer && peer.connection.remoteDescription) {\n        try {\n          await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));\n        } catch (error) {\n          console.error('Error adding ICE candidate:', error);\n        }\n      } else {\n        if (!this.pendingCandidates.has(from)) {\n          this.pendingCandidates.set(from, []);\n        }\n        this.pendingCandidates.get(from).push(candidate);\n      }\n    });"
+          }
+        ],
+        "observation": "The application correctly handles addIceCandidate. It first checks that the candidate is not null/falsy, then checks that remoteDescription exists before calling addIceCandidate. If remoteDescription is not set, candidates are buffered. The try/catch properly handles errors from invalid candidates per the JSEP requirement.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-017",
+      "standard_section": "4.1.19 - addIceCandidate (Pending Candidates Buffer)",
+      "requirement": "ICE candidates received before setRemoteDescription is called must be buffered and applied after the remote description is set. The JSEP implementation needs the remote description to properly process incoming candidates.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "7-8",
+            "code_snippet": "this.peers = new Map();\nthis.pendingCandidates = new Map();"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "393-400",
+            "code_snippet": "} else {\n        if (!this.pendingCandidates.has(from)) {\n          this.pendingCandidates.set(from, []);\n        }\n        this.pendingCandidates.get(from).push(candidate);\n      }"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "470-483",
+            "code_snippet": "async flushPendingCandidates(userId) {\n    const candidates = this.pendingCandidates.get(userId);\n    if (!candidates) return;\n    const peer = this.peers.get(userId);\n    if (!peer) return;\n    for (const candidate of candidates) {\n      try {\n        await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));\n      } catch (error) {\n        console.error('Error adding buffered ICE candidate:', error);\n      }\n    }\n    this.pendingCandidates.delete(userId);\n  }"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "364",
+            "code_snippet": "this.flushPendingCandidates(from);"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "378",
+            "code_snippet": "this.flushPendingCandidates(from);"
+          }
+        ],
+        "observation": "The application implements a robust pending candidates buffer. The pendingCandidates Map stores candidates per userId when remoteDescription is not yet set. After both setRemoteDescription(offer) and setRemoteDescription(answer), flushPendingCandidates() is called to process all buffered candidates. This correctly handles the race condition where ICE candidates arrive before the SDP description over the signaling channel.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-018",
+      "standard_section": "4.1.20 - onicecandidate Event",
+      "requirement": "The onicecandidate event is dispatched when a new ICE candidate is discovered or when gathering completes. For new candidates, all fields MUST be non-null. For gathering completion, the candidate field MUST be null.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "434-441",
+            "code_snippet": "connection.onicecandidate = (event) => {\n      if (event.candidate) {\n        this.socket.emit('ice-candidate', {\n          to: userId,\n          candidate: event.candidate\n        });\n      }\n    };"
+          }
+        ],
+        "observation": "The application correctly filters on event.candidate being truthy (non-null) before sending to the remote peer. The null candidate (end-of-candidates) is silently ignored, which is acceptable for trickle ICE where the application does not need to signal end-of-candidates explicitly.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-019",
+      "standard_section": "4.1.17 - canTrickleIceCandidates",
+      "requirement": "The canTrickleIceCandidates property indicates whether the remote side supports receiving trickled candidates. Applications can use this to determine if trickle ICE is safe.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not check canTrickleIceCandidates. Since both ends of the connection are web-conference instances using the same WebRTC-capable browser, trickle ICE support is guaranteed. This property is primarily useful when interoperating with non-JSEP endpoints.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-020",
+      "standard_section": "4.1.18 - setConfiguration",
+      "requirement": "setConfiguration allows the global configuration to be changed during the session. Changes to STUN/TURN servers affect the next gathering phase and set the 'needs-ice-restart' bit. The bundle and RTCP-multiplexing policies MUST NOT be changed after construction.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not call setConfiguration() to change the RTCPeerConnection configuration after construction. The ICE server configuration is static. This is not a compliance issue.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-021",
+      "standard_section": "5.4 - Modifying an Offer or Answer",
+      "requirement": "The SDP returned from createOffer or createAnswer MUST NOT be changed before passing it to setLocalDescription. If precise control over the SDP is needed, the createOffer/createAnswer options or RtpTransceiver APIs MUST be used.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "486-489",
+            "code_snippet": "const offer = await connection.createOffer();\nawait connection.setLocalDescription(offer);\nthis.socket.emit('offer', { to: userId, offer });"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "365-367",
+            "code_snippet": "const answer = await peer.connection.createAnswer();\nawait peer.connection.setLocalDescription(answer);\nthis.socket.emit('answer', { to: from, answer });"
+          }
+        ],
+        "observation": "The application does not modify the SDP between createOffer/createAnswer and setLocalDescription. The offers and answers are passed through unmodified, which is the correct behavior per JSEP Section 5.4.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-022",
+      "standard_section": "5.5 - Processing a Local Description",
+      "requirement": "When a SessionDescription is supplied to setLocalDescription, the type MUST be checked against the current state. If type is 'offer', state MUST be 'stable' or 'have-local-offer'. If type is 'answer', state MUST be 'have-remote-offer' or 'have-local-pranswer'.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "485-493",
+            "code_snippet": "async createAndSendOffer(userId, connection) {\n    try {\n      const offer = await connection.createOffer();\n      await connection.setLocalDescription(offer);\n      this.socket.emit('offer', { to: userId, offer });\n    } catch (error) {\n      console.error('Error creating offer:', error);\n    }\n  }"
+          }
+        ],
+        "observation": "The application calls setLocalDescription(offer) right after creating a new RTCPeerConnection (which starts in 'stable' state), and setLocalDescription(answer) after setRemoteDescription(offer) (which transitions to 'have-remote-offer'). Both are valid transitions per JSEP. The browser validates state transitions and would throw an error if invalid, which is caught by the try/catch.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-023",
+      "standard_section": "5.6 - Processing a Remote Description",
+      "requirement": "When a SessionDescription is supplied to setRemoteDescription, the type MUST be checked against the current state. If type is 'offer', state MUST be 'stable' or 'have-remote-offer'. If type is 'answer', state MUST be 'have-local-offer' or 'have-remote-pranswer'.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "partially-compliant",
+      "severity": "major",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "360-371",
+            "code_snippet": "this.socket.on('offer', async ({ from, username, offer }) => {\n      try {\n        const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);\n        await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));\n        ...\n      } catch (error) {\n        console.error('Error handling offer:', error);\n      }\n    });"
+          }
+        ],
+        "observation": "The application does not check the PeerConnection's signaling state before calling setRemoteDescription. If a second offer arrives while the connection is in 'have-local-offer' state (a glare condition), the browser would handle this per its implementation, but the application doesn't have any explicit glare resolution logic. In a mesh topology with multiple peers, each peer connection is separate so glare is less likely, but the code for a given peer does not guard against receiving an offer when already in 'have-local-offer' state.",
+        "gap_description": "No explicit signaling state checking or glare handling before setRemoteDescription. If both peers simultaneously create offers (glare), the application has no resolution mechanism."
+      },
+      "remediation": "Check connection.signalingState before calling setRemoteDescription. If the state is 'have-local-offer' and a remote offer arrives (glare), implement a tiebreaking mechanism (e.g., based on peer IDs) to decide which offer to accept and which to rollback."
+    },
+    {
+      "finding_id": "F-024",
+      "standard_section": "5.2.3.1 - IceRestart Option",
+      "requirement": "If the IceRestart option is specified with a value of 'true', the offer MUST indicate an ICE restart by generating new ICE ufrag and pwd attributes. This option is primarily useful for reestablishing connectivity in cases where failures are detected by the application.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "non-compliant",
+      "severity": "major",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "448-454",
+            "code_snippet": "connection.onconnectionstatechange = () => {\n      if (connection.connectionState === 'disconnected' ||\n          connection.connectionState === 'failed') {\n        this.removePeer(userId);\n      }\n    };"
+          }
+        ],
+        "observation": "The application does not implement ICE restart. When a connection fails, the peer is simply removed rather than attempting to restart ICE. JSEP Section 5.2.3.1 provides the iceRestart option for createOffer specifically for this scenario. The Editor's Draft also notes that performing ICE restart is recommended when iceConnectionState transitions to 'failed'.",
+        "gap_description": "No ICE restart is attempted when connection state transitions to 'failed'. The peer is immediately removed, losing the connection permanently."
+      },
+      "remediation": "Instead of removing the peer on 'failed', attempt ICE restart: const offer = await connection.createOffer({ iceRestart: true }); await connection.setLocalDescription(offer); this.socket.emit('offer', { to: userId, offer });"
+    },
+    {
+      "finding_id": "F-025",
+      "standard_section": "5.1.1 - Usage Requirements (ICE)",
+      "requirement": "ICE, as specified in RFC 8445, MUST be used. Implementations MUST properly handle remote endpoints that use ICE-lite. The remote endpoint may also use an older version of ICE; implementations MUST properly handle remote endpoints that use ICE as specified in RFC 5245.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "23-28",
+            "code_snippet": "this.iceServers = {\n  iceServers: [\n    { urls: 'stun:stun.l.google.com:19302' },\n    { urls: 'stun:stun1.l.google.com:19302' }\n  ]\n};"
+          }
+        ],
+        "observation": "ICE is used as the connectivity establishment mechanism. The browser's JSEP implementation handles ICE protocol compliance, including support for ICE-lite and older ICE versions. The application correctly configures STUN servers for ICE candidate gathering.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-026",
+      "standard_section": "5.1.1 - Usage Requirements (DTLS/DTLS-SRTP)",
+      "requirement": "DTLS or DTLS-SRTP MUST be used, as appropriate for the media type, as specified in RFC 8827. The SDP security descriptions mechanism for SRTP keying (RFC 4568) MUST NOT be used.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "The browser's JSEP implementation handles DTLS/DTLS-SRTP setup automatically. The application does not configure any non-standard security mechanisms. DTLS-SRTP is the mandatory-to-use key exchange for WebRTC, and the browser enforces this.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-027",
+      "standard_section": "7.1 - Simple Example (Offer/Answer Flow)",
+      "requirement": "The JSEP simple example shows: (1) create PeerConnection, (2) addTrack, (3) createOffer, (4) setLocalDescription with offer, (5) send offer via signaling, (6) receive answer, (7) setRemoteDescription with answer. For the answerer: (1) create PeerConnection, (2) setRemoteDescription with offer, (3) addTrack, (4) createAnswer, (5) setLocalDescription with answer, (6) send answer.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "423-468",
+            "code_snippet": "createPeerConnection(userId, username, initiator) {\n    const connection = new RTCPeerConnection(this.iceServers);\n    if (this.localStream) {\n      this.localStream.getTracks().forEach(track => {\n        connection.addTrack(track, this.localStream);\n      });\n    }\n    ...\n    if (initiator) {\n      this.createAndSendOffer(userId, connection);\n    }\n    ...\n  }"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "360-371",
+            "code_snippet": "this.socket.on('offer', async ({ from, username, offer }) => {\n      try {\n        const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);\n        await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));\n        this.flushPendingCandidates(from);\n        const answer = await peer.connection.createAnswer();\n        await peer.connection.setLocalDescription(answer);\n        this.socket.emit('answer', { to: from, answer });\n      } catch (error) {\n        console.error('Error handling offer:', error);\n      }\n    });"
+          }
+        ],
+        "observation": "The offerer flow matches the JSEP example: addTrack -> createOffer -> setLocalDescription -> send. The answerer flow is slightly different from the JSEP example: the app calls createPeerConnection (which adds tracks) before/during handling the offer, then setRemoteDescription -> createAnswer -> setLocalDescription -> send. The key difference is that in the answerer's case, tracks are added before setRemoteDescription rather than between setRemoteDescription and createAnswer. This still works correctly because the JSEP implementation can use the added tracks when creating the answer, but it differs from the recommended order in the JSEP example where addTrack comes after setRemoteDescription for the answerer.",
+        "gap_description": "The answerer adds tracks before setRemoteDescription rather than after. While this works functionally, it differs from the JSEP example flow where the answerer calls addTrack after setRemoteDescription."
+      },
+      "remediation": "This is a minor ordering difference that does not cause functional issues. No remediation strictly required, but for stricter compliance, tracks could be added after setRemoteDescription for the answerer."
+    },
+    {
+      "finding_id": "F-028",
+      "standard_section": "7.2 - Detailed Example (Trickle ICE with signaling)",
+      "requirement": "The detailed example shows trickle ICE flow where candidates are sent individually as they are gathered, and addIceCandidate is called for each received candidate. The flow also shows a subsequent offer/answer exchange for adding video streams.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "434-441",
+            "code_snippet": "connection.onicecandidate = (event) => {\n      if (event.candidate) {\n        this.socket.emit('ice-candidate', {\n          to: userId,\n          candidate: event.candidate\n        });\n      }\n    };"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "385-401",
+            "code_snippet": "this.socket.on('ice-candidate', async ({ from, candidate }) => {\n      if (!candidate) return;\n      const peer = this.peers.get(from);\n      if (peer && peer.connection.remoteDescription) {\n        try {\n          await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));\n        } catch (error) {\n          console.error('Error adding ICE candidate:', error);\n        }\n      } else {\n        ...\n      }\n    });"
+          }
+        ],
+        "observation": "The initial trickle ICE flow is correct and matches the JSEP detailed example. Candidates are sent individually and received candidates are applied via addIceCandidate. However, the application does not support subsequent offer/answer exchanges (renegotiation) as shown in the detailed example where Bob later adds video streams. The lack of onnegotiationneeded support means mid-session media changes are not handled.",
+        "gap_description": "No support for subsequent offer/answer exchanges (renegotiation) as demonstrated in the JSEP detailed example section 7.2."
+      },
+      "remediation": "Implement support for renegotiation via onnegotiationneeded event handler to support mid-session changes like adding/removing media tracks."
+    },
+    {
+      "finding_id": "F-029",
+      "standard_section": "4.1.10 - SessionDescriptionType (RTCSessionDescription constructor)",
+      "requirement": "JSEP describes SessionDescription objects with type and sdp fields. Modern JSEP implementations accept plain objects (RTCSessionDescriptionInit) without needing explicit RTCSessionDescription construction.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "363",
+            "code_snippet": "await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "377",
+            "code_snippet": "await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "390",
+            "code_snippet": "await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));"
+          }
+        ],
+        "observation": "The application explicitly constructs RTCSessionDescription and RTCIceCandidate objects. While this works, the W3C spec and RFC 9429 (JSEP successor) allow passing plain RTCSessionDescriptionInit and RTCIceCandidateInit objects directly. The explicit constructors are a legacy pattern.",
+        "gap_description": "Uses legacy explicit constructors (new RTCSessionDescription, new RTCIceCandidate) instead of passing plain init objects directly."
+      },
+      "remediation": "Remove explicit RTCSessionDescription and RTCIceCandidate constructor calls. Pass the objects directly: await peer.connection.setRemoteDescription(offer); and await peer.connection.addIceCandidate(candidate);"
+    },
+    {
+      "finding_id": "F-030",
+      "standard_section": "Signaling Server - Offer/Answer/ICE Relay",
+      "requirement": "The signaling server must correctly relay offers, answers, and ICE candidates between peers. JSEP Section 3.1 notes the signaling is provided by unspecified means but must reliably exchange session descriptions.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "160-181",
+            "code_snippet": "socket.on('offer', ({ to, offer }) => {\n    socket.to(to).emit('offer', {\n      from: socket.id,\n      username: socket.username,\n      offer\n    });\n  });\n  socket.on('answer', ({ to, answer }) => {\n    socket.to(to).emit('answer', {\n      from: socket.id,\n      answer\n    });\n  });\n  socket.on('ice-candidate', ({ to, candidate }) => {\n    socket.to(to).emit('ice-candidate', {\n      from: socket.id,\n      candidate\n    });\n  });"
+          }
+        ],
+        "observation": "The signaling server correctly relays all three types of JSEP messages (offer, answer, ice-candidate) between peers. Messages are forwarded point-to-point using socket.to(to).emit(). The server attaches the sender's socket.id as 'from' for identification. The SDP and candidate payloads are passed through without modification.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-031",
+      "standard_section": "Signaling Server - Room Management and User Discovery",
+      "requirement": "JSEP requires the application to handle signaling including addressing and determining when to initiate offer/answer exchanges. The application must know which peers to signal.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "128-158",
+            "code_snippet": "socket.on('join-room', ({ roomId, username }) => {\n    socket.join(roomId);\n    if (!rooms.has(roomId)) {\n      rooms.set(roomId, new Map());\n    }\n    const room = rooms.get(roomId);\n    room.set(socket.id, { username, id: socket.id });\n    socket.to(roomId).emit('user-joined', {\n      userId: socket.id,\n      username\n    });\n    const existingUsers = [];\n    room.forEach((user, id) => {\n      if (id !== socket.id) {\n        existingUsers.push(user);\n      }\n    });\n    socket.emit('existing-users', existingUsers);\n    ...\n  });"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "337-350",
+            "code_snippet": "this.socket.on('existing-users', (users) => {\n      users.forEach(user => {\n        this.createPeerConnection(user.id, user.username, true);\n      });\n      ...\n    });\n    this.socket.on('user-joined', ({ userId, username }) => {\n      ...\n      this.createPeerConnection(userId, username, false);\n      ...\n    });"
+          }
+        ],
+        "observation": "The application implements a room-based signaling model. When a user joins, they receive a list of existing users and initiate peer connections (as offerer) to each. When a new user joins, existing users are notified and create peer connections (as answerer). This correctly handles the mesh topology signaling needs.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-032",
+      "standard_section": "3.8 - Interactions with Forking",
+      "requirement": "JSEP describes handling of parallel and sequential forking scenarios. The application is responsible for managing multiple PeerConnection sessions if parallel forking occurs.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "Forking is a SIP signaling concept. This application uses a custom signaling model (Socket.IO rooms) where each peer is directly addressed. No forking scenarios apply.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-033",
+      "standard_section": "5.2 - Constructing an Offer (No options used)",
+      "requirement": "createOffer may be called with options including iceRestart. The offer MUST contain all functionality specified in RFC 8834.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "487",
+            "code_snippet": "const offer = await connection.createOffer();"
+          }
+        ],
+        "observation": "createOffer is called without options. The browser generates the SDP with all required functionality. The application never uses createOffer with iceRestart: true, which means ICE restart is never triggered. The SDP content generation is browser-side and presumed compliant.",
+        "gap_description": "createOffer is never called with iceRestart: true, meaning the application cannot recover from ICE failures through restart."
+      },
+      "remediation": "Implement ICE restart capability by calling createOffer({ iceRestart: true }) when connection failures are detected."
+    },
+    {
+      "finding_id": "F-034",
+      "standard_section": "5.3 - Generating an Answer",
+      "requirement": "When createAnswer is called, a new SDP description MUST be created that is compatible with the supplied remote description. If no remote description has been installed, an error MUST be returned.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "363-366",
+            "code_snippet": "await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));\nthis.flushPendingCandidates(from);\nconst answer = await peer.connection.createAnswer();\nawait peer.connection.setLocalDescription(answer);"
+          }
+        ],
+        "observation": "createAnswer is always called after setRemoteDescription(offer), ensuring a remote description exists. The browser generates a compatible answer. Error handling catches any failures.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-035",
+      "standard_section": "8 - Security Considerations",
+      "requirement": "JSEP relies on DTLS-SRTP for media security. The application should ensure that the signaling channel itself is secured (e.g., via TLS/HTTPS) to prevent OOBR attacks on the SDP exchange.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "non-compliant",
+      "severity": "critical",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "8-15",
+            "code_snippet": "const app = express();\nconst server = http.createServer(app);\nconst io = new Server(server, {\n  cors: {\n    origin: '*',\n    methods: ['GET', 'POST']\n  }\n});"
+          }
+        ],
+        "observation": "The signaling server uses plain HTTP (not HTTPS) and Socket.IO with CORS allowing all origins ('*'). The SDP exchange (which contains DTLS fingerprints critical for security) occurs over an unencrypted channel. While the render.yaml deployment suggests HTTPS via the platform, the server itself does not enforce TLS. Additionally, the CORS policy of '*' is overly permissive and could allow unauthorized origins to connect.",
+        "gap_description": "Signaling channel is not encrypted (HTTP, not HTTPS). CORS is set to allow all origins. SDP containing DTLS fingerprints could be intercepted or modified in transit, enabling potential OOBR attacks."
+      },
+      "remediation": "1) Add HTTPS support to the server or enforce that the deployment platform provides it. 2) Restrict CORS origins to the actual deployment domain rather than '*'. 3) Consider adding authentication to the signaling channel to prevent unauthorized room access."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "critical",
+      "category": "security",
+      "title": "Secure the signaling channel",
+      "description": "The signaling channel transports SDP containing DTLS fingerprints, which are critical for WebRTC security. An attacker who can modify SDP in transit can perform a man-in-the-middle attack. The server should use HTTPS, restrict CORS origins, and ideally authenticate signaling connections. At minimum, document that HTTPS termination is required from the deployment platform.",
+      "affected_findings": ["F-035"],
+      "effort_estimate": "small"
+    },
+    {
+      "priority": "high",
+      "category": "functionality",
+      "title": "Implement ICE restart for connection recovery",
+      "description": "When a peer connection transitions to 'failed', the application should attempt ICE restart using createOffer({ iceRestart: true }) rather than removing the peer. This allows recovery from temporary network disruptions and is the JSEP-recommended approach per Section 5.2.3.1.",
+      "affected_findings": ["F-024", "F-033"],
+      "effort_estimate": "small"
+    },
+    {
+      "priority": "high",
+      "category": "functionality",
+      "title": "Implement signaling glare handling",
+      "description": "Add logic to detect and resolve glare conditions where both peers simultaneously send offers. This requires checking signalingState before setRemoteDescription and implementing a tiebreaking mechanism (e.g., the peer with the lower socket ID yields by performing a rollback). This becomes important if renegotiation is added.",
+      "affected_findings": ["F-023"],
+      "effort_estimate": "medium"
+    },
+    {
+      "priority": "medium",
+      "category": "functionality",
+      "title": "Support mid-session renegotiation",
+      "description": "The JSEP detailed example (Section 7.2) shows subsequent offer/answer exchanges for adding media streams. The application should support renegotiation for scenarios like adding video after initially joining with audio-only, or adding a second video stream for screen sharing without replacing the camera track.",
+      "affected_findings": ["F-028"],
+      "effort_estimate": "medium"
+    },
+    {
+      "priority": "medium",
+      "category": "best-practice",
+      "title": "Remove legacy constructor usage",
+      "description": "Replace explicit 'new RTCSessionDescription(...)' and 'new RTCIceCandidate(...)' constructor calls with direct object passing. Modern JSEP implementations accept RTCSessionDescriptionInit and RTCIceCandidateInit objects directly.",
+      "affected_findings": ["F-029"],
+      "effort_estimate": "trivial"
+    },
+    {
+      "priority": "low",
+      "category": "interoperability",
+      "title": "Add TURN server support for reliable NAT traversal",
+      "description": "JSEP Section 4.1.1 discusses STUN/TURN server configuration. While only STUN servers are configured, adding TURN servers would ensure connectivity in restrictive network environments (symmetric NATs, firewalls). JSEP Section 3.5.3 notes that using relay-only policy can protect user privacy in certain scenarios.",
+      "affected_findings": ["F-006"],
+      "effort_estimate": "small"
+    }
+  ]
+}

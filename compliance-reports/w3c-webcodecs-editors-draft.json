@@ -1,0 +1,656 @@
+{
+  "meta": {
+    "standard": {
+      "title": "W3C WebCodecs (Editor's Draft)",
+      "identifier": "W3C Editor's Draft — WebCodecs",
+      "source_file": "standards/webcodecs/w3c-webcodecs-editors-draft.html",
+      "line_count": 12859
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "not-applicable",
+    "applicability_rationale": "The web-conference application uses the WebRTC API (RTCPeerConnection, getUserMedia, MediaStream) with <video> elements for all media capture, encoding, decoding, and rendering. It does not use any WebCodecs API surfaces (VideoEncoder, VideoDecoder, AudioEncoder, AudioDecoder, EncodedAudioChunk, EncodedVideoChunk, VideoFrame, AudioData, or ImageDecoder). The Editor's Draft of WebCodecs contains substantively the same normative sections as the Working Draft (sections 1-13), with identical interface definitions and requirements. All sections are therefore not applicable to this codebase.",
+    "overall_compliance_level": "not-applicable",
+    "total_requirements_assessed": 30,
+    "compliant_count": 0,
+    "partially_compliant_count": 0,
+    "non_compliant_count": 0,
+    "not_applicable_count": 30,
+    "not_assessable_count": 0
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "1. Definitions",
+      "requirement": "Defines foundational terms for WebCodecs including codec, key frame, codec state, encoded chunk, and raw media types.",
+      "rfc_keyword": "N/A",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "// Room logic with WebRTC\nclass WebConference { ... }"
+          }
+        ],
+        "observation": "The application does not reference any WebCodecs terminology. All media handling uses WebRTC APIs which abstract codec operations.",
+        "gap_description": "WebCodecs definitions are not relevant because the application does not implement low-level codec access."
+      },
+      "remediation": "No action required. Definitions would become relevant only if the application adopted WebCodecs."
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "2. Codec Processing Model",
+      "requirement": "Defines the abstract codec processing model including control message ordering and the relationship between configure, encode/decode, flush, and reset operations.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "254-277",
+            "code_snippet": "this.localStream = await navigator.mediaDevices.getUserMedia({\n  video: true,\n  audio: true\n});"
+          }
+        ],
+        "observation": "Media is acquired via getUserMedia() and passed to RTCPeerConnection. No explicit codec processing model is implemented.",
+        "gap_description": "The codec processing model is handled transparently by the browser's WebRTC stack."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "2.1. Background",
+      "requirement": "Describes the motivation for providing low-level codec access separate from MediaStream and WebRTC abstractions.",
+      "rfc_keyword": "N/A",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "423-468",
+            "code_snippet": "createPeerConnection(userId, username, initiator) {\n    const connection = new RTCPeerConnection(this.iceServers);\n    ...\n    connection.addTrack(track, this.localStream);\n}"
+          }
+        ],
+        "observation": "The application uses higher-level WebRTC abstractions. It does not require frame-level codec access.",
+        "gap_description": "No gap exists — WebRTC abstraction is appropriate for the conferencing use case."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "2.2. Control Messages",
+      "requirement": "Specifies ordering requirements for control messages (configure, encode/decode, flush, reset, close). Implementations MUST process control messages in order.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No WebCodecs control messages are used. No calls to configure(), encode(), decode(), flush(), reset(), or close() on any WebCodecs interface.",
+        "gap_description": "Control message processing is not applicable without WebCodecs interface usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "2.3. Codec Work Parallel Queue",
+      "requirement": "Each codec instance MUST have a parallel queue for offloading codec work to avoid blocking the main thread.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No WebCodecs codec instances exist; codec threading is handled by the browser's WebRTC internals.",
+        "gap_description": "Codec work queue management is not applicable."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "3. AudioDecoder Interface (3.1-3.6)",
+      "requirement": "Defines the AudioDecoder interface including internal slots, constructor (with output and error callbacks), attributes (state, decodeQueueSize), events (dequeue), methods (configure, decode, flush, reset, close, isConfigSupported), and algorithms for processing decode operations.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "495-528",
+            "code_snippet": "addRemoteVideo(userId, username, stream) {\n    ...\n    video.srcObject = stream;\n    video.play();\n}"
+          }
+        ],
+        "observation": "Audio decoding of incoming WebRTC streams is performed automatically by the browser. No AudioDecoder is instantiated.",
+        "gap_description": "AudioDecoder interface is not used."
+      },
+      "remediation": "No action required. AudioDecoder could enable custom audio processing pipelines for features like real-time transcription at the raw audio level."
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "4. VideoDecoder Interface (4.1-4.6)",
+      "requirement": "Defines the VideoDecoder interface including internal slots, constructor (with output and error callbacks), attributes (state, decodeQueueSize), events (dequeue), methods (configure, decode, flush, reset, close, isConfigSupported), and algorithms.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "495-528",
+            "code_snippet": "const video = container.querySelector('video');\nvideo.srcObject = stream;"
+          }
+        ],
+        "observation": "Video decoding is handled by assigning MediaStream to <video> element srcObject. No VideoDecoder API is used.",
+        "gap_description": "VideoDecoder interface is not used."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "5. AudioEncoder Interface (5.1-5.7)",
+      "requirement": "Defines the AudioEncoder interface including internal slots, constructor, attributes, events, methods (configure, encode, flush, reset, close, isConfigSupported), algorithms, and EncodedAudioChunkMetadata.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "254-277",
+            "code_snippet": "this.localStream = await navigator.mediaDevices.getUserMedia({\n  video: true,\n  audio: true\n});"
+          }
+        ],
+        "observation": "Audio encoding is performed internally by the WebRTC stack when local audio tracks are sent via RTCPeerConnection.",
+        "gap_description": "AudioEncoder interface is not used."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "6. VideoEncoder Interface (6.1-6.7)",
+      "requirement": "Defines the VideoEncoder interface including internal slots, constructor, attributes, events, methods (configure, encode, flush, reset, close, isConfigSupported), algorithms, and EncodedVideoChunkMetadata.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "423-468",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);\nthis.localStream.getTracks().forEach(track => {\n  connection.addTrack(track, this.localStream);\n});"
+          }
+        ],
+        "observation": "Video encoding is performed internally by WebRTC when local video tracks are added to RTCPeerConnection.",
+        "gap_description": "VideoEncoder interface is not used."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "7. Configurations (7.1-7.4)",
+      "requirement": "Defines configuration support checking (isConfigSupported), configuration cloning, signalling configuration support, and the codec string format.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No WebCodecs configuration objects are created. Codec negotiation is handled via WebRTC SDP offer/answer.",
+        "gap_description": "Configuration management is not applicable without WebCodecs usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "7.5. AudioDecoderConfig",
+      "requirement": "Defines the AudioDecoderConfig dictionary with required codec string and sampleRate, numberOfChannels, and optional description fields.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No AudioDecoderConfig objects are constructed.",
+        "gap_description": "Not applicable without AudioDecoder usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "7.6. VideoDecoderConfig",
+      "requirement": "Defines the VideoDecoderConfig dictionary with required codec string and optional coded dimensions, display dimensions, color space, hardware acceleration, and description fields.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No VideoDecoderConfig objects are constructed.",
+        "gap_description": "Not applicable without VideoDecoder usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "7.7. AudioEncoderConfig",
+      "requirement": "Defines the AudioEncoderConfig dictionary with required codec, sampleRate, and numberOfChannels fields, and optional bitrate and bitrateMode fields.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No AudioEncoderConfig objects are constructed.",
+        "gap_description": "Not applicable without AudioEncoder usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-014",
+      "standard_section": "7.8. VideoEncoderConfig",
+      "requirement": "Defines the VideoEncoderConfig dictionary with required codec, width, and height fields, and optional displayWidth, displayHeight, bitrate, framerate, hardwareAcceleration, alpha, scalabilityMode, bitrateMode, and latencyMode fields.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No VideoEncoderConfig objects are constructed. WebRTC handles video encoding parameters internally.",
+        "gap_description": "Not applicable without VideoEncoder usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-015",
+      "standard_section": "7.9. Hardware Acceleration",
+      "requirement": "Defines the HardwareAcceleration enum (no-preference, prefer-hardware, prefer-software) for controlling codec implementation selection.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "Hardware acceleration selection is managed internally by the browser's WebRTC implementation.",
+        "gap_description": "Not applicable without WebCodecs configuration usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-016",
+      "standard_section": "7.10. Alpha Option",
+      "requirement": "Defines the AlphaOption enum (keep, discard) for controlling alpha channel handling during encoding.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No alpha channel configuration exists in the application.",
+        "gap_description": "Not applicable without WebCodecs VideoEncoder usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-017",
+      "standard_section": "7.11. Latency Mode",
+      "requirement": "Defines the LatencyMode enum (quality, realtime). 'realtime' mode SHOULD cause the encoder to optimize for low-latency encoding.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "WebRTC inherently operates in real-time mode. No explicit latency mode selection is needed.",
+        "gap_description": "Not applicable without WebCodecs usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-018",
+      "standard_section": "7.12-7.16. Configuration Equivalence / VideoEncoderEncodeOptions / BitrateMode / CodecState / ErrorCallback",
+      "requirement": "Defines configuration equivalence checking, per-frame encode options (keyFrame), bitrate modes (constant, variable, quantizer), codec state enum (unconfigured, configured, closed), and error callback type.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "None of these configuration or state management interfaces are used. WebRTC manages codec configuration, bitrate adaptation, and keyframe requests internally.",
+        "gap_description": "Not applicable without WebCodecs usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-019",
+      "standard_section": "8. Encoded Media Interfaces (Chunks) — 8.1. EncodedAudioChunk",
+      "requirement": "Defines the EncodedAudioChunk interface with constructor, attributes (type, timestamp, duration, byteLength), and copyTo method for representing compressed audio data.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No EncodedAudioChunk objects are created. Encoded audio is handled by WebRTC's RTP layer.",
+        "gap_description": "Not applicable without WebCodecs usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-020",
+      "standard_section": "8.2. EncodedVideoChunk",
+      "requirement": "Defines the EncodedVideoChunk interface with constructor, attributes (type, timestamp, duration, byteLength), and copyTo method for representing compressed video data.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No EncodedVideoChunk objects are created. Encoded video is handled by WebRTC's RTP layer.",
+        "gap_description": "Not applicable without WebCodecs usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-021",
+      "standard_section": "9. Raw Media Interfaces — 9.1. Memory Model",
+      "requirement": "Defines the memory model for raw media objects including reference counting, close() semantics, transfer behavior, and serialization steps.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No raw media objects requiring explicit memory management exist. MediaStream lifecycle is managed by the browser.",
+        "gap_description": "Not applicable without AudioData or VideoFrame usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-022",
+      "standard_section": "9.2. AudioData Interface",
+      "requirement": "Defines the AudioData interface for raw audio samples including constructor, attributes (format, sampleRate, numberOfFrames, numberOfChannels, duration, timestamp), and methods (allocationSize, copyTo, clone, close).",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No AudioData objects are created. Audio is captured via getUserMedia() and streamed through RTCPeerConnection.",
+        "gap_description": "AudioData interface is not used."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-023",
+      "standard_section": "9.3. Audio Sample Format",
+      "requirement": "Defines the AudioSampleFormat enum (u8, s16, s32, f32, u8-planar, s16-planar, s32-planar, f32-planar) specifying supported raw audio formats.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No audio sample format selection occurs.",
+        "gap_description": "Not applicable without AudioData usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-024",
+      "standard_section": "9.4. VideoFrame Interface",
+      "requirement": "Defines the VideoFrame interface for raw video frames including constructors, attributes (format, codedWidth/Height, displayWidth/Height, timestamp, duration, colorSpace), and methods (metadata, allocationSize, copyTo, clone, close).",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "495-528",
+            "code_snippet": "video.srcObject = stream;"
+          }
+        ],
+        "observation": "Video frames are rendered by assigning MediaStream to <video> element srcObject. No individual VideoFrame access occurs.",
+        "gap_description": "VideoFrame interface is not used."
+      },
+      "remediation": "No action required. VideoFrame access could enable features like background blur or virtual backgrounds."
+    },
+    {
+      "finding_id": "F-025",
+      "standard_section": "9.5-9.7. VideoFrame CopyTo Options / DOMRects / Plane Layout",
+      "requirement": "Defines options for copying video frame data including VideoFrameCopyToOptions, DOMRect handling within VideoFrame, and PlaneLayout for specifying stride/offset.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No video frame data copy operations are performed.",
+        "gap_description": "Not applicable without VideoFrame usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-026",
+      "standard_section": "9.8. Pixel Format",
+      "requirement": "Defines the VideoPixelFormat enum (I420, I420A, I422, I444, NV12, RGBA, RGBX, BGRA, BGRX) for raw video pixel formats.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No pixel format specification or selection occurs.",
+        "gap_description": "Pixel format handling is internal to the browser."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-027",
+      "standard_section": "9.9-9.12. VideoColorSpace / Color Primaries / Transfer Characteristics / Matrix Coefficients",
+      "requirement": "Defines VideoColorSpace interface and related enums (VideoColorPrimaries, VideoTransferCharacteristics, VideoMatrixCoefficients) for color space metadata.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No color space management is performed by the application.",
+        "gap_description": "Not applicable without VideoFrame or WebCodecs usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-028",
+      "standard_section": "10. Image Decoding (10.1-10.7)",
+      "requirement": "Defines the ImageDecoder interface and supporting types (ImageDecoderInit, ImageDecodeOptions, ImageDecodeResult, ImageTrackList, ImageTrack) for efficient image decoding including animated image support.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "673-689",
+            "code_snippet": "<img src=\"/images/ai-avatar.svg\" alt=\"AI Assistant\" class=\"ai-avatar\">"
+          }
+        ],
+        "observation": "Standard <img> elements are used for images. No ImageDecoder API is used.",
+        "gap_description": "ImageDecoder interface is not used."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-029",
+      "standard_section": "11. Resource Reclamation",
+      "requirement": "Specifies that user agents MAY reclaim resources held by WebCodecs objects under memory pressure, closing affected objects and reporting errors.",
+      "rfc_keyword": "MAY",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "849-868",
+            "code_snippet": "leaveRoom() {\n    this.localStream.getTracks().forEach(track => track.stop());\n    this.screenStream.getTracks().forEach(track => track.stop());\n    this.peers.forEach((peer) => { peer.connection.close(); });\n}"
+          }
+        ],
+        "observation": "The application properly cleans up MediaStream tracks and peer connections. No WebCodecs resources exist to reclaim.",
+        "gap_description": "Not applicable without WebCodecs object usage."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-030",
+      "standard_section": "12-13. Security and Privacy Considerations",
+      "requirement": "Addresses security risks (codec vulnerabilities, side-channel attacks via timing, untrusted encoded data) and privacy risks (fingerprinting via codec enumeration, hardware capability detection).",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-1022",
+            "code_snippet": "N/A"
+          },
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "The application does not directly handle encoded media data or enumerate codec capabilities. WebRTC provides its own security model (DTLS-SRTP). WebCodecs-specific security and privacy considerations do not apply.",
+        "gap_description": "WebCodecs security and privacy considerations are not applicable."
+      },
+      "remediation": "No action required."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Consider WebCodecs for Custom Video Effects Pipeline",
+      "description": "The Editor's Draft includes the same VideoFrame and VideoEncoder interfaces that could enable custom video effects (background blur, virtual backgrounds, noise suppression visualization). Using WebRTC Encoded Transform (Insertable Streams) alongside WebCodecs would allow intercepting video frames, processing them, and re-encoding. This is an architectural change but would enable significant feature differentiation.",
+      "affected_findings": ["F-007", "F-009", "F-024"],
+      "effort_estimate": "architectural"
+    },
+    {
+      "priority": "low",
+      "category": "interoperability",
+      "title": "Monitor Editor's Draft for New Features",
+      "description": "The Editor's Draft may contain features not yet in the Working Draft. As WebCodecs matures, new capabilities like improved SVC (Scalable Video Coding) support, new pixel formats, or better integration with WebRTC Encoded Transform may become available. Monitoring the Editor's Draft ensures the application can adopt these features when they become standardized.",
+      "affected_findings": ["F-009", "F-014"],
+      "effort_estimate": "large"
+    },
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Consider ImageDecoder for Optimized Image Processing",
+      "description": "If the application adds features requiring image processing (e.g., screen capture annotation, image sharing in chat), the ImageDecoder API could provide more efficient image decoding compared to using canvas-based approaches.",
+      "affected_findings": ["F-028"],
+      "effort_estimate": "large"
+    }
+  ]
+}

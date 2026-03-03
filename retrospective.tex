@@ -9,9 +9,18 @@
 \usepackage{amssymb}
 \usepackage{extarrows}
 \usepackage{tikz}
-\usetikzlibrary{positioning, arrows.meta, calc, decorations.pathreplacing, fit, backgrounds}
+\usetikzlibrary{positioning, arrows.meta, calc, decorations.pathreplacing, decorations.pathmorphing, fit, backgrounds}
 
 \setlength{\emergencystretch}{1em}
+
+\newcommand{\excursus}[2]{%
+  \begin{center}
+  \begin{tikzpicture}
+    \node[draw=blue!40, fill=blue!4, rounded corners=4pt,
+          inner sep=10pt, text width=0.88\textwidth, font=\small]
+    {\textbf{#1}\;\;---\;\;#2};
+  \end{tikzpicture}
+  \end{center}}
 
 \hypersetup{
   colorlinks=true,
@@ -32,14 +41,53 @@
 \listoftables
 \newpage
 
+\section*{Executive Summary}
+\addcontentsline{toc}{section}{Executive Summary}
+
+\begin{itemize}
+  \item \textbf{Late 2021:} Only WebRTC was a finalized standard with broad
+    browser support, and even it had major cross-browser gaps (Safari: H.264
+    only, no simulcast, broken iOS DataChannel). QUIC was newly standardized
+    but not universal. HTTP/3 was pre-RFC. WebTransport was non-functional.
+    WebCodecs existed in one browser. MoQ did not exist.
+
+  \item \textbf{March 2026:} The core stack (WebRTC, QUIC, HTTP/3) is
+    standardized and universal. WebCodecs is cross-browser with 94\% coverage.
+    Two gaps remain: Safari lacks WebTransport (82\% coverage) and Encoded
+    Transforms for E2EE remain Chrome-only.
+
+  \item \textbf{2028--2029 projection:} WebTransport reaches Safari via
+    Interop~2026. Encoded Transforms become cross-browser. WebCodecs achieves
+    W3C Recommendation. AV1 becomes a practical WebRTC codec as hardware
+    encoding expands. MoQ and RTP over QUIC reach RFC status.
+
+  \item \textbf{2029--2031 projection:} Full stack convergence. The
+    ``unbundled'' architecture (WebTransport + WebCodecs + WebAssembly) becomes
+    viable for specialized use cases. AV1 hardware encoding is ubiquitous.
+    MoQ enables standards-based sub-second streaming with CDN fan-out.
+
+  \item \textbf{Hardware and network:} Standards maturation compounds with
+    hardware improvement (60--80\% CPU gains vs.\ 2021, ubiquitous AV1 silicon)
+    and network growth (200--300~Mbps fixed, 100+~Mbps mobile). By 2030, a
+    720p call consumes less than 0.5\% of link capacity.
+
+  \item \textbf{Information-theoretic view (Appendix~\ref{app:info-theory}):}
+    Codec efficiency gaps narrow from H.264 ($\Delta \approx 2.1$) to AV1
+    ($\Delta \approx 0.4$), approaching the Shannon rate-distortion bound.
+    QUIC eliminates head-of-line blocking, recovering up to 34\% per-stream
+    throughput at 5\% loss. WebTransport's unreliable datagrams outperform
+    WebSocket for any application with a freshness half-life below 34~ms.
+\end{itemize}
+
 \section{Introduction}
 
 This document examines the concrete browser capabilities enabled by the
 real-time web communication standards collected in the \texttt{standards/}
 directory of this project. It compares what these standards made possible in
-browsers as of late 2021 with what they enable as of March 2026. The
-discussion focuses exclusively on what standards adoption in browsers enabled
---- not on market trends, product adoption, or commercial developments.
+browsers as of late 2021 with what they enable as of March 2026, then projects
+where the stack is heading through 2031. The discussion focuses exclusively on
+what standards adoption in browsers enabled and will enable --- not on market
+trends, product adoption, or commercial developments.
 
 The standards under review span five areas:
 \begin{itemize}
@@ -55,6 +103,957 @@ Together, these standards define a full stack for real-time communication in
 the browser: from low-level transport (QUIC) through application-layer
 protocols (HTTP/3, WebTransport) to peer-to-peer media and data exchange
 (WebRTC) and direct codec access (WebCodecs).
+
+Sections~3--7 detail each standard's browser capabilities in late 2021 and
+March 2026. Sections~8--9 project the stack's evolution through 2031, grounded
+in active W3C charter milestones, IETF draft timelines, browser vendor
+signals, and hardware and network trends. Section~10 summarizes the full
+2021--2031 trajectory. Appendix~\ref{app:info-theory} applies
+information-theoretic measures to quantify channel capacity, source coding
+efficiency, and effective information rates across the same time horizons.
+
+Section~2 first provides a concise overview of what each standard does and how
+the pieces fit together, for readers unfamiliar with the protocol landscape.
+
+\section{The Standards Stack}
+\label{sec:standards-stack}
+
+The standards under review form a layered architecture built on two
+complementary transport paths---one \emph{peer-to-peer} (browser talks
+directly to browser) and one \emph{client-server} (browser talks to a
+server)---with a shared codec layer that bridges both.  This section explains
+what each standard does, what problem it solves, and how the pieces fit
+together.  Figure~\ref{fig:protocol-stack} provides a visual map; the
+subsections below walk through each layer from the bottom up.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  block/.style={draw, rounded corners=2pt, minimum height=0.65cm,
+    align=center, font=\footnotesize, thick},
+  transport/.style={block, fill=blue!10},
+  security/.style={block, fill=red!6},
+  session/.style={block, fill=green!10},
+  app/.style={block, fill=orange!10},
+  codec/.style={block, fill=purple!8},
+  lbl/.style={font=\scriptsize\itshape, text=black!50},
+  arr/.style={->, thick, gray!50},
+]
+
+% --- WebRTC side (left) ---
+\node[lbl] at (-3.5, 5.6) {Peer-to-peer path};
+
+\node[transport, minimum width=4.2cm] (udp1) at (-3.5, 0) {UDP};
+\node[session, minimum width=4.2cm]   (ice)  at (-3.5, 1.0) {ICE (RFC 8445)};
+\node[security, minimum width=4.2cm]  (dtls) at (-3.5, 2.0) {DTLS-SRTP (RFCs 8827, 3711)};
+\node[session, minimum width=4.2cm]   (rtp)  at (-3.5, 3.0) {RTP / RTCP (RFC 3550)};
+\node[session, minimum width=4.2cm]   (jsep) at (-3.5, 4.0) {JSEP / SDP (RFC 9429)};
+\node[app, minimum width=4.2cm]       (rtc)  at (-3.5, 5.0) {RTCPeerConnection (W3C)};
+
+% --- QUIC side (right) ---
+\node[lbl] at (3.5, 5.6) {Client-server path};
+
+\node[transport, minimum width=4.2cm] (udp2) at (3.5, 0) {UDP};
+\node[transport, minimum width=4.2cm] (quic) at (3.5, 1.5) {QUIC + TLS\,1.3 (RFC 9000)};
+\node[session, minimum width=4.2cm]   (h3)   at (3.5, 3.0) {HTTP/3 (RFC 9114)};
+\node[app, minimum width=4.2cm]       (wt)   at (3.5, 4.5) {WebTransport (RFC 9297 + W3C)};
+
+% --- WebCodecs (centre, spanning both) ---
+\node[codec, minimum width=3.4cm] (wc) at (0, 6.3) {WebCodecs (W3C)};
+
+% --- Vertical arrows (WebRTC) ---
+\draw[arr] (udp1) -- (ice);
+\draw[arr] (ice)  -- (dtls);
+\draw[arr] (dtls) -- (rtp);
+\draw[arr] (rtp)  -- (jsep);
+\draw[arr] (jsep) -- (rtc);
+
+% --- Vertical arrows (QUIC) ---
+\draw[arr] (udp2) -- (quic);
+\draw[arr] (quic) -- (h3);
+\draw[arr] (h3)   -- (wt);
+
+% --- WebCodecs connections (dashed) ---
+\draw[->, thick, purple!40, dashed]
+  ($(wc.south west)!0.15!(wc.south)$) -- ($(rtc.north east)!0.15!(rtc.north)$);
+\draw[->, thick, purple!40, dashed]
+  ($(wc.south east)!0.15!(wc.south)$) -- ($(wt.north west)!0.15!(wt.north)$);
+
+\node[font=\tiny, text=purple!50, anchor=south east] at (-0.5, 5.65)
+  {Encoded Transforms};
+\node[font=\tiny, text=purple!50, anchor=south west] at (0.5, 5.55)
+  {Custom pipelines};
+
+% --- Layer annotations (far left) ---
+\draw[decorate, decoration={brace, amplitude=4pt, mirror},
+  thick, black!30] (-6.1, -0.2) -- (-6.1, 0.2)
+  node[midway, left=5pt, lbl] {Transport};
+\draw[decorate, decoration={brace, amplitude=4pt, mirror},
+  thick, black!30] (-6.1, 0.8) -- (-6.1, 3.2)
+  node[midway, left=5pt, lbl, align=right] {Security,\\Session};
+\draw[decorate, decoration={brace, amplitude=4pt, mirror},
+  thick, black!30] (-6.1, 3.8) -- (-6.1, 5.2)
+  node[midway, left=5pt, lbl] {Application};
+
+\end{tikzpicture}
+\caption{Protocol stack for the real-time web communication standards.
+  Left: the WebRTC peer-to-peer path.  Right: the QUIC-based client-server
+  path.  WebCodecs (top centre) provides frame-level codec access regardless
+  of transport.}
+\label{fig:protocol-stack}
+\end{figure}
+
+\subsection{The Underlying Transport: UDP}
+
+All the real-time protocols discussed here ultimately send their data over
+\textbf{UDP (User Datagram Protocol)}.  UDP is intentionally simple: it
+sends individual packets (called \emph{datagrams}) from one machine to
+another with no guarantees about ordering, delivery, or retransmission.  If a
+packet is lost, UDP does not notice and does not resend it.
+
+This might seem like a poor foundation, but for real-time media it is
+actually an advantage.  In a video call, a video frame that arrives 200~ms
+late is useless---the moment it was needed has already passed.  The
+alternative, \textbf{TCP (Transmission Control Protocol)}, guarantees that
+every byte arrives in order by automatically retransmitting lost packets, but
+this creates a problem called \emph{head-of-line blocking}: while TCP waits
+for a lost packet to be retransmitted, it holds up delivery of all
+subsequent data, even data for completely independent streams.  For
+interactive media, this stalling is worse than simply dropping the lost
+packet and moving on.  UDP lets the protocols built on top of it make their
+own choices about what to retransmit and what to discard.
+
+\subsection{WebRTC: Peer-to-Peer Media in the Browser}
+
+\textbf{WebRTC (Web Real-Time Communication)} is a W3C standard that gives
+browsers a built-in ability to send audio, video, and arbitrary data directly
+from one browser to another---peer-to-peer, without routing media through a
+server.  The browser exposes this through a single JavaScript API called
+\texttt{RTCPeerConnection}.  Under the hood, \texttt{RTCPeerConnection}
+orchestrates a set of IETF protocols that handle four problems:
+\emph{finding a network path} between two peers, \emph{agreeing what media
+to send}, \emph{encrypting the media}, and \emph{actually carrying it}.
+The subsections below explain each problem and the protocol that solves it.
+
+\subsubsection{Finding a Path: ICE, STUN, and TURN}
+
+The first problem is deceptively hard.  Most devices on the internet do not
+have their own public IP address.  Instead, they sit behind a
+\textbf{NAT (Network Address Translator)}---typically the home router or
+corporate firewall---which assigns the device a \emph{private} address
+(like \texttt{192.168.1.x}) and translates outgoing traffic onto a single
+\emph{public} address that is visible to the rest of the internet.  This
+means two browsers behind different NATs cannot simply send packets to each
+other: neither knows the other's routable address, and even if it did, the
+receiving NAT would likely drop the unsolicited incoming packet.
+
+WebRTC solves this with \textbf{ICE (Interactive Connectivity Establishment,
+RFC~8445)}.  ICE is not a server---it is an algorithm that runs in each
+browser, systematically searching for a working network path between two
+peers.  The search uses two types of infrastructure servers:
+
+\begin{description}
+  \item[STUN (Session Traversal Utilities for NAT)] is a lightweight,
+    stateless server that serves one purpose: when a browser sends it a
+    request, the STUN server replies with the browser's \emph{public} IP
+    address and port---the address as seen from the far side of the NAT.
+    This is called a \emph{server-reflexive candidate}: the browser now knows
+    what address the outside world sees for it.  The STUN server relays no
+    media and maintains no per-session state; it simply reflects the
+    address back.
+
+  \item[TURN (Traversal Using Relays around NAT)] is a heavier-weight server
+    used as a last resort.  When two peers are both behind restrictive NATs
+    (such as corporate firewalls that block all unsolicited inbound traffic),
+    no direct path exists between them.  In this case, both peers connect to a
+    TURN server, which allocates ports, authenticates each peer, and
+    \emph{relays} all media packets between them for the duration of the
+    session.  This works through any NAT because both peers are making
+    outbound connections to the TURN server.  The cost is that all media flows
+    through the relay, adding latency and bandwidth consumption.
+    Approximately 10--20\% of WebRTC connections require TURN.
+\end{description}
+
+The ICE process works as follows.  Each browser gathers a set of
+\emph{candidates}---potential addresses through which it might be
+reachable:
+
+\begin{enumerate}
+  \item \textbf{Host candidates:} the device's own local IP addresses
+    (useful when both peers are on the same local network).
+  \item \textbf{Server-reflexive candidates:} the public address discovered
+    via STUN (useful when the NAT allows direct traffic once the mapping is
+    known).
+  \item \textbf{Relay candidates:} a port allocated on a TURN server
+    (the guaranteed fallback).
+\end{enumerate}
+
+Both peers exchange their candidate lists (via the signaling mechanism
+described below), and ICE constructs every possible pairing of one local
+candidate with one remote candidate.  It then tests each pair in priority
+order---host pairs first (lowest latency), then server-reflexive pairs, then
+relay pairs---by sending a probe and waiting for a response.  The first pair
+that works is selected, and media begins flowing over it.
+
+\textbf{Trickle ICE (RFC~8838)} improves this process by allowing candidates
+to be exchanged and tested incrementally, as they are discovered, rather
+than waiting for the full list to be compiled.  In practice, this reduces
+connection setup time to roughly 500--800~ms because the fastest candidates
+(host and server-reflexive) are typically discovered and tested within the
+first few hundred milliseconds.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  peer/.style={rectangle, draw, rounded corners=2pt, fill=orange!10,
+    minimum width=1.6cm, minimum height=0.65cm, font=\small, thick},
+  nat/.style={rectangle, draw=red!50, fill=red!6,
+    minimum width=0.9cm, minimum height=1.8cm,
+    font=\scriptsize, align=center},
+  server/.style={rectangle, draw, rounded corners=2pt, fill=#1,
+    minimum width=2cm, minimum height=0.65cm, font=\small, thick},
+  server/.default={blue!8},
+  arr/.style={->, thick, #1},
+  arr/.default={black!60},
+  darr/.style={->, thick, dashed, #1},
+  darr/.default={black!60},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1pt},
+]
+
+% --- Left: The NAT problem ---
+\node[font=\small\bfseries, anchor=south] at (2.5, 3.6) {The problem};
+
+\node[peer] (pA) at (0, 1.5) {Browser A};
+\node[nat]  (nA) at (2, 1.5) {NAT};
+\node[nat]  (nB) at (6.5, 1.5) {NAT};
+\node[peer] (pB) at (8.5, 1.5) {Browser B};
+
+\node[font=\scriptsize, text=gray] at (0, 0.7) {192.168.1.5};
+\node[font=\scriptsize, text=gray] at (8.5, 0.7) {10.0.0.12};
+
+\draw[thick, red!50, decorate,
+  decoration={zigzag, segment length=3mm, amplitude=1.2mm}]
+  (nA.east) -- (nB.west);
+\node[font=\normalsize\bfseries, text=red!60] at (4.25, 1.55) {$\times$};
+\node[font=\scriptsize, text=red!60] at (4.25, 2.2) {No direct path};
+\node[font=\scriptsize, text=gray] at (4.25, 0.7) {Public internet};
+
+% --- Right: The solution ---
+\node[font=\small\bfseries, anchor=south] at (2.5, -0.6) {The solution};
+
+\node[peer] (pA2) at (0, -2) {Browser A};
+\node[peer] (pB2) at (8.5, -2) {Browser B};
+\node[server=blue!8] (stun) at (4.25, -0.8) {STUN};
+\node[server=green!10] (turn) at (4.25, -3.5) {TURN relay};
+
+% STUN arrows
+\draw[arr=blue!50] (pA2.north) -- node[lbl, above, sloped, pos=0.35]
+  {\scriptsize discover public IP} (stun.south west);
+\draw[arr=blue!50] (pB2.north) -- node[lbl, above, sloped, pos=0.35]
+  {\scriptsize discover public IP} (stun.south east);
+
+% Direct path (80-90%)
+\draw[arr=green!50!black, line width=1.2pt] (pA2.east) --
+  node[lbl, above] {\scriptsize direct path (80--90\%)} (pB2.west);
+
+% TURN fallback (10-20%)
+\draw[darr=orange!70!black] (pA2.south) |-
+  node[lbl, below, pos=0.25] {\scriptsize relay fallback} (turn.west);
+\draw[darr=orange!70!black] (turn.east) -|
+  node[lbl, below, pos=0.75] {\scriptsize (10--20\%)} (pB2.south);
+
+% Legend
+\node[font=\scriptsize, text=gray, align=left, anchor=north west]
+  at (-0.5, -4.3) {%
+  \tikz[baseline=-0.5ex]{\draw[->, thick, green!50!black, line width=1.2pt]
+    (0,0) -- (0.6,0);}~preferred (STUN-assisted) \qquad
+  \tikz[baseline=-0.5ex]{\draw[->, thick, dashed, orange!70!black]
+    (0,0) -- (0.6,0);}~fallback (TURN relay)};
+
+\end{tikzpicture}
+\caption{The NAT problem and how ICE solves it.  Top: two browsers behind
+  NATs cannot reach each other directly---neither knows the other's public
+  address.  Bottom: STUN discovers each browser's public address; ICE
+  attempts a direct connection (successful 80--90\% of the time) and falls
+  back to a TURN relay when direct connectivity is impossible.}
+\label{fig:nat-ice}
+\end{figure}
+
+\subsubsection{Agreeing What to Send: SDP, JSEP, and Signaling}
+
+Before media can flow, two peers must agree on what they will send each
+other: which codecs to use (H.264, VP9, AV1), which media types (audio,
+video, screen-share), at what resolutions and bitrates, and which encryption
+parameters.  This negotiation uses the \textbf{Session Description Protocol
+(SDP)}---a text-based format that describes a peer's media capabilities.
+
+The process works through an \emph{offer/answer} exchange:
+\begin{enumerate}
+  \item \textbf{Peer~A creates an SDP offer} listing everything it can send
+    and receive: ``I support H.264 and VP9 video, Opus audio, and here is my
+    encryption certificate fingerprint.''
+  \item \textbf{The offer is delivered to Peer~B} through a signaling
+    channel.
+  \item \textbf{Peer~B creates an SDP answer} selecting the common ground:
+    ``I also support VP9 and Opus; let's use those.  Here is my encryption
+    fingerprint.''
+  \item \textbf{The answer is delivered back to Peer~A.}  Both peers now know
+    exactly what media they will exchange and how it will be encrypted.
+\end{enumerate}
+
+\textbf{JSEP (JavaScript Session Establishment Protocol, RFC~9429;
+originally RFC~8829)} defines how the browser creates and processes these
+SDP messages.  It specifies the JavaScript API calls---\texttt{createOffer()},
+\texttt{createAnswer()}, \texttt{setLocalDescription()},
+\texttt{setRemoteDescription()}---that applications use to drive the
+negotiation.
+
+Critically, JSEP \emph{deliberately does not specify how} the SDP offer and
+answer are delivered between the two peers.  This delivery mechanism is
+called \textbf{signaling}, and it is the one part of a WebRTC system that
+the application must build itself.  The signaling channel can be anything:
+a WebSocket connection, an HTTP request, a message passed through a shared
+database---whatever gets the SDP text from one peer to the other.  The
+signaling server also relays ICE candidates as they are discovered (for
+Trickle ICE).  Importantly, the signaling server never sees or touches the
+actual media; it handles only lightweight control messages.
+
+\subsubsection{Encrypting the Media: DTLS and SRTP}
+
+All WebRTC media is encrypted.  There is no option to send unencrypted
+audio or video---encryption is mandatory by design.
+
+The encryption uses two protocols working together:
+
+\begin{description}
+  \item[DTLS (Datagram Transport Layer Security, RFC~8827)] is essentially
+    TLS (the same encryption used for HTTPS websites) adapted for UDP.  Once
+    ICE has found a working path between two peers, DTLS performs a
+    cryptographic handshake over that path.  During the handshake, each peer
+    presents a self-signed certificate, and the remote peer verifies that the
+    certificate matches the fingerprint it received earlier in the SDP
+    exchange.  This binding between the signaling channel and the media
+    channel prevents \emph{man-in-the-middle attacks}: an attacker cannot
+    substitute their own encryption keys without the mismatch being detected.
+    The DTLS handshake produces a shared set of encryption keys.
+
+  \item[SRTP (Secure Real-time Transport Protocol, RFC~3711)] uses the keys
+    negotiated by DTLS to encrypt every individual media packet.  SRTP adds
+    a small authentication tag to each packet (a few bytes), enabling the
+    receiver to verify that the packet has not been tampered with in transit.
+    The overhead is negligible and introduces no meaningful latency.
+\end{description}
+
+\subsubsection{Carrying the Media: RTP and RTCP}
+
+With a path established (ICE), capabilities agreed (SDP/JSEP), and
+encryption keys negotiated (DTLS), media can finally flow.  The protocol
+that carries the actual audio and video is \textbf{RTP (Real-time Transport
+Protocol, RFC~3550)}, sent as encrypted SRTP packets.
+
+RTP provides the essential bookkeeping for real-time media:
+\begin{itemize}
+  \item \textbf{Sequence numbers} so the receiver can detect lost packets
+    and reorder packets that arrive out of sequence.
+  \item \textbf{Timestamps} so the receiver can synchronize audio and video
+    playback (lip sync) and play back frames at the correct rate.
+  \item \textbf{Payload type identifiers} so the receiver knows which codec
+    was used to encode each packet.
+\end{itemize}
+
+Alongside RTP, the \textbf{RTP Control Protocol (RTCP)} provides a feedback
+channel.  Receivers periodically send RTCP reports back to the sender with
+statistics on packet loss rate, jitter (variation in packet arrival times),
+and round-trip time.  The sender uses this feedback to adapt in real time:
+if packet loss increases, the video encoder can reduce its bitrate to avoid
+further congestion.  This adaptive behaviour is essential for maintaining
+call quality over varying network conditions.
+
+\subsubsection{The WebRTC Security Model}
+
+RFC~8826 defines the overarching security principles for WebRTC:
+\begin{itemize}
+  \item \textbf{Mandatory encryption:} as described above, all media is
+    encrypted via DTLS-SRTP.
+  \item \textbf{User consent:} the browser must obtain explicit user
+    permission before accessing the camera or microphone.  A web page cannot
+    silently record audio or video.
+  \item \textbf{IP address privacy:} browsers use \textbf{mDNS (multicast
+    DNS)} to mask local IP addresses in ICE candidates.  Without this,
+    a web page could discover the user's local network address merely by
+    initiating a WebRTC connection, creating a privacy leak.  With mDNS,
+    the browser substitutes a random hostname that resolves only on the
+    local network.
+\end{itemize}
+
+\subsubsection{Putting It Together: A WebRTC Call Sequence}
+
+Figure~\ref{fig:webrtc-sequence} illustrates the end-to-end sequence.
+When a user joins a video call:
+
+\begin{enumerate}
+  \item The browser gathers ICE candidates (local addresses, STUN-discovered
+    public addresses, and optionally TURN relay addresses).
+  \item The application creates an SDP offer describing the browser's media
+    capabilities and sends it, along with the ICE candidates, through the
+    signaling server to the remote peer.
+  \item The remote peer responds with an SDP answer and its own ICE
+    candidates.
+  \item ICE tests candidate pairs and selects the best working path.
+  \item DTLS performs a handshake over that path to negotiate encryption
+    keys.
+  \item Encrypted media (audio and video as SRTP packets) begins flowing
+    directly between the two browsers.  The signaling server is no longer
+    in the media path.
+\end{enumerate}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  entity/.style={rectangle, draw, rounded corners=2pt, minimum height=0.7cm,
+    align=center, font=\small, thick, fill=#1},
+  entity/.default={white},
+  msg/.style={->, thick, #1},
+  msg/.default={black!70},
+  mlbl/.style={font=\scriptsize, fill=white, inner sep=1.5pt},
+  timeline/.style={thick, gray!40, dashed},
+]
+
+% --- Entities ---
+\node[entity=orange!10] (peerA) at (0, 0)    {Browser A};
+\node[entity=green!10]  (sig)   at (5, 0)    {Signaling\\Server};
+\node[entity=orange!10] (peerB) at (10, 0)   {Browser B};
+\node[entity=blue!8]    (stun)  at (12.5, 0) {STUN};
+
+% --- Timelines ---
+\draw[timeline] (0, -0.5) -- (0, -10.8);
+\draw[timeline] (5, -0.5) -- (5, -10.8);
+\draw[timeline] (10, -0.5) -- (10, -10.8);
+\draw[timeline] (12.5, -0.5) -- (12.5, -4.5);
+
+% --- Step 1: STUN discovery ---
+\draw[msg] (0, -1.2) -- node[mlbl, above, sloped]
+  {1.\ STUN request} (12.5, -1.6);
+\draw[msg=blue!60] (12.5, -1.8) -- node[mlbl, above, sloped]
+  {public IP reply} (0, -2.2);
+\draw[msg] (10, -1.4) -- node[mlbl, above, sloped]
+  {1.\ STUN request} (12.5, -1.6);
+\draw[msg=blue!60] (12.5, -2.0) -- node[mlbl, above, sloped]
+  {public IP reply} (10, -2.4);
+
+\node[font=\scriptsize\itshape, text=black!50, anchor=west] at (-3.2, -1.7)
+  {Gather candidates};
+
+% --- Step 2: SDP offer + candidates ---
+\draw[msg=green!50!black] (0, -3.2) -- node[mlbl, above]
+  {2.\ SDP offer + ICE candidates} (5, -3.5);
+\draw[msg=green!50!black] (5, -3.7) -- node[mlbl, above]
+  {forward to B} (10, -4.0);
+
+\node[font=\scriptsize\itshape, text=black!50, anchor=west] at (-3.2, -3.5)
+  {Signaling};
+
+% --- Step 3: SDP answer + candidates ---
+\draw[msg=green!50!black] (10, -4.5) -- node[mlbl, above]
+  {3.\ SDP answer + ICE candidates} (5, -4.8);
+\draw[msg=green!50!black] (5, -5.0) -- node[mlbl, above]
+  {forward to A} (0, -5.3);
+
+% --- Step 4: ICE connectivity checks ---
+\draw[msg=orange!70!black, <->] (0, -6.2) -- node[mlbl, above]
+  {4.\ ICE connectivity checks (probe/response)} (10, -6.2);
+
+\node[font=\scriptsize\itshape, text=black!50, anchor=west] at (-3.2, -6.2)
+  {Path selection};
+
+% --- Step 5: DTLS handshake ---
+\draw[msg=red!50!black, <->] (0, -7.4) -- node[mlbl, above]
+  {5.\ DTLS handshake (key exchange)} (10, -7.4);
+
+\node[font=\scriptsize\itshape, text=black!50, anchor=west] at (-3.2, -7.4)
+  {Encryption};
+
+% --- Step 6: Media flow ---
+\draw[msg=blue!60, <->, line width=1.2pt] (0, -8.8) -- node[mlbl, above]
+  {6.\ Encrypted media (SRTP audio + video)} (10, -8.8);
+\draw[msg=blue!40, <->, dashed] (0, -9.4) -- node[mlbl, above]
+  {RTCP feedback (loss, jitter, RTT)} (10, -9.4);
+
+\node[font=\scriptsize\itshape, text=black!50, anchor=west] at (-3.2, -9.1)
+  {Media flow};
+
+% --- Signaling server not in media path ---
+\node[font=\scriptsize\itshape, text=gray, align=center] at (5, -9.5)
+  {Signaling server\\not in media path};
+
+% Brace for direct peer-to-peer
+\draw[decorate, decoration={brace, amplitude=5pt},
+  thick, blue!40] (10.4, -5.8) -- (10.4, -9.8)
+  node[midway, right=6pt, font=\scriptsize, text=blue!60, align=left]
+  {Direct\\peer-to-peer};
+
+\end{tikzpicture}
+\caption{WebRTC call establishment sequence.  Steps~1--3 use supporting
+  infrastructure (STUN server, signaling server).  Once ICE selects a path
+  and DTLS establishes encryption (steps~4--5), media flows directly between
+  the two browsers (step~6).  The signaling server plays no further role
+  in the media path.}
+\label{fig:webrtc-sequence}
+\end{figure}
+
+\subsection{QUIC: A Modern Transport Protocol}
+
+\textbf{QUIC (RFC~9000)} is a general-purpose transport protocol that, like
+WebRTC's media path, runs over UDP.  It was originally developed by Google
+and standardized by the IETF in 2021.  QUIC is designed to solve several
+long-standing problems with TCP, the transport protocol that has carried most
+internet traffic for decades.
+
+\textbf{The head-of-line blocking problem.}  TCP provides a single,
+ordered byte stream: every byte must be delivered in sequence.  When a
+browser opens multiple parallel data flows over one TCP connection (as
+HTTP/2 does), a single lost packet blocks \emph{all} of those flows until
+the lost packet is retransmitted and received.  This is head-of-line
+blocking.  QUIC solves it by providing \emph{many independent streams}
+within a single connection, each with its own sequencing and flow control.
+A lost packet on one stream stalls only that stream; all others continue
+unaffected.  For applications carrying multiple concurrent flows---such as
+a video call with several media tracks---this independence is critical.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  pkt/.style={minimum width=0.55cm, minimum height=0.45cm,
+    font=\tiny, align=center, thick, draw},
+  lost/.style={pkt, fill=red!25, draw=red!60},
+  ok/.style={pkt, fill=#1, draw=gray!60},
+  ok/.default={blue!15},
+  blocked/.style={pkt, fill=gray!15, draw=gray!40, densely dotted},
+  lbl/.style={font=\scriptsize},
+  heading/.style={font=\small\bfseries},
+]
+
+% === TCP side (left) ===
+\node[heading] at (2.5, 3.6) {TCP: single ordered stream};
+
+% Stream labels
+\node[lbl, anchor=east] at (-0.15, 2.2) {Video};
+\node[lbl, anchor=east] at (-0.15, 1.4) {Audio};
+\node[lbl, anchor=east] at (-0.15, 0.6) {Data};
+
+% Timeline arrow
+\draw[->, thick, gray!40] (0, -0.1) -- (5.5, -0.1)
+  node[anchor=north, font=\tiny, text=gray] {time};
+
+% Video packets
+\node[ok=blue!15] at (0.5, 2.2) {};
+\node[ok=blue!15] at (1.2, 2.2) {};
+\node[lost] at (1.9, 2.2) {\bfseries $\times$};
+\node[blocked] at (2.6, 2.2) {};
+\node[blocked] at (3.3, 2.2) {};
+\node[blocked] at (4.0, 2.2) {};
+\node[blocked] at (4.7, 2.2) {};
+
+% Audio packets
+\node[ok=green!15] at (0.5, 1.4) {};
+\node[ok=green!15] at (1.2, 1.4) {};
+\node[blocked] at (1.9, 1.4) {};
+\node[blocked] at (2.6, 1.4) {};
+\node[blocked] at (3.3, 1.4) {};
+\node[blocked] at (4.0, 1.4) {};
+\node[blocked] at (4.7, 1.4) {};
+
+% Data packets
+\node[ok=orange!15] at (0.5, 0.6) {};
+\node[ok=orange!15] at (1.2, 0.6) {};
+\node[blocked] at (1.9, 0.6) {};
+\node[blocked] at (2.6, 0.6) {};
+\node[blocked] at (3.3, 0.6) {};
+\node[blocked] at (4.0, 0.6) {};
+\node[blocked] at (4.7, 0.6) {};
+
+% Blocked annotation
+\draw[thick, red!60, decorate,
+  decoration={brace, amplitude=4pt}]
+  (1.65, 2.65) -- (5.0, 2.65)
+  node[midway, above=4pt, font=\scriptsize, text=red!60]
+  {all streams blocked};
+
+% Retransmit annotation
+\draw[->, thick, red!50, dashed] (1.9, 1.9) -- (1.9, -0.1)
+  node[anchor=north, font=\tiny, text=red!50] {retransmit wait};
+
+% === QUIC side (right) ===
+\node[heading] at (9.5, 3.6) {QUIC: independent streams};
+
+\node[lbl, anchor=east] at (6.85, 2.2) {Video};
+\node[lbl, anchor=east] at (6.85, 1.4) {Audio};
+\node[lbl, anchor=east] at (6.85, 0.6) {Data};
+
+% Timeline arrow
+\draw[->, thick, gray!40] (7, -0.1) -- (12.5, -0.1)
+  node[anchor=north, font=\tiny, text=gray] {time};
+
+% Video packets - one lost, only video stalls
+\node[ok=blue!15] at (7.5, 2.2) {};
+\node[ok=blue!15] at (8.2, 2.2) {};
+\node[lost] at (8.9, 2.2) {\bfseries $\times$};
+\node[blocked] at (9.6, 2.2) {};
+\node[blocked] at (10.3, 2.2) {};
+\node[ok=blue!15] at (11.0, 2.2) {};
+\node[ok=blue!15] at (11.7, 2.2) {};
+
+% Audio packets - unaffected
+\node[ok=green!15] at (7.5, 1.4) {};
+\node[ok=green!15] at (8.2, 1.4) {};
+\node[ok=green!15] at (8.9, 1.4) {};
+\node[ok=green!15] at (9.6, 1.4) {};
+\node[ok=green!15] at (10.3, 1.4) {};
+\node[ok=green!15] at (11.0, 1.4) {};
+\node[ok=green!15] at (11.7, 1.4) {};
+
+% Data packets - unaffected
+\node[ok=orange!15] at (7.5, 0.6) {};
+\node[ok=orange!15] at (8.2, 0.6) {};
+\node[ok=orange!15] at (8.9, 0.6) {};
+\node[ok=orange!15] at (9.6, 0.6) {};
+\node[ok=orange!15] at (10.3, 0.6) {};
+\node[ok=orange!15] at (11.0, 0.6) {};
+\node[ok=orange!15] at (11.7, 0.6) {};
+
+% Only video stalls annotation
+\draw[thick, red!60, decorate,
+  decoration={brace, amplitude=4pt}]
+  (8.65, 2.65) -- (10.55, 2.65)
+  node[midway, above=4pt, font=\scriptsize, text=red!60]
+  {only video stalls};
+
+\node[font=\scriptsize, text=green!50!black, anchor=west] at (12, 1.4)
+  {unaffected};
+\node[font=\scriptsize, text=green!50!black, anchor=west] at (12, 0.6)
+  {unaffected};
+
+% Legend
+\node[font=\scriptsize, text=gray, anchor=north] at (6.25, -0.6) {%
+  \tikz[baseline=-0.5ex]{\node[ok=blue!15, minimum width=0.35cm,
+    minimum height=0.3cm] {};}~delivered \quad
+  \tikz[baseline=-0.5ex]{\node[lost, minimum width=0.35cm,
+    minimum height=0.3cm] {};}~lost \quad
+  \tikz[baseline=-0.5ex]{\node[blocked, minimum width=0.35cm,
+    minimum height=0.3cm] {};}~blocked};
+
+\end{tikzpicture}
+\caption{Head-of-line blocking: TCP vs.\ QUIC.  Left: when a TCP packet is
+  lost, \emph{all} multiplexed streams stall until the lost packet is
+  retransmitted.  Right: QUIC isolates the loss to the affected stream;
+  audio and data continue flowing without interruption.}
+\label{fig:hol-blocking-concept}
+\end{figure}
+
+\textbf{Built-in encryption.}  QUIC integrates TLS~1.3 (Transport Layer
+Security, the same encryption standard used for HTTPS) directly into the
+connection handshake.  A new QUIC connection is established in a single
+network round trip (1-RTT), compared to TCP's three-way handshake followed
+by a separate TLS handshake (typically 2--3 round trips).  For servers the
+client has previously connected to, QUIC can establish a connection with
+\emph{zero} round trips (0-RTT), sending application data in the very first
+packet.
+
+\textbf{Connection migration.}  Traditional TCP connections are identified
+by a \emph{5-tuple}: source IP address, source port, destination IP address,
+destination port, and protocol number.  When any of these change---for
+example, when a phone switches from Wi-Fi to cellular---the TCP connection
+breaks and must be re-established.  QUIC instead identifies connections by
+\emph{connection IDs}, opaque tokens that survive network changes.  When a
+device changes networks, QUIC validates the new path and continues the
+session without interruption.  For a video call, this means seamless handoff
+rather than a disconnect-and-reconnect.
+
+\subsection{HTTP/3: HTTP over QUIC}
+
+\textbf{HTTP/3 (RFC~9114)} is the latest version of the HTTP protocol that
+powers the web.  It maps HTTP requests and responses onto QUIC instead of
+TCP.  Each HTTP request/response pair occupies its own QUIC stream, so the
+head-of-line blocking that affects HTTP/2 (which multiplexes over a single
+TCP connection) is eliminated: a lost packet delays only the request it
+belongs to, not every other request on the connection.
+
+For the standards discussed in this document, HTTP/3 matters primarily
+because it is the foundation on which WebTransport is built.  A
+WebTransport session is established over an HTTP/3 connection, inheriting
+all of QUIC's properties: independent streams, built-in encryption,
+connection migration, and low-latency connection establishment.
+
+\subsection{WebTransport: QUIC Capabilities for Browser Applications}
+
+\textbf{WebTransport (W3C Working Draft + RFC~9297)} is a browser API that
+gives JavaScript applications direct access to QUIC's transport capabilities
+over an HTTP/3 connection.  To understand why this matters, consider the
+alternative: \textbf{WebSocket}.
+
+WebSocket, the current standard for bidirectional browser-server
+communication, runs over TCP.  It provides a single ordered byte stream---
+the same model as a regular TCP connection, with the same head-of-line
+blocking problem.  If a WebSocket sends a burst of small messages and one
+packet is lost, all subsequent messages stall until the lost one is
+retransmitted.  Furthermore, every message sent over WebSocket is guaranteed
+to arrive (TCP will retransmit until it does), even if the message has become
+stale by the time it finally arrives.
+
+WebTransport offers three capabilities that WebSocket cannot:
+
+\begin{itemize}
+  \item \textbf{Unreliable datagrams.}  An application can send a message
+    that is delivered if possible but silently dropped if lost.  No
+    retransmission, no stalling.  This is ideal for data that becomes stale
+    quickly---game state updates, real-time cursor positions, live sensor
+    readings---where receiving the \emph{latest} value matters more than
+    receiving \emph{every} value.
+
+  \item \textbf{Multiple independent reliable streams.}  An application can
+    open many parallel streams, each with guaranteed in-order delivery, but
+    without head-of-line blocking between them.  A stall on one stream does
+    not affect the others.  This is useful for sending different types of
+    data (e.g., chat messages, control signals, file transfers)
+    simultaneously without interference.
+
+  \item \textbf{Connection migration.}  Inherited from QUIC: the
+    connection survives network changes such as Wi-Fi to cellular handoffs.
+\end{itemize}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  block/.style={draw, rounded corners=2pt, minimum height=0.55cm,
+    align=center, font=\scriptsize, thick},
+  heading/.style={font=\small\bfseries},
+  arr/.style={->, thick, gray!50},
+  lbl/.style={font=\tiny, text=gray},
+]
+
+% === WebSocket side (left) ===
+\node[heading] at (2.0, 4.0) {WebSocket (TCP)};
+
+\node[block, fill=orange!10, minimum width=3.6cm] (wsApp) at (2.0, 3.2)
+  {Application};
+\node[block, fill=gray!12, minimum width=3.6cm] (ws) at (2.0, 2.2)
+  {WebSocket};
+\node[block, fill=blue!8, minimum width=3.6cm] (tcp) at (2.0, 1.2)
+  {TCP (single ordered stream)};
+\node[block, fill=blue!8, minimum width=3.6cm] (tls) at (2.0, 0.2)
+  {TLS 1.2/1.3};
+
+\draw[arr] (wsApp) -- (ws);
+\draw[arr] (ws) -- (tcp);
+\draw[arr] (tcp) -- (tls);
+
+% Limitations
+\node[font=\tiny, text=red!50!black, anchor=north west, align=left]
+  at (0.0, -0.5) {%
+  $\times$ One stream (HOL blocking)\\
+  $\times$ Reliable only (no datagrams)\\
+  $\times$ No connection migration};
+
+% === WebTransport side (right) ===
+\node[heading] at (9.0, 4.0) {WebTransport (QUIC)};
+
+\node[block, fill=orange!10, minimum width=5.0cm] (wtApp) at (9.0, 3.2)
+  {Application};
+\node[block, fill=green!10, minimum width=5.0cm] (wt2) at (9.0, 2.2)
+  {WebTransport};
+
+% Three capabilities
+\node[block, fill=green!8, minimum width=1.4cm] (dg) at (7.2, 1.2)
+  {Datagrams};
+\node[block, fill=green!8, minimum width=1.4cm] (s1) at (9.0, 1.2)
+  {Stream 1};
+\node[block, fill=green!8, minimum width=1.4cm] (s2) at (10.8, 1.2)
+  {Stream 2\ldots};
+
+\node[block, fill=blue!8, minimum width=5.0cm] (quic2) at (9.0, 0.2)
+  {QUIC + TLS 1.3 (independent streams)};
+
+\draw[arr] (wtApp) -- (wt2);
+\draw[arr] (wt2.south) -- ++(0, -0.25) -| (dg.north);
+\draw[arr] (wt2.south) -- ++(0, -0.25) -| (s1.north);
+\draw[arr] (wt2.south) -- ++(0, -0.25) -| (s2.north);
+\draw[arr] (dg.south) -- ++(0, -0.15) -| ([xshift=-1.5cm]quic2.north);
+\draw[arr] (s1) -- (quic2);
+\draw[arr] (s2.south) -- ++(0, -0.15) -| ([xshift=1.5cm]quic2.north);
+
+% Advantages
+\node[font=\tiny, text=green!50!black, anchor=north west, align=left]
+  at (6.3, -0.5) {%
+  \checkmark{} Multiple independent streams\\
+  \checkmark{} Unreliable datagrams (fire-and-forget)\\
+  \checkmark{} Connection migration (Wi-Fi $\to$ cellular)};
+
+% Label on datagrams
+\node[font=\tiny, text=purple!60] at (7.2, 0.7) {unreliable};
+\node[font=\tiny, text=blue!60] at (9.9, 0.7) {reliable};
+
+% VS divider
+\node[font=\large\bfseries, text=gray!30] at (5.5, 1.7) {vs.};
+
+\end{tikzpicture}
+\caption{WebSocket vs.\ WebTransport.  WebSocket provides a single ordered
+  stream over TCP; a lost packet stalls everything.  WebTransport provides
+  multiple independent streams \emph{and} unreliable datagrams over QUIC,
+  with connection migration.}
+\label{fig:ws-vs-wt}
+\end{figure}
+
+WebTransport is a \emph{client-server} protocol: the browser connects to a
+server, not directly to another browser.  It complements WebRTC---where
+WebRTC provides direct browser-to-browser media exchange, WebTransport
+provides a modern browser-to-server data path suited to relayed media
+architectures, game state synchronization, and real-time telemetry.
+
+\subsection{WebCodecs: Direct Codec Access}
+
+\textbf{WebCodecs (W3C Working Draft)} gives JavaScript code direct,
+frame-by-frame access to the audio and video codecs built into the browser.
+
+To understand why this matters, consider how browsers have traditionally
+handled media encoding and decoding.  High-level APIs like
+\texttt{MediaRecorder} (for recording) and \texttt{HTMLMediaElement} (for
+playback) control the entire pipeline: the browser decides when to produce
+keyframes, how to adjust bitrate, and what container format to use.  The
+application gets a finished recording or a rendered video---but cannot
+intervene at the level of individual frames.
+
+WebCodecs breaks open this pipeline.  It provides four interfaces:
+
+\begin{itemize}
+  \item \texttt{VideoEncoder} / \texttt{VideoDecoder} --- encode or decode
+    individual video frames, with per-frame control over keyframe insertion,
+    target bitrate, and quality parameters.
+  \item \texttt{AudioEncoder} / \texttt{AudioDecoder} --- the same for
+    individual audio chunks.
+\end{itemize}
+
+These interfaces use the browser's built-in hardware-accelerated codec
+implementations.  When dedicated encoding hardware is available (as on most
+modern GPUs and mobile chips), WebCodecs uses it automatically; otherwise it
+falls back to software encoding.  The application gets raw encoded bytes
+without container overhead, and can process, transform, or transport them
+however it chooses.
+
+WebCodecs is deliberately \emph{transport-agnostic}---it handles encoding
+and decoding, not delivery.  The encoded output can be sent via WebRTC (using
+Encoded Transforms to insert custom processing into the
+\texttt{RTCPeerConnection} pipeline), via WebTransport (packaging encoded
+frames as datagrams or stream data), or via any other mechanism.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  block/.style={draw, rounded corners=2pt, minimum height=0.6cm,
+    align=center, font=\scriptsize, thick},
+  heading/.style={font=\small\bfseries},
+  arr/.style={->, thick, gray!60},
+  lbl/.style={font=\tiny, text=gray},
+]
+
+% === Traditional path (top) ===
+\node[heading] at (0.8, 2.4) {Traditional};
+
+\node[block, fill=blue!10, minimum width=1.6cm] (cam1) at (0.8, 1.6)
+  {Camera};
+\node[block, fill=gray!15, minimum width=3.2cm, minimum height=1.2cm]
+  (mr) at (4.2, 1.6)
+  {MediaRecorder\\{\tiny(browser controls everything)}};
+\node[block, fill=orange!10, minimum width=2.0cm] (out1) at (7.8, 1.6)
+  {Container file\\{\tiny(.webm, .mp4)}};
+
+\draw[arr] (cam1) -- (mr);
+\draw[arr] (mr) -- (out1);
+
+\node[font=\tiny, text=red!50!black, anchor=north] at (4.2, 0.75)
+  {No per-frame control};
+
+% === WebCodecs path (bottom) ===
+\node[heading] at (0.8, -0.2) {WebCodecs};
+
+\node[block, fill=blue!10, minimum width=1.6cm] (cam2) at (0.8, -1.0)
+  {Camera};
+\node[block, fill=green!12, minimum width=2.0cm] (ve) at (3.5, -1.0)
+  {VideoEncoder\\{\tiny(per-frame control)}};
+\node[block, fill=purple!8, minimum width=1.6cm] (raw) at (6.2, -1.0)
+  {Raw encoded\\frames};
+
+% Multiple output paths
+\node[block, fill=orange!8, minimum width=1.8cm] (rtc2) at (9.0, -0.2)
+  {WebRTC};
+\node[block, fill=orange!8, minimum width=1.8cm] (wt3) at (9.0, -1.0)
+  {WebTransport};
+\node[block, fill=orange!8, minimum width=1.8cm] (other) at (9.0, -1.8)
+  {File / WASM / \ldots};
+
+\draw[arr] (cam2) -- (ve);
+\draw[arr] (ve) -- (raw);
+\draw[arr] (raw.east) -- ++(0.3, 0) |- (rtc2.west);
+\draw[arr] (raw) -- (wt3);
+\draw[arr] (raw.east) -- ++(0.3, 0) |- (other.west);
+
+\node[font=\tiny, text=green!50!black, anchor=north] at (6.5, -2.3)
+  {Application chooses transport};
+
+% Brace for HW accel
+\draw[decorate, decoration={brace, amplitude=3pt, mirror},
+  thick, blue!40] (2.4, -1.6) -- (4.6, -1.6)
+  node[midway, below=4pt, font=\tiny, text=blue!50] {HW-accelerated};
+
+\end{tikzpicture}
+\caption{Traditional codec access vs.\ WebCodecs.  Top: \texttt{MediaRecorder}
+  controls the entire pipeline; the application receives a finished container
+  file.  Bottom: WebCodecs gives per-frame control over hardware-accelerated
+  encoding, and the application decides how to transport the raw output.}
+\label{fig:webcodecs-pipeline}
+\end{figure}
+
+\subsection{How the Standards Interact}
+
+The standards described above can be summarized in four key relationships:
+
+\begin{enumerate}
+  \item \textbf{WebRTC is self-contained for peer-to-peer communication.}
+    A single API call, \texttt{RTCPeerConnection}, bundles ICE (path
+    discovery), DTLS-SRTP (encryption), RTP (media transport), and codec
+    negotiation.  An application can build a complete video call using only
+    WebRTC and an application-provided signaling channel, without touching
+    any other standard discussed here.
+
+  \item \textbf{QUIC $\to$ HTTP/3 $\to$ WebTransport is a layered
+    client-server path.}  Each layer adds capability: QUIC provides
+    multiplexed encrypted transport over UDP, HTTP/3 maps HTTP semantics
+    onto it, and WebTransport exposes QUIC's streams and datagrams to
+    JavaScript.  An application that needs browser-to-server real-time
+    communication uses all three layers, but interacts only with the
+    WebTransport API at the top.
+
+  \item \textbf{WebCodecs bridges both paths.}  In a WebRTC context,
+    WebCodecs (via Encoded Transforms) enables custom processing of media
+    frames flowing through \texttt{RTCPeerConnection}---for example,
+    applying end-to-end encryption inside the WebRTC pipeline.  In a
+    WebTransport context, WebCodecs encodes and decodes media that the
+    application transports itself, independent of WebRTC.
+
+  \item \textbf{The ``unbundled'' alternative.}  Rather than using WebRTC's
+    monolithic \texttt{RTCPeerConnection}, an application can compose
+    WebTransport (for transport) + WebCodecs (for encoding/decoding) +
+    WebAssembly (for custom processing) to build a fully custom media
+    pipeline.  This trades WebRTC's built-in integration for explicit control
+    over every decision: which codec, what packetization, how to handle
+    congestion, what to retransmit.  This architecture is projected to become
+    viable by 2029 (Sections~8--9).
+\end{enumerate}
 
 \section{WebRTC}
 
@@ -347,73 +1346,6 @@ codec operations using hardware acceleration. This enables web applications
 to build custom media pipelines --- video editors, live transcoders, custom
 streaming clients --- that were previously possible only through WebAssembly
 codec implementations or native applications.
-
-\section{Summary}
-
-\begin{table}[ht]
-\centering
-\small
-\renewcommand{\arraystretch}{1.3}
-\begin{tabularx}{\textwidth}{lXXX}
-\toprule
-\textbf{Standard} & \textbf{Late 2021} & \textbf{March 2026} & \textbf{Key Change} \\
-\midrule
-WebRTC 1.0 &
-  W3C Rec (Jan 2021). Chrome/Firefox full support. Safari limited: H.264 only, no simulcast, iOS DataChannel broken. Plan~B still in Chrome. &
-  Updated Rec (2024--25). Unified Plan universal. Safari has VP9. iOS reliable. JSEP updated to RFC~9429. mDNS privacy standardized. &
-  Uneven $\to$ converged (Safari gap narrowed; Encoded Transforms still Chrome-only) \\
-\midrule
-QUIC &
-  RFC~9000 (May 2021). Chrome/Firefox default. Safari experimental, manual opt-in. &
-  Default in all browsers (Safari~16+, 2022). &
-  Partial $\to$ universal \\
-\midrule
-HTTP/3 &
-  Pre-RFC draft implementations. Chrome/Firefox default. Safari behind flag. &
-  RFC~9114 (June 2022). Default in all browsers. 92\%+ coverage. &
-  Draft $\to$ standard $\to$ universal \\
-\midrule
-WebTransport &
-  Experimental only. Chrome disabled (M91--94). Firefox/Safari: none. &
-  Chrome~97+, Firefox~114+. Safari: still absent. 82\% coverage. &
-  Non-functional $\to$ broadly available (Safari gap) \\
-\midrule
-WebCodecs &
-  Chrome~94 only (Sept 2021). Firefox/Safari: none. First Public WD. &
-  Chrome, Firefox~130+, Safari~26+. 94\% coverage. Still WD. &
-  Chrome-only $\to$ cross-browser \\
-\bottomrule
-\end{tabularx}
-\caption{Browser capability status by standard, late 2021 vs.\ March 2026.}
-\label{tab:summary}
-\end{table}
-
-\section{Conclusion}
-
-In late 2021, the real-time web communication stack defined by these standards
-was in a transitional state. WebRTC was the only finalized standard with
-broad browser support, yet even it suffered from significant cross-browser
-inconsistencies --- Safari's codec and feature limitations, Chrome's ongoing
-SDP migration, and iOS reliability issues. QUIC had just been standardized
-but was not yet universally enabled. HTTP/3 was shipping in browsers based on
-draft specifications, without a finalized RFC. WebTransport was effectively
-non-functional in any browser. WebCodecs had just shipped in a single
-browser.
-
-By March 2026, the picture is fundamentally different. The entire protocol
-stack --- from QUIC transport through HTTP/3 to WebRTC --- is standardized
-via finalized RFCs and implemented by default across all major browsers.
-WebCodecs provides cross-browser access to hardware-accelerated codecs at the
-frame level. The most notable remaining gap is Safari's lack of WebTransport
-support, which prevents universal availability of browser-to-server unreliable
-datagrams and independent reliable streams. The Encoded Transforms API for
-WebRTC also remains Chrome-only, limiting cross-browser end-to-end encryption
-of media in the WebRTC pipeline.
-
-The practical consequence is that a web application built in March 2026 can
-rely on a complete, standards-based real-time communication stack across all
-major browsers --- something that was not possible in late 2021, when much of
-the stack was either draft, experimental, single-browser, or absent.
 
 \section{Looking Ahead: 2028--2029 (Two to Three Years)}
 
@@ -894,7 +1826,110 @@ qualitatively different from a simple extrapolation of today's capabilities.
 \label{fig:convergence}
 \end{figure}
 
+\section{Summary}
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{lXXX}
+\toprule
+\textbf{Standard} & \textbf{Late 2021} & \textbf{March 2026} & \textbf{2028--2031 Projection} \\
+\midrule
+WebRTC 1.0 &
+  W3C Rec (Jan 2021). Chrome/Firefox full support. Safari limited: H.264 only, no simulcast, iOS DataChannel broken. Plan~B still in Chrome. &
+  Updated Rec (2024--25). Unified Plan universal. Safari has VP9. iOS reliable. JSEP updated to RFC~9429. Encoded Transforms Chrome-only. &
+  Encoded Transforms cross-browser. AV1 default codec (HW-accelerated). SFrame for group E2EE. No ``WebRTC 2.0'' --- incremental extensions. \\
+\midrule
+QUIC &
+  RFC~9000 (May 2021). Chrome/Firefox default. Safari experimental, manual opt-in. &
+  Default in all browsers (Safari~16+, 2022). &
+  QUIC~v2 (RFC~9369) transparent migration. RTP over QUIC (RoQ) at RFC status. \\
+\midrule
+HTTP/3 &
+  Pre-RFC draft implementations. Chrome/Firefox default. Safari behind flag. &
+  RFC~9114 (June 2022). Default in all browsers. 92\%+ coverage. &
+  Mature universal transport. Foundation for WebTransport and MoQ. \\
+\midrule
+WebTransport &
+  Experimental only. Chrome disabled (M91--94). Firefox/Safari: none. &
+  Chrome~97+, Firefox~114+. Safari: still absent. 82\% coverage. &
+  Universal (Safari via Interop~2026). W3C Rec. Enables unbundled architecture and MoQ. \\
+\midrule
+WebCodecs &
+  Chrome~94 only (Sept 2021). Firefox/Safari: none. First Public WD. &
+  Chrome, Firefox~130+, Safari~26+. 94\% coverage. Still WD. &
+  W3C Rec by 2027. AV1 HW encode ubiquitous. Custom media pipelines on all devices. \\
+\midrule
+MoQ &
+  Did not exist. &
+  IETF draft (v15, Oct 2025). No browser API. &
+  RFC status. JS libraries on WebTransport + WebCodecs. Sub-second CDN streaming. \\
+\bottomrule
+\end{tabularx}
+\caption{Browser capability status by standard across the full 2021--2031 timeline.}
+\label{tab:summary}
+\end{table}
+
+\section{Conclusion}
+
+This document has traced the real-time web communication stack across a full
+decade, from its fragmented state in late 2021 through its current maturity in
+March 2026 to its projected convergence by 2031.
+
+In late 2021, the stack was transitional. WebRTC was the only finalized
+standard with broad browser support, yet even it suffered from significant
+cross-browser inconsistencies --- Safari's codec and feature limitations,
+Chrome's ongoing SDP migration, and iOS reliability issues. QUIC had just been
+standardized but was not yet universally enabled. HTTP/3 was shipping based on
+draft specifications. WebTransport was effectively non-functional in any
+browser. WebCodecs had just shipped in a single browser. MoQ did not yet exist
+as a draft.
+
+By March 2026, the picture is fundamentally different. The core protocol stack
+--- from QUIC transport through HTTP/3 to WebRTC --- is standardized via
+finalized RFCs and implemented by default across all major browsers. WebCodecs
+provides cross-browser access to hardware-accelerated codecs at the frame
+level. Two gaps remain: Safari's lack of WebTransport support and the
+Chrome-only status of Encoded Transforms for end-to-end encryption.
+
+The 2028--2029 projections close these gaps. WebTransport reaches Safari via
+Apple's Interop~2026 commitment. Encoded Transforms become cross-browser.
+WebCodecs achieves W3C Recommendation status. AV1 becomes a practical WebRTC
+codec as hardware encoding expands. MoQ and RTP over QUIC reach RFC status,
+establishing new standards-based paths for media transport. Hardware and
+network improvements --- 40--50\% CPU gains since 2021, broadband speeds
+approaching 150~Mbps --- ensure these standards land on infrastructure that
+can fully exploit them.
+
+By 2029--2031, the stack reaches full convergence. The ``unbundled''
+architecture --- composing WebTransport, WebCodecs, and WebAssembly as
+alternatives to monolithic \texttt{RTCPeerConnection} --- becomes practically
+viable for specialized use cases like cloud gaming, scientific visualization,
+and broadcast distribution. AV1 hardware encoding is ubiquitous across the
+device spectrum. MoQ on WebTransport enables standards-based sub-second
+streaming with CDN fan-out. Network bandwidth (200--300~Mbps fixed, 100+~Mbps
+mobile) shifts the constraint from capacity to quality: 4K conferencing,
+multi-stream layouts, and high-frame-rate screen sharing become routine.
+
+The central observation is that standards maturation, hardware improvement, and
+network growth are complementary, not independent. A standard that reaches
+browser universality on hardware that cannot run it efficiently, or over
+networks that cannot carry its output, delivers theoretical capability rather
+than practical impact. The 2029--2031 timeframe is where all three curves
+converge: every standard in this document will be finalized and universally
+implemented, running on hardware with dedicated codec acceleration, over
+networks with bandwidth to spare. This convergence is what distinguishes the
+projected end state from a simple extrapolation of today's capabilities ---
+and what makes the full real-time web communication stack, from transport to
+codec to application, a resolved problem rather than a work in progress.
+
+\newpage
 \appendix
+\renewcommand{\thesection}{\Alph{section}}
+\renewcommand{\thesubsection}{\Alph{section}.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\Alph{section}.\arabic{subsection}.\arabic{subsubsection}}
 \input{appendix-info-theory}
+\input{appendix-video-compression}
 
 \end{document}

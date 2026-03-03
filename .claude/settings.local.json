@@ -11,7 +11,8 @@
       "Bash(/Library/TeX/texbin/pdflatex:*)",
       "Bash(mdfind:*)",
       "Read(//usr/local/texlive/2024/bin/universal-darwin/**)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(/Library/TeX/texbin/pdftotext retrospective.pdf -)"
     ]
   }
 }

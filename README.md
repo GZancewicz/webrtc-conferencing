@@ -74,6 +74,20 @@ For production deployments behind strict firewalls, consider adding a TURN serve
 - [Metered TURN](https://www.metered.ca/tools/openrelay/)
 - [Twilio Network Traversal](https://www.twilio.com/stun-turn)
 
+## LaTeX Documents
+
+LaTeX source files (`.tex`) can be compiled to PDF using:
+
+```bash
+/Library/TeX/texbin/pdflatex -interaction=nonstopmode <filename>.tex
+```
+
+Run twice for cross-references and hyperlink outlines to resolve correctly.
+
+| Document | Description |
+|---|---|
+| `retrospective.tex` | Comparison of what the standards in `standards/` enabled in browsers in late 2021 vs March 2026 |
+
 ## License
 
 MIT

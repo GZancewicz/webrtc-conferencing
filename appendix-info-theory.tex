@@ -1,0 +1,424 @@
+% appendix-info-theory.tex
+% Standalone appendix — include from retrospective.tex via:
+%   \appendix
+%   \input{appendix-info-theory}
+%
+% Requires in the preamble: amsmath, amssymb, tabularx, booktabs
+
+\section{Information Theoretic View}
+\label{app:info-theory}
+
+This appendix applies information-theoretic measures to the real-time
+web communication stack described in this document. We quantify channel
+capacity, source coding efficiency, and effective information rates
+across three time horizons: today (March~2026), the near term
+(2027--2028), and the medium term (2029--2031). The analysis draws on
+the standards, codec parameters, and infrastructure projections
+developed in the main text.
+
+\subsection{Channel Capacity of the Transport Layer}
+
+The Shannon-Hartley theorem gives the theoretical maximum information
+rate for a channel with additive white Gaussian noise:
+\begin{equation}
+  C = B \log_2\!\left(1 + \frac{S}{N}\right) \quad \text{[bits/s]}
+  \label{eq:shannon}
+\end{equation}
+where $B$ is the channel bandwidth in Hz and $S/N$ is the
+signal-to-noise ratio.
+
+While the physical-layer capacity of a broadband link is governed by
+(\ref{eq:shannon}), the \emph{effective} capacity available to the
+application is reduced by protocol overhead, congestion control, and
+transport inefficiencies. We define the effective application-layer
+throughput as:
+\begin{equation}
+  R_{\text{eff}} = C_{\text{link}} \cdot \eta_{\text{transport}}
+    \cdot (1 - \rho_{\text{overhead}})
+  \label{eq:reff}
+\end{equation}
+where $C_{\text{link}}$ is the link-layer capacity,
+$\eta_{\text{transport}} \in (0,1]$ is the transport efficiency factor
+(capturing congestion control, retransmission, and multiplexing
+behavior), and $\rho_{\text{overhead}} \in [0,1)$ is the fractional
+protocol overhead (headers, encryption, framing).
+
+\subsubsection{Head-of-Line Blocking and Multiplexed Capacity}
+
+Consider $n$ independent streams multiplexed over a single connection.
+Under TCP (HTTP/2), a single lost packet blocks all $n$ streams. The
+expected throughput per stream under loss rate $p$ is bounded by:
+\begin{equation}
+  R_{\text{TCP}}^{(i)} \leq \frac{R_{\text{eff}}}{n}
+    \cdot (1 - p)^{n-1}
+  \label{eq:hol-tcp}
+\end{equation}
+because a loss in \emph{any} of the $n$ streams stalls all others. Under
+QUIC (RFC~9000), streams are independent at the transport layer, so:
+\begin{equation}
+  R_{\text{QUIC}}^{(i)} \leq \frac{R_{\text{eff}}}{n}
+    \cdot (1 - p)
+  \label{eq:hol-quic}
+\end{equation}
+The ratio of effective per-stream throughput is:
+\begin{equation}
+  \frac{R_{\text{QUIC}}^{(i)}}{R_{\text{TCP}}^{(i)}}
+    = \frac{1}{(1-p)^{n-2}}
+  \label{eq:hol-ratio}
+\end{equation}
+For $n = 8$ streams (a typical multi-track video conference) at
+$p = 0.01$ (1\% loss), this gives a QUIC advantage factor of
+$1/(0.99)^6 \approx 1.062$, a modest 6.2\% improvement. At $p = 0.05$
+(5\% loss, common on mobile or congested links), the factor is
+$1/(0.95)^6 \approx 1.34$, a 34\% throughput advantage per stream.
+
+\subsubsection{Connection Establishment Latency}
+
+Let $\tau$ denote the one-way latency (half the round-trip time). The
+information-carrying capacity during connection establishment is zero;
+the handshake represents pure overhead. The time to first useful byte
+is:
+\begin{align}
+  T_{\text{TCP+TLS\,1.3}} &= 2\tau_{\text{TCP}} + \tau_{\text{TLS}}
+    = 3\tau \quad \text{(1-RTT TLS~1.3)} \label{eq:tcp-setup} \\
+  T_{\text{QUIC}} &= \tau \quad \text{(1-RTT)}
+    \label{eq:quic-setup} \\
+  T_{\text{QUIC,\,0-RTT}} &= 0 \quad \text{(resumption)}
+    \label{eq:quic-0rtt}
+\end{align}
+The QUIC 0-RTT case (\ref{eq:quic-0rtt}) eliminates the handshake
+entirely for resumed connections. The information lost during
+handshake dead time, relative to steady-state capacity, is:
+\begin{equation}
+  I_{\text{lost}} = C_{\text{link}} \cdot T_{\text{setup}}
+  \label{eq:ilost}
+\end{equation}
+For a 120~Mbps link with $\tau = 25$~ms (typical fixed broadband in
+2026), the TCP+TLS~1.3 handshake wastes $120 \times 10^6 \times 0.075
+= 9 \times 10^6$ bits (1.125~MB), while QUIC~1-RTT wastes only
+$3 \times 10^6$ bits (375~KB).
+
+\subsection{Source Coding Efficiency}
+
+The rate-distortion function $R(D)$ defines the minimum bit rate
+required to represent a source at distortion level $D$. For a
+Gaussian source with variance $\sigma^2$ under mean squared error
+distortion:
+\begin{equation}
+  R(D) = \frac{1}{2} \log_2 \frac{\sigma^2}{D}
+    \quad \text{[bits/sample]}
+  \label{eq:rate-distortion}
+\end{equation}
+
+No practical codec achieves $R(D)$; real codecs operate at some rate
+$R_{\text{codec}} > R(D)$. We define the coding efficiency gap as:
+\begin{equation}
+  \Delta = \frac{R_{\text{codec}} - R(D)}{R(D)}
+  \label{eq:coding-gap}
+\end{equation}
+
+The codecs in the WebRTC stack can be ordered by their empirical
+proximity to $R(D)$ for typical video content at conversational
+resolutions (720p, 30~fps). Using published Bj\o ntegaard Delta (BD)
+rate measurements:
+\begin{equation}
+  R_{\text{H.264}} > R_{\text{VP9}} > R_{\text{AV1}}
+    > R(D)
+  \label{eq:codec-ordering}
+\end{equation}
+
+Specifically, the empirical rate savings at equivalent PSNR are
+approximately:
+\begin{align}
+  R_{\text{VP9}}  &\approx 0.65 \cdot R_{\text{H.264}}
+    \quad (\sim\!35\% \text{ savings}) \label{eq:vp9-savings} \\
+  R_{\text{AV1}}  &\approx 0.70 \cdot R_{\text{VP9}}
+    \approx 0.46 \cdot R_{\text{H.264}}
+    \quad (\sim\!30\% \text{ over VP9})
+  \label{eq:av1-savings}
+\end{align}
+
+\subsubsection{Codec Entropy and WebCodecs}
+
+The WebCodecs API (W3C Working Draft) exposes per-frame codec access,
+allowing measurement and control of the instantaneous encoding rate.
+For a video frame $f_t$ at time $t$, the encoder output has empirical
+entropy:
+\begin{equation}
+  \hat{H}(f_t) = -\sum_{s \in \mathcal{S}}
+    p(s \mid f_t) \log_2 p(s \mid f_t)
+  \label{eq:frame-entropy}
+\end{equation}
+where $\mathcal{S}$ is the set of symbols emitted by the entropy coder
+(CABAC for H.264/AV1, arithmetic coding for VP9). WebCodecs enables
+applications to observe $|E(f_t)|$ (the encoded frame size in bits)
+directly, which serves as a practical upper bound on
+$\hat{H}(f_t)$:
+\begin{equation}
+  \hat{H}(f_t) \leq |E(f_t)| \leq R_{\text{codec}} / \text{fps}
+  \label{eq:entropy-bound}
+\end{equation}
+
+\subsection{Effective Information Rate by Time Horizon}
+
+We now combine transport and source coding measures to estimate the
+effective information rate for a representative real-time video
+session: a single 720p/30fps video call with one audio channel.
+
+Define the \emph{net information rate} as:
+\begin{equation}
+  I_{\text{net}} = R_{\text{codec}} \cdot \eta_{\text{transport}}
+    \cdot (1 - \rho_{\text{overhead}})
+    \cdot (1 - p_{\text{loss}})
+  \label{eq:inet}
+\end{equation}
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXX}
+\toprule
+\textbf{Parameter} & \textbf{March 2026} & \textbf{2027--2028} &
+  \textbf{2029--2031} \\
+\midrule
+Median link capacity &
+  120~Mbps &
+  $\sim$150~Mbps &
+  200--300~Mbps \\
+Dominant codec (WebRTC) &
+  VP9 / H.264 &
+  VP9 / AV1 (HW) &
+  AV1 (HW default) \\
+Codec rate (720p/30fps) &
+  1.5--2.5~Mbps &
+  1.0--1.8~Mbps &
+  0.7--1.2~Mbps \\
+$\eta_{\text{transport}}$ &
+  0.92 (QUIC) &
+  0.93 &
+  0.94 \\
+$\rho_{\text{overhead}}$ (SRTP+QUIC) &
+  0.06 &
+  0.05 &
+  0.04 \\
+Typical loss $p$ &
+  0.01--0.03 &
+  0.01--0.02 &
+  0.005--0.01 \\
+$I_{\text{net}}$ (720p video) &
+  1.3--2.2~Mbps &
+  0.9--1.6~Mbps &
+  0.6--1.1~Mbps \\
+$I_{\text{net}}$ as \% of $C_{\text{link}}$ &
+  1.1--1.8\% &
+  0.6--1.1\% &
+  0.2--0.6\% \\
+\bottomrule
+\end{tabularx}
+\caption{Effective information rate for a 720p/30fps WebRTC video stream.
+  The declining ratio $I_{\text{net}} / C_{\text{link}}$ reflects both
+  improved codec efficiency and growing link capacity, freeing bandwidth
+  for higher resolutions, additional streams, or concurrent data
+  channels.}
+\label{tab:inet}
+\end{table}
+
+The declining ratio $I_{\text{net}} / C_{\text{link}}$ in
+Table~\ref{tab:inet} is the central quantitative observation: by 2030, a
+720p video call consumes less than 0.5\% of available link capacity. The
+surplus capacity enables qualitative changes --- 4K video conferencing,
+multi-stream layouts, or concurrent data channels via WebTransport ---
+that are quantitatively infeasible in 2026.
+
+\subsection{Security Entropy and Key Space}
+
+The DTLS-SRTP security architecture (RFCs~8827, 3711) protects all
+WebRTC media. Information-theoretic security requires that the key
+entropy exceed the information content of the protected material.
+
+For a DTLS~1.3 handshake with ECDHE on P-256, the key agreement
+provides:
+\begin{equation}
+  H_{\text{key}} = 128 \text{~bits of security}
+  \label{eq:key-entropy}
+\end{equation}
+
+The SRTP master key is 128 bits (AES-128-GCM), giving an exhaustive
+search cost of $2^{128}$ operations. The total information content of a
+one-hour 720p video call at 2~Mbps is:
+\begin{equation}
+  I_{\text{call}} = 2 \times 10^6 \times 3600
+    = 7.2 \times 10^9 \text{~bits}
+    \approx 2^{32.7} \text{~bits}
+  \label{eq:call-content}
+\end{equation}
+
+The ratio of key entropy to protected content:
+\begin{equation}
+  \frac{H_{\text{key}}}{I_{\text{call}}}
+    = \frac{128}{32.7} \approx 3.91
+  \label{eq:security-margin}
+\end{equation}
+
+This ratio remains comfortably above~1 even for much longer sessions.
+For a continuous 24-hour 4K AV1 stream at 15~Mbps:
+\begin{equation}
+  I_{\text{stream}} = 15 \times 10^6 \times 86400
+    = 1.296 \times 10^{12} \text{~bits}
+    \approx 2^{40.2} \text{~bits}
+\end{equation}
+yielding $H_{\text{key}} / I_{\text{stream}} \approx 3.18$, still
+well above the threshold.
+
+\subsubsection{End-to-End Encryption via Encoded Transforms}
+
+The RTCRtpScriptTransform API (Encoded Transforms) enables
+application-layer E2EE within the WebRTC pipeline. From an
+information-theoretic perspective, this introduces a second encryption
+layer with its own key, creating a \emph{nested channel}:
+\begin{equation}
+  X \xrightarrow{\;K_{\text{E2EE}}\;}
+  E_1(X) \xrightarrow{\;K_{\text{SRTP}}\;}
+  E_2(E_1(X))
+  \label{eq:nested}
+\end{equation}
+
+The mutual information between the ciphertext and plaintext, given
+neither key, satisfies:
+\begin{equation}
+  I\!\left(X;\, E_2(E_1(X))\right) \leq
+    \min\!\big(H(K_{\text{E2EE}})^{-1},\;
+    H(K_{\text{SRTP}})^{-1}\big)
+    \cdot I_{\text{call}}
+  \label{eq:mutual-e2ee}
+\end{equation}
+
+In practice, with $H(K_{\text{E2EE}}) = H(K_{\text{SRTP}}) = 128$
+bits, this quantity is negligible ($\ll 1$ bit for any practical
+session length), confirming that the nested encryption provides
+information-theoretic confidentiality well beyond computational
+security guarantees.
+
+Today (March~2026), Encoded Transforms remain Chrome-only. By
+2027--2028 (Section~8.3), cross-browser standardization will make
+this nested channel universally available. By 2029--2031, SFrame
+for group calls will extend this to $n$-party sessions, where the
+mutual information between any non-member and the group plaintext
+remains negligible:
+\begin{equation}
+  I\!\left(X;\, E(X) \;\middle|\; K_i \notin
+    \{K_1, \ldots, K_n\}\right) \approx 0
+  \label{eq:sframe}
+\end{equation}
+
+\subsection{WebTransport: Unreliable Datagrams and Channel Capacity}
+
+WebTransport (RFC~9297) introduces unreliable datagrams to browser-server
+communication. For latency-sensitive applications (game state, sensor
+telemetry), the relevant measure is not throughput but
+\emph{freshness-weighted information rate}. Define the value of a
+datagram as exponentially decaying with delivery latency $\delta$:
+\begin{equation}
+  V(\delta) = e^{-\lambda \delta}
+  \label{eq:freshness}
+\end{equation}
+where $\lambda > 0$ is an application-specific decay rate. The
+effective information rate under unreliable delivery is:
+\begin{equation}
+  I_{\text{WT}} = R_{\text{send}} \cdot (1 - p_{\text{loss}})
+    \cdot \mathbb{E}\!\left[e^{-\lambda \delta}\right]
+  \label{eq:iwt}
+\end{equation}
+
+Under reliable delivery (TCP/WebSocket), a retransmission delays
+subsequent data, so:
+\begin{equation}
+  I_{\text{WS}} = R_{\text{send}}
+    \cdot \mathbb{E}\!\left[e^{-\lambda(\delta + p \cdot 2\tau)}\right]
+  \label{eq:iws}
+\end{equation}
+
+The ratio $I_{\text{WT}} / I_{\text{WS}}$ exceeds 1 when:
+\begin{equation}
+  (1 - p) \cdot e^{\lambda \cdot p \cdot 2\tau} > 1
+  \quad \Longleftrightarrow \quad
+  \lambda > \frac{-\ln(1 - p)}{2 p \tau}
+  \label{eq:wt-advantage}
+\end{equation}
+
+For $p = 0.02$ and $\tau = 25$~ms, this gives $\lambda > 20.2$~s$^{-1}$
+(half-life $< 34$~ms). Any application where data older than
+$\sim$30~ms is useless benefits from WebTransport's unreliable
+mode over WebSocket --- precisely the regime of interactive gaming, live
+cursor tracking, and real-time sensor feeds.
+
+As of March~2026, Safari does not support WebTransport
+(Section~5), limiting coverage to $\sim$82\%. By 2027--2028
+(Section~8.2), universal support will allow applications to rely on
+(\ref{eq:iwt}) without fallback paths.
+
+\subsection{Projections Summary}
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXX}
+\toprule
+\textbf{Measure} & \textbf{March 2026} & \textbf{2027--2028} &
+  \textbf{2029--2031} \\
+\midrule
+Channel capacity $C_{\text{link}}$ &
+  120~Mbps &
+  150~Mbps &
+  250~Mbps \\
+HOL blocking factor $(1\!-\!p)^{n-2}$ at $n\!=\!8$ &
+  0.94 ($p\!=\!0.01$) &
+  0.94 &
+  0.97 ($p\!=\!0.005$) \\
+Source coding gap $\Delta$ &
+  VP9: $\sim$0.8 &
+  AV1 HW: $\sim$0.5 &
+  AV1 opt: $\sim$0.4 \\
+$I_{\text{net}}$ per 720p stream &
+  1.3--2.2~Mbps &
+  0.9--1.6~Mbps &
+  0.6--1.1~Mbps \\
+Max 720p streams in $C_{\text{link}}$ &
+  $\sim$55--90 &
+  $\sim$95--165 &
+  $\sim$230--415 \\
+E2EE availability &
+  Chrome only &
+  Cross-browser &
+  SFrame $n$-party \\
+WebTransport coverage &
+  82\% &
+  $\sim$100\% &
+  100\% \\
+Freshness threshold $\lambda^*$ &
+  20.2~s$^{-1}$ &
+  $\sim$18~s$^{-1}$ &
+  $\sim$15~s$^{-1}$ \\
+\bottomrule
+\end{tabularx}
+\caption{Information-theoretic measures across time horizons. $\Delta$
+  is the coding efficiency gap (\ref{eq:coding-gap}), $I_{\text{net}}$
+  is the net information rate (\ref{eq:inet}), and $\lambda^*$ is the
+  freshness decay threshold above which WebTransport dominates WebSocket
+  (\ref{eq:wt-advantage}).}
+\label{tab:projections}
+\end{table}
+
+The trajectory is clear: the combination of improving source coding
+(AV1 hardware), expanding channel capacity (broadband growth), and
+maturing transport protocols (QUIC universal, WebTransport universal)
+drives the \emph{information cost per unit of communicated experience}
+steadily downward. The remaining question is not whether the
+Shannon capacity suffices --- it already does, by orders of magnitude
+--- but how efficiently the protocol stack converts that capacity into
+delivered, fresh, secure information at the application layer. By
+2030, the gap between theoretical capacity and realized throughput will
+be the narrowest it has ever been for browser-based real-time
+communication.

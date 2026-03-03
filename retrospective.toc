@@ -1,0 +1,44 @@
+\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
+\contentsline {section}{\numberline {2}WebRTC}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Late 2021}{3}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}March 2026}{4}{subsection.2.2}%
+\contentsline {section}{\numberline {3}QUIC}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Late 2021}{5}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}March 2026}{5}{subsection.3.2}%
+\contentsline {section}{\numberline {4}HTTP/3}{5}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Late 2021}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}March 2026}{6}{subsection.4.2}%
+\contentsline {section}{\numberline {5}WebTransport}{6}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Late 2021}{6}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}March 2026}{7}{subsection.5.2}%
+\contentsline {section}{\numberline {6}WebCodecs}{7}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Late 2021}{7}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}March 2026}{8}{subsection.6.2}%
+\contentsline {section}{\numberline {7}Summary}{8}{section.7}%
+\contentsline {section}{\numberline {8}Conclusion}{8}{section.8}%
+\contentsline {section}{\numberline {9}Looking Ahead: 2028--2029 (Two to Three Years)}{9}{section.9}%
+\contentsline {subsection}{\numberline {9.1}WebCodecs Reaches W3C Recommendation}{9}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}WebTransport Achieves Universal Browser Support}{9}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}WebRTC Encoded Transforms Become Cross-Browser}{10}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}AV1 Becomes a Practical WebRTC Codec}{10}{subsection.9.4}%
+\contentsline {subsection}{\numberline {9.5}Media over QUIC Reaches RFC Status}{10}{subsection.9.5}%
+\contentsline {subsection}{\numberline {9.6}RTP over QUIC Reaches RFC Status}{10}{subsection.9.6}%
+\contentsline {subsection}{\numberline {9.7}Hardware and Network Context}{10}{subsection.9.7}%
+\contentsline {section}{\numberline {10}Looking Ahead: 2029--2031 (Three to Five Years)}{11}{section.10}%
+\contentsline {subsection}{\numberline {10.1}The ``Unbundled'' Architecture Becomes Viable}{12}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}MoQ Enables Standards-Based Low-Latency Streaming}{12}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}AV1 as the Default WebRTC Codec}{13}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}QUIC v2 Transparent Adoption}{13}{subsection.10.4}%
+\contentsline {subsection}{\numberline {10.5}No WebRTC 2.0}{13}{subsection.10.5}%
+\contentsline {subsection}{\numberline {10.6}Hardware and Network Context}{13}{subsection.10.6}%
+\contentsline {section}{\numberline {A}Information Theoretic View}{14}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Channel Capacity of the Transport Layer}{15}{subsection.A.1}%
+\contentsline {subsubsection}{\numberline {A.1.1}Head-of-Line Blocking and Multiplexed Capacity}{15}{subsubsection.A.1.1}%
+\contentsline {subsubsection}{\numberline {A.1.2}Connection Establishment Latency}{15}{subsubsection.A.1.2}%
+\contentsline {subsection}{\numberline {A.2}Source Coding Efficiency}{16}{subsection.A.2}%
+\contentsline {subsubsection}{\numberline {A.2.1}Codec Entropy and WebCodecs}{16}{subsubsection.A.2.1}%
+\contentsline {subsection}{\numberline {A.3}Effective Information Rate by Time Horizon}{17}{subsection.A.3}%
+\contentsline {subsection}{\numberline {A.4}Security Entropy and Key Space}{17}{subsection.A.4}%
+\contentsline {subsubsection}{\numberline {A.4.1}End-to-End Encryption via Encoded Transforms}{18}{subsubsection.A.4.1}%
+\contentsline {subsection}{\numberline {A.5}WebTransport: Unreliable Datagrams and Channel Capacity}{18}{subsection.A.5}%
+\contentsline {subsection}{\numberline {A.6}Projections Summary}{19}{subsection.A.6}%

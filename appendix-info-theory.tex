@@ -5,7 +5,7 @@
 %
 % Requires in the preamble: amsmath, amssymb, tabularx, booktabs
 
-\section{Information Theoretic View}
+\section{Information-Theoretic View}
 \label{app:info-theory}
 
 This appendix applies information-theoretic measures to the real-time
@@ -66,11 +66,95 @@ The ratio of effective per-stream throughput is:
     = \frac{1}{(1-p)^{n-2}}
   \label{eq:hol-ratio}
 \end{equation}
+\excursus{Excursus: Why $n = 8$?}{In a typical multi-participant video
+conference, each peer contributes multiple concurrent streams: a camera video
+track, an audio track, and often a screen-share or data channel. A four-person
+call with two media tracks each produces $n = 8$ multiplexed streams over a
+single connection --- the reference value used throughout this section. Larger
+meetings (e.g.\ 10 participants with simulcast layers) push $n$ higher,
+amplifying the HOL blocking effect further.}
+
 For $n = 8$ streams (a typical multi-track video conference) at
 $p = 0.01$ (1\% loss), this gives a QUIC advantage factor of
 $1/(0.99)^6 \approx 1.062$, a modest 6.2\% improvement. At $p = 0.05$
 (5\% loss, common on mobile or congested links), the factor is
 $1/(0.95)^6 \approx 1.34$, a 34\% throughput advantage per stream.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth]
+
+% --- Shaded region (drawn FIRST so curves appear on top) ---
+\fill[orange!8] (2, 0) rectangle (10, 5.3);
+\node[font=\tiny\itshape, text=black!40, anchor=north east] at (9.8, 5.2)
+  {mobile / congested};
+\node[font=\tiny\itshape, text=black!40, anchor=north west] at (0.2, 5.2)
+  {fixed broadband};
+
+% --- Grid lines ---
+\foreach \y in {1, 2, 3, 4, 5} {
+  \draw[gray!20] (0, \y) -- (10, \y);
+}
+
+% --- Axes ---
+\draw[->, thick] (0, 0) -- (10.5, 0);
+\draw[->, thick] (0, 0) -- (0, 5.5);
+
+% --- Axis titles (positioned to clear tick labels) ---
+\node[font=\small] at (5, -0.85) {Packet loss rate $p$};
+\node[font=\small, rotate=90] at (-0.9, 2.75) {QUIC advantage factor};
+
+% --- X-axis labels ---
+\foreach \x/\lab in {0/0, 2/0.02, 4/0.04, 6/0.06, 8/0.08, 10/0.10} {
+  \draw (\x, -0.1) -- (\x, 0.1);
+  \node[font=\tiny, anchor=north] at (\x, -0.15) {\lab};
+}
+
+% --- Y-axis labels ---
+\foreach \y/\lab in {0/1.0, 1/1.1, 2/1.2, 3/1.3, 4/1.4, 5/1.5} {
+  \draw (-0.1, \y) -- (0.1, \y);
+  \node[font=\tiny, anchor=east] at (-0.15, \y) {\lab};
+}
+
+% --- n=4 curve: 1/(1-p)^2 ---
+\draw[very thick, blue!70]
+  (0, 0) .. controls (2.5, 0.5) and (5, 1.1) ..
+  (7.5, 2.0) .. controls (8.5, 2.4) and (9.5, 2.9) ..
+  (10, 3.1);
+\node[font=\scriptsize, blue!70, anchor=south west] at (9.0, 3.0)
+  {$n = 4$};
+
+% --- n=8 curve: 1/(1-p)^6 ---
+\draw[very thick, orange!80!black]
+  (0, 0) .. controls (1.5, 0.5) and (3, 1.7) ..
+  (4, 2.5) .. controls (5, 3.5) and (5.5, 4.0) ..
+  (6, 4.7);
+\node[font=\scriptsize, orange!80!black, anchor=south] at (5.5, 4.8)
+  {$n = 8$};
+
+% --- Reference points ---
+\fill[orange!80!black] (1.0, 0.62) circle (2.5pt);
+\node[font=\tiny, orange!80!black, anchor=south west] at (1.1, 0.62)
+  {6.2\%};
+
+\fill[orange!80!black] (5.0, 3.7) circle (2.5pt);
+\node[font=\tiny, orange!80!black, anchor=west] at (5.1, 3.7)
+  {34\%};
+
+\fill[blue!70] (1.0, 0.20) circle (2.5pt);
+
+% --- Annotation ---
+\node[font=\scriptsize\itshape, text=black!60, align=center,
+  anchor=north] at (5.0, -1.0)
+  {QUIC recovers per-stream throughput closer to $C/n$ (Shannon fair share)\\
+   by eliminating head-of-line blocking (eq.~\ref{eq:hol-ratio}).};
+
+\end{tikzpicture}
+\caption{QUIC advantage factor $1/(1-p)^{n-2}$ over TCP for multiplexed
+  streams. At 5\% loss with $n=8$ streams, QUIC delivers 34\% more
+  per-stream throughput by maintaining independence at the transport layer.}
+\label{fig:hol-blocking}
+\end{figure}
 
 \subsubsection{Connection Establishment Latency}
 
@@ -110,8 +194,22 @@ distortion:
   \label{eq:rate-distortion}
 \end{equation}
 
-No practical codec achieves $R(D)$; real codecs operate at some rate
-$R_{\text{codec}} > R(D)$. We define the coding efficiency gap as:
+\excursus{Excursus: Why Gaussian source?}{The Gaussian memoryless model is used
+because it yields the highest (worst-case) $R(D)$ among all sources of equal
+variance. Any codec that approaches the Gaussian bound on real video is
+therefore doing at least as well as the bound predicts --- the true $R(D)$ for
+spatially and temporally correlated video lies below the Gaussian curve, making
+it a conservative benchmark.}
+
+No practical codec achieves $R(D)$;\footnote{The $R(D)$ curve in
+Figure~\ref{fig:rate-distortion} is the Gaussian memoryless source bound
+(equation~\ref{eq:rate-distortion}), which is an upper bound on the true
+$R(D)$ for non-Gaussian sources such as video.  Additionally, $R(D)$ assumes
+zero excess-distortion probability, whereas practical codecs permit a
+frame-level excess-distortion probability on the order of $10^{-6}$ to
+$10^{-8}$.  Both factors allow codec operating points measured on real content
+to approach or marginally cross the Gaussian bound.} real codecs operate at
+some rate $R_{\text{codec}} > R(D)$. We define the coding efficiency gap as:
 \begin{equation}
   \Delta = \frac{R_{\text{codec}} - R(D)}{R(D)}
   \label{eq:coding-gap}
@@ -137,6 +235,84 @@ approximately:
     \quad (\sim\!30\% \text{ over VP9})
   \label{eq:av1-savings}
 \end{align}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth]
+
+% --- Axes ---
+\draw[->, thick] (0, 0) -- (10.5, 0);
+\draw[->, thick] (0, 0) -- (0, 6.5);
+
+% --- Axis titles ---
+\node[font=\small] at (5, -0.85) {Distortion $D$};
+\node[font=\small, rotate=90] at (-0.9, 3.25) {Rate [Mbps]};
+
+% --- Y-axis rate labels ---
+\foreach \y/\lab in {1.0/0.5, 2.0/1.0, 3.0/1.5, 4.0/2.0, 5.0/2.5, 6.0/3.0} {
+  \draw (-0.1, \y) -- (0.1, \y);
+  \node[font=\tiny, anchor=east] at (-0.15, \y) {\lab};
+}
+
+% --- R(D) Shannon bound curve ---
+\draw[very thick, green!60!black]
+  (1.0, 5.8) .. controls (2.0, 3.5) and (3.5, 2.0) ..
+  (5.0, 1.3) .. controls (6.5, 0.8) and (8.0, 0.55) ..
+  (9.5, 0.4);
+\node[font=\scriptsize, green!60!black, anchor=north west] at (8.5, 0.55)
+  {$R(D)$ bound};
+
+% --- Reference distortion line (720p/30fps operating point) ---
+\draw[thin, gray, dashed] (4.0, 0) -- (4.0, 6.2);
+\node[font=\tiny, gray, anchor=south] at (4.0, 6.2) {720p/30fps};
+
+% --- R(D) value at reference distortion ---
+\fill[green!60!black] (4.0, 1.55) circle (2pt);
+
+% --- Codec operating points at reference distortion ---
+% H.264: ~2.5 Mbps
+\draw[thick, dashed, red!70!black] (0.3, 4.8) -- (9.5, 4.8);
+\fill[red!70!black] (4.0, 4.8) circle (3pt);
+\node[font=\scriptsize, red!70!black, anchor=west] at (9.6, 4.8) {H.264};
+
+% VP9: ~1.6 Mbps (0.65 * H.264)
+\draw[thick, dashed, blue!70] (0.3, 3.3) -- (9.5, 3.3);
+\fill[blue!70] (4.0, 3.3) circle (3pt);
+\node[font=\scriptsize, blue!70, anchor=west] at (9.6, 3.3) {VP9};
+
+% AV1: ~1.15 Mbps (0.46 * H.264)
+\draw[thick, dashed, orange!80!black] (0.3, 2.3) -- (9.5, 2.3);
+\fill[orange!80!black] (4.0, 2.3) circle (3pt);
+\node[font=\scriptsize, orange!80!black, anchor=west] at (9.6, 2.3) {AV1};
+
+% --- Gap annotations (braces) ---
+% H.264 gap
+\draw[decorate, decoration={brace, amplitude=4pt, mirror},
+  thick, red!50!black]
+  (3.6, 1.55) -- (3.6, 4.8)
+  node[midway, anchor=east, font=\scriptsize, xshift=-5pt]
+  {$\Delta_{\text{H.264}}$};
+
+% AV1 gap
+\draw[decorate, decoration={brace, amplitude=4pt},
+  thick, orange!60!black]
+  (4.4, 1.55) -- (4.4, 2.3)
+  node[midway, anchor=west, font=\scriptsize, xshift=5pt]
+  {$\Delta_{\text{AV1}}$};
+
+% --- Annotation ---
+\node[font=\scriptsize\itshape, text=black!60, align=center,
+  anchor=north] at (5.0, -0.5)
+  {The Shannon rate-distortion bound $R(D)$ is the theoretical minimum.\\
+   AV1 narrows the gap $\Delta$ to ${\sim}0.4$ by 2030 (eq.~\ref{eq:coding-gap}).};
+
+\end{tikzpicture}
+\caption{Codec operating rates vs.\ the Shannon rate-distortion bound $R(D)$
+  at 720p/30fps. Each codec operates above the theoretical minimum; the gap
+  $\Delta$ (eq.~\ref{eq:coding-gap}) shrinks from H.264 through VP9 to AV1,
+  approaching but never reaching the bound.}
+\label{fig:rate-distortion}
+\end{figure}
 
 \subsubsection{Codec Entropy and WebCodecs}
 
@@ -164,6 +340,14 @@ $\hat{H}(f_t)$:
 We now combine transport and source coding measures to estimate the
 effective information rate for a representative real-time video
 session: a single 720p/30fps video call with one audio channel.
+
+\excursus{Excursus: Why 720p?}{Throughout this appendix, 720p/30fps is used as
+a fixed reference for cross-era comparison, not as a prediction that 720p
+remains the dominant conferencing resolution. The bandwidth surplus quantified
+below is precisely what enables migration to 1080p (feasible by ${\sim}$2028
+with AV1 hardware encode at today's 720p bit rates) and 4K (feasible by
+${\sim}$2030). The 720p baseline makes the efficiency gains legible: the same
+task gets cheaper, freeing capacity for higher quality or more streams.}
 
 Define the \emph{net information rate} as:
 \begin{equation}
@@ -230,6 +414,79 @@ Table~\ref{tab:inet} is the central quantitative observation: by 2030, a
 surplus capacity enables qualitative changes --- 4K video conferencing,
 multi-stream layouts, or concurrent data channels via WebTransport ---
 that are quantitatively infeasible in 2026.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth]
+
+% --- Axes ---
+\draw[->, thick] (0, 0) -- (11, 0);
+\draw[->, thick] (0, 0) -- (0, 5.5);
+
+% --- Axis title ---
+\node[font=\small, rotate=90] at (-0.9, 2.75) {Mbps};
+
+% --- Y-axis labels ---
+\foreach \y/\lab in {0/0, 1/50, 2/100, 3/150, 4/200, 5/250} {
+  \draw (-0.1, \y) -- (0.1, \y);
+  \node[font=\tiny, anchor=east] at (-0.15, \y) {\lab};
+}
+
+% --- Group: March 2026 ---
+% C_link = 120 Mbps -> y = 2.4
+\fill[blue!12] (0.8, 0) rectangle (2.4, 2.4);
+\draw[blue!50, thick] (0.8, 0) rectangle (2.4, 2.4);
+% I_net = 1.75 Mbps (midpoint) -> y = 0.035
+\fill[orange!60] (0.8, 0) rectangle (2.4, 0.07);
+\draw[orange!80!black, thick] (0.8, 0) rectangle (2.4, 0.07);
+\node[font=\footnotesize, anchor=south] at (1.6, 2.5) {120};
+\node[font=\tiny, orange!80!black] at (1.6, -0.4) {1.5\%};
+\node[font=\small, anchor=north] at (1.6, -0.7) {2026};
+
+% --- Group: 2027--2028 ---
+% C_link = 150 Mbps -> y = 3.0
+\fill[blue!12] (4.0, 0) rectangle (5.6, 3.0);
+\draw[blue!50, thick] (4.0, 0) rectangle (5.6, 3.0);
+% I_net = 1.25 Mbps (midpoint) -> y = 0.025
+\fill[orange!60] (4.0, 0) rectangle (5.6, 0.05);
+\draw[orange!80!black, thick] (4.0, 0) rectangle (5.6, 0.05);
+\node[font=\footnotesize, anchor=south] at (4.8, 3.1) {150};
+\node[font=\tiny, orange!80!black] at (4.8, -0.4) {0.8\%};
+\node[font=\small, anchor=north] at (4.8, -0.7) {2027--28};
+
+% --- Group: 2029--2031 ---
+% C_link = 250 Mbps -> y = 5.0
+\fill[blue!12] (7.2, 0) rectangle (8.8, 5.0);
+\draw[blue!50, thick] (7.2, 0) rectangle (8.8, 5.0);
+% I_net = 0.85 Mbps (midpoint) -> y = 0.017
+\fill[orange!60] (7.2, 0) rectangle (8.8, 0.034);
+\draw[orange!80!black, thick] (7.2, 0) rectangle (8.8, 0.034);
+\node[font=\footnotesize, anchor=south] at (8.0, 5.1) {250};
+\node[font=\tiny, orange!80!black] at (8.0, -0.4) {0.3\%};
+\node[font=\small, anchor=north] at (8.0, -0.7) {2029--31};
+
+% --- Legend ---
+\node[anchor=west, font=\footnotesize] at (0.5, 5.8) {%
+  \tikz[baseline=-0.5ex]{\fill[blue!12] (0,0) rectangle (0.3,0.3);
+    \draw[blue!50, thick] (0,0) rectangle (0.3,0.3);}
+  ~$C_{\text{link}}$ (channel capacity) \qquad
+  \tikz[baseline=-0.5ex]{\fill[orange!60] (0,0) rectangle (0.3,0.3);
+    \draw[orange!80!black, thick] (0,0) rectangle (0.3,0.3);}
+  ~$I_{\text{net}}$ (720p stream)};
+
+% --- Annotation ---
+\node[font=\scriptsize\itshape, text=black!60, align=center,
+  anchor=north] at (5.5, -1.2)
+  {A single 720p call uses a vanishing fraction of Shannon-derived\\
+   channel capacity, freeing bandwidth for 4K, multi-stream, and data channels.};
+
+\end{tikzpicture}
+\caption{Channel capacity $C_{\text{link}}$ vs.\ effective information rate
+  $I_{\text{net}}$ for a single 720p/30fps stream across time horizons. The
+  orange bar (stream rate) is barely visible against the blue bar (capacity),
+  illustrating the growing surplus as codecs improve and bandwidth increases.}
+\label{fig:inet-capacity}
+\end{figure}
 
 \subsection{Security Entropy and Key Space}
 
@@ -348,7 +605,17 @@ The ratio $I_{\text{WT}} / I_{\text{WS}}$ exceeds 1 when:
 \end{equation}
 
 For $p = 0.02$ and $\tau = 25$~ms, this gives $\lambda > 20.2$~s$^{-1}$
-(half-life $< 34$~ms). Any application where data older than
+(half-life $< 34$~ms).
+
+\excursus{Excursus: Why $p = 0.02$ and $\tau = 25$\,ms?}{These values represent
+median fixed-broadband conditions in 2026 (Table~\ref{tab:inet}). On mobile or
+congested links ($p \approx 0.05$, $\tau \approx 50$\,ms), the threshold
+$\lambda^*$ drops to ${\sim}10$\,s$^{-1}$, broadening WebTransport's advantage
+to applications with data half-lives up to ${\sim}70$\,ms. The fixed-broadband
+reference is thus conservative: mobile scenarios favor unreliable delivery even
+more strongly.}
+
+Any application where data older than
 $\sim$30~ms is useless benefits from WebTransport's unreliable
 mode over WebSocket --- precisely the regime of interactive gaming, live
 cursor tracking, and real-time sensor feeds.
@@ -358,7 +625,80 @@ As of March~2026, Safari does not support WebTransport
 (Section~8.2), universal support will allow applications to rely on
 (\ref{eq:iwt}) without fallback paths.
 
-\subsection{Projections Summary}
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth]
+
+% --- Axes ---
+\draw[->, thick] (0, 0) -- (10.5, 0);
+\draw[->, thick] (0, 0) -- (0, 5.5);
+
+% --- Axis titles (positioned to clear tick labels) ---
+\node[font=\small] at (5, -0.75)
+  {Freshness decay rate $\lambda$ [s$^{-1}$]};
+\node[font=\small, rotate=90] at (-1.1, 2.75)
+  {$I_{\text{WT}} / I_{\text{WS}}$};
+
+% --- X-axis labels ---
+\foreach \x/\lab in {0/0, 1.67/10, 3.33/20, 5.0/30, 6.67/40, 8.33/50, 10/60} {
+  \draw (\x, -0.1) -- (\x, 0.1);
+  \node[font=\tiny, anchor=north] at (\x, -0.15) {\lab};
+}
+
+% --- Y-axis labels (0.96 to 1.06, each 0.02 = 1 unit) ---
+\foreach \y/\lab in {0/0.96, 1/0.98, 2/1.00, 3/1.02, 4/1.04, 5/1.06} {
+  \draw (-0.1, \y) -- (0.1, \y);
+  \node[font=\tiny, anchor=east] at (-0.15, \y) {\lab};
+}
+
+% --- Ratio = 1.0 line (y=2 maps to ratio 1.0) ---
+\draw[thin, gray, dashed] (0, 2) -- (10, 2);
+
+% --- Shade WebTransport advantage region ---
+% lambda* = 20.2 -> x = 3.37
+\fill[green!10] (3.37, 2) rectangle (10, 5.3);
+
+% --- I_WT/I_WS curve: 0.98*exp(lambda*0.001) ---
+% Y range: 0.96-1.06 (each 0.02 = 1 unit). lambda=0: y=1, lambda*=20.2: y=2, lambda=60: y=4.05
+\draw[very thick, orange!80!black]
+  (0, 1.0) .. controls (1.5, 1.3) and (2.5, 1.7) ..
+  (3.37, 2.0) .. controls (4.5, 2.4) and (6, 2.8) ..
+  (8, 3.4) .. controls (9, 3.7) and (9.5, 3.85) ..
+  (10, 4.05);
+
+% --- Threshold line ---
+\draw[thick, dashed, red!60!black] (3.37, 0) -- (3.37, 5.2);
+\node[font=\scriptsize, red!60!black, anchor=south, rotate=90] at (3.17, 3.5)
+  {$\lambda^* = 20.2$ s$^{-1}$};
+
+% --- Application regime labels ---
+\node[font=\scriptsize\itshape, text=blue!60, anchor=north] at (1.5, 5.3)
+  {video conf};
+\node[font=\scriptsize\itshape, text=green!50!black, anchor=north] at (7.0, 5.3)
+  {gaming / cursor / sensors};
+
+% --- Mark advantage/disadvantage ---
+\node[font=\tiny, text=red!50!black, anchor=north east] at (3.2, 1.8)
+  {WebSocket wins};
+\node[font=\tiny, text=green!50!black, anchor=north west] at (3.5, 4.5)
+  {WebTransport wins};
+
+% --- Annotation ---
+\node[font=\scriptsize\itshape, text=black!60, align=center,
+  anchor=north] at (5.0, -1.0)
+  {For $p = 0.02$, $\tau = 25$~ms. Applications where data older than\\
+   ${\sim}$30~ms is stale gain from unreliable delivery (eq.~\ref{eq:wt-advantage}).};
+
+\end{tikzpicture}
+\caption{Freshness-weighted information rate ratio $I_{\text{WT}} / I_{\text{WS}}$
+  as a function of decay rate $\lambda$. Above the threshold $\lambda^*$,
+  WebTransport's unreliable datagrams deliver more useful information per
+  unit time than WebSocket's reliable delivery, because retransmission
+  wastes capacity on stale data.}
+\label{fig:freshness}
+\end{figure}
+
+\subsection{Projections Summary and Practical Implications}
 
 \begin{table}[ht]
 \centering
@@ -422,3 +762,95 @@ delivered, fresh, secure information at the application layer. By
 2030, the gap between theoretical capacity and realized throughput will
 be the narrowest it has ever been for browser-based real-time
 communication.
+
+\subsubsection{What the Theory Means for Applications}
+
+The equations and figures in this appendix are not purely academic. Each
+theoretical result maps to a concrete design decision that application
+developers face today and over the next five years.
+
+\textbf{Codec selection determines bandwidth cost, not quality.}
+The rate-distortion analysis (Section~A.2, Figure~\ref{fig:rate-distortion})
+shows that AV1 operates at roughly 46\% of H.264's bit rate for equivalent
+perceptual quality at 720p. In practice, this means a WebRTC application
+switching from H.264 to AV1 can either halve its bandwidth consumption at
+the same quality or substantially increase resolution (e.g., 720p to 1080p)
+within the same bandwidth envelope. By 2030, with AV1 hardware encoding
+ubiquitous and the coding gap $\Delta$ approaching 0.4, further codec
+improvements yield diminishing returns --- the stack will be operating close
+enough to the Shannon rate-distortion bound that the next generation of
+efficiency gains will come from transport and architecture, not codecs alone.
+
+\textbf{QUIC's advantage is situational but decisive on bad networks.}
+The head-of-line blocking analysis (Section~A.1.1,
+Figure~\ref{fig:hol-blocking}) shows that QUIC's per-stream throughput
+advantage over TCP is modest on good networks (6\% at 1\% loss) but
+substantial on degraded ones (34\% at 5\% loss). The practical implication
+is that applications targeting mobile users, emerging markets, or congested
+enterprise networks --- precisely the environments where real-time
+communication is hardest --- benefit disproportionately from QUIC-based
+transports. For a video conference with 8 participants on a cellular
+connection experiencing 3--5\% packet loss, the difference between QUIC and
+TCP is the difference between usable and degraded video.
+
+\textbf{Connection latency is a solved problem for returning users.}
+The handshake analysis (Section~A.1.2) shows that QUIC 0-RTT eliminates
+connection establishment overhead entirely for resumed connections. For a
+WebTransport application that a user opens daily --- a collaboration tool,
+a live dashboard, a recurring meeting client --- the time to first useful
+byte drops to zero. The 1.125~MB of wasted capacity during a TCP+TLS
+handshake on a 120~Mbps link may seem small, but for latency-sensitive
+applications where the first 100~ms of perceived responsiveness determines
+user experience, the difference is measurable.
+
+\textbf{Bandwidth surplus enables architectural ambition.}
+The effective information rate analysis (Section~A.3,
+Figure~\ref{fig:inet-capacity}) reveals the most consequential practical
+finding: a single 720p video stream consumes a vanishing fraction of
+available link capacity (under 0.5\% by 2030). This surplus is not merely
+``headroom'' --- it is the resource that makes new application architectures
+feasible. A 250~Mbps link can theoretically carry 230--415 simultaneous 720p
+streams. In practice, this means applications can afford to run multiple
+concurrent media flows (video, screen share, spatial audio), data channels
+(collaborative editing, file transfer), and telemetry streams without
+contending for bandwidth. The constraint shifts from ``can the network carry
+this?''\ to ``can the application manage this complexity?''
+
+\textbf{End-to-end encryption adds negligible overhead.}
+The security analysis (Section~A.4) confirms that the nested DTLS-SRTP plus
+E2EE architecture imposes no meaningful information-theoretic cost. The key
+entropy ($2^{128}$) exceeds the information content of any practical session
+by a factor of at least 3. For application developers, this means E2EE can
+be treated as a default rather than a premium feature --- there is no
+bandwidth, latency, or capacity penalty for encrypting at the application
+layer on top of the transport-layer encryption that WebRTC already mandates.
+The only constraint is API availability, which moves from Chrome-only (2026)
+to universal (2028).
+
+\textbf{WebTransport unlocks real-time data that WebSocket cannot serve.}
+The freshness analysis (Section~A.5, Figure~\ref{fig:freshness}) quantifies
+when unreliable delivery outperforms reliable delivery: any data with a
+useful half-life below approximately 34~ms benefits from WebTransport's
+unreliable datagrams. This covers a wide class of interactive applications
+--- game state synchronization, live cursor and pointer sharing, real-time
+sensor feeds, collaborative whiteboard strokes --- where retransmitting a
+stale update is worse than dropping it. Before WebTransport, these
+applications had to choose between WebSocket (reliable but stale under loss)
+and WebRTC DataChannel (unreliable mode available but requiring the full
+peer-to-peer ICE/DTLS machinery). WebTransport provides the unreliable
+mode with a simple client-server model over HTTP/3, removing the
+architectural overhead.
+
+\textbf{The overall picture: the stack converges on efficiency.}
+Taken together, the information-theoretic measures trace a consistent
+trajectory. The protocol stack is converging toward the theoretical limits
+established by Shannon: codecs approach the rate-distortion bound, transports
+eliminate unnecessary blocking and handshake overhead, and encryption adds
+negligible cost. By 2030, the practical distance between what the standards
+deliver and what information theory permits will be the smallest it has ever
+been for browser-based real-time communication. The consequence for
+application developers is that the infrastructure --- standards, hardware,
+and networks --- will no longer be the binding constraint. The remaining
+challenge is purely architectural: how to compose these efficient, universal
+primitives into applications that fully exploit the capacity and low latency
+they provide.

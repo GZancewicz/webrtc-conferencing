@@ -1,0 +1,1605 @@
+% appendix-video-compression.tex
+% Standalone appendix — include from retrospective.tex via:
+%   \appendix
+%   \input{appendix-info-theory}
+%   \input{appendix-video-compression}
+%
+% Requires in the preamble: amsmath, amssymb, tabularx, booktabs
+
+\section{Video Compression Fundamentals}
+\label{app:video-compression}
+
+Appendix~\ref{app:info-theory} quantified the coding efficiency gap $\Delta$
+(eq.~\ref{eq:coding-gap}) for each codec generation, treating codecs as black
+boxes characterized by their distance from the Shannon rate-distortion bound.
+This appendix opens those black boxes. We examine the signal processing and
+coding techniques that determine $\Delta$: how video codecs exploit spatial,
+temporal, and perceptual redundancy, what distinguishes one codec generation
+from the next, and why computational complexity---not algorithmic
+capability---remains the binding constraint for real-time web communication.
+
+%% ---------------------------------------------------------------------------
+\subsection{Why Video Is Compressible}
+\label{sec:compressible}
+
+A raw digital video signal carries far more data than information. Three
+fundamental redundancies make compression ratios of 200:1 to 500:1 achievable
+at perceptually acceptable quality.
+
+\subsubsection{Spatial Redundancy}
+
+Natural images exhibit strong local correlation. The autocorrelation function
+for a typical image row can be modeled as a first-order Markov process:
+\begin{equation}
+  R_{xx}(k) = \sigma^2 \rho^{|k|}
+  \label{eq:spatial-autocorr}
+\end{equation}
+where $\sigma^2$ is the pixel variance and $\rho \in [0.90, 0.97]$ for
+natural content. The separable two-dimensional extension is:
+\begin{equation}
+  R_{xx}(k, l) = \sigma^2 \,\rho_h^{|k|}\, \rho_v^{|l|}
+  \label{eq:spatial-autocorr-2d}
+\end{equation}
+The power spectral density---the Fourier transform of
+(\ref{eq:spatial-autocorr-2d})---is concentrated at low spatial frequencies,
+meaning most of the signal energy occupies a small fraction of the frequency
+domain. This concentration is the foundation of transform coding
+(Section~\ref{sec:transforms}).
+
+\subsubsection{Temporal Redundancy}
+
+Consecutive video frames are highly correlated. For typical conversational
+video at 30~fps, the inter-frame correlation coefficient is:
+\begin{equation}
+  \text{Corr}(f_t, f_{t-1}) \approx 0.90\text{--}0.98
+  \label{eq:temporal-corr}
+\end{equation}
+Most pixels change little between frames; only regions containing motion,
+lighting changes, or scene cuts carry significant new information. Motion
+estimation (Section~\ref{sec:motion}) exploits this by predicting each block
+from a displaced version of a reference frame, transmitting only the
+prediction residual.
+
+\subsubsection{Perceptual Irrelevance}
+
+The human visual system (HVS) has lower spatial acuity for chrominance than
+luminance. This asymmetry motivates \emph{chroma subsampling}: representing
+color difference channels at reduced resolution relative to the luma channel.
+
+\excursus{Excursus: Why 4:2:0?}{All WebRTC codecs operate on YCbCr 4:2:0
+video, where each chroma channel is sampled at half the horizontal and half
+the vertical resolution of luma. This reduces the sample count by a factor of
+$1 + 0.25 + 0.25 = 1.5$ relative to $1 + 1 + 1 = 3$ for full-resolution
+4:4:4 color, a 2$\times$ saving before any coding begins. Perceptual
+experiments confirm that 4:2:0 is essentially indistinguishable from 4:4:4 at
+typical viewing distances for video conferencing---the HVS cannot resolve
+the missing chroma detail.}
+
+\subsubsection{The Compression Imperative}
+
+A raw 720p/30fps 4:2:0 video stream at 8~bits per sample requires:
+\begin{equation}
+  R_{\text{raw}} = 1280 \times 720 \times 1.5 \times 8 \times 30
+    = 331.8 \;\text{Mbps}
+  \label{eq:raw-rate}
+\end{equation}
+This exceeds the 120~Mbps median link capacity cited in
+Table~\ref{tab:inet}. The Shannon rate-distortion bound
+(eq.~\ref{eq:rate-distortion}) yields approximately 0.7--1.5~Mbps at
+perceptually acceptable distortion---a compression ratio of 220:1 to 475:1.
+Video compression is not optional for real-time communication; it is a
+prerequisite.
+
+The first-order entropy of raw pixel values $H(X)$ greatly exceeds the
+conditional entropy given neighboring samples:
+\begin{equation}
+  H(X) \gg H(X \mid X_{\text{neighbors}})
+  \label{eq:conditional-entropy}
+\end{equation}
+This gap---the mutual information between a pixel and its
+neighbors---represents the exploitable redundancy. The entire hybrid coding
+framework (Section~\ref{sec:hybrid}) is designed to extract this mutual
+information through prediction, leaving only the irreducible residual for
+transform coding and quantization.
+
+%% ---------------------------------------------------------------------------
+\subsection{The Hybrid Coding Framework}
+\label{sec:hybrid}
+
+Every major video codec since H.261 (1988)---including every codec in the
+WebRTC stack---is a variation on the \emph{block-based hybrid coding}
+framework. The encoder partitions each frame into blocks, predicts each block
+from previously coded data, transforms and quantizes the prediction residual,
+and entropy codes the result.
+
+\subsubsection{Encoder Signal Flow}
+
+For a block at position $(x,y)$ in frame $f_t$, the encoder computes a
+prediction $\hat{f}_{\text{pred}}(x,y)$ from either the current frame
+(intra prediction) or a reference frame (inter prediction). The prediction
+residual is:
+\begin{equation}
+  e(x,y) = f_t(x,y) - \hat{f}_{\text{pred}}(x,y)
+  \label{eq:residual}
+\end{equation}
+The residual is transformed, quantized, and entropy coded to produce the
+bitstream. The decoder reconstructs the frame as:
+\begin{equation}
+  \hat{f}(x,y) = \hat{e}(x,y) + \hat{f}_{\text{pred}}(x,y)
+  \label{eq:reconstruction}
+\end{equation}
+where $\hat{e}$ is the inverse-transformed, dequantized residual.
+
+\subsubsection{Rate-Distortion Optimization}
+
+Every coding decision---block partition, prediction mode, motion vector,
+transform type, quantization level---is made by minimizing a Lagrangian
+rate-distortion cost:
+\begin{equation}
+  J(m) = D(m) + \lambda \cdot R(m)
+  \label{eq:rd-cost}
+\end{equation}
+where $m \in \mathcal{M}$ is a coding mode, $D(m)$ is the distortion
+(typically sum of squared errors), $R(m)$ is the bit cost, and $\lambda$ is a
+Lagrange multiplier controlling the rate-distortion trade-off. The optimal
+mode satisfies:
+\begin{equation}
+  m^* = \arg\min_{m \in \mathcal{M}} \left[ D(m) + \lambda \cdot R(m) \right]
+  \label{eq:rd-opt}
+\end{equation}
+The Lagrange multiplier relates to the quantization parameter (QP) via an
+empirically validated exponential relationship:
+\begin{equation}
+  \lambda = c \cdot 2^{(QP - 12)/3}
+  \label{eq:lambda-qp}
+\end{equation}
+where $c$ is a codec-specific constant. This relationship ensures that
+finer quantization (lower QP) assigns higher cost to bits, favoring modes
+that reduce distortion, while coarser quantization (higher QP) favors
+modes that reduce rate.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth, scale=0.85, every node/.style={scale=0.85},
+  block/.style={draw, rounded corners=3pt, minimum width=1.6cm,
+    minimum height=0.8cm, font=\scriptsize, align=center, thick},
+  arrow/.style={->, thick},
+  label/.style={font=\tiny, text=black!60}]
+
+% --- Input ---
+\node[block, fill=blue!15] (input) at (0, 0) {Input\\frame $f_t$};
+
+% --- Subtract ---
+\node[draw, circle, inner sep=1.5pt, thick] (sub) at (2.5, 0) {$-$};
+
+% --- Transform ---
+\node[block, fill=orange!20] (transform) at (5, 0) {Transform\\$T$};
+
+% --- Quantize ---
+\node[block, fill=orange!20] (quant) at (7.5, 0) {Quantize\\$Q$};
+
+% --- Entropy ---
+\node[block, fill=purple!20] (entropy) at (10.5, 0) {Entropy\\coder};
+
+% --- Bitstream ---
+\node[font=\scriptsize, right=0.4cm of entropy] (bitstream) {Bitstream};
+
+% --- Inverse Quantize ---
+\node[block, fill=orange!20] (iquant) at (7.5, -2) {Inverse\\$Q^{-1}$};
+
+% --- Inverse Transform ---
+\node[block, fill=orange!20] (itransform) at (5, -2) {Inverse\\$T^{-1}$};
+
+% --- Add ---
+\node[draw, circle, inner sep=1.5pt, thick] (add) at (2.5, -2) {$+$};
+
+% --- In-loop filter ---
+\node[block, fill=red!15] (filter) at (2.5, -3.8) {In-loop\\filter};
+
+% --- Reference buffer ---
+\node[block, fill=red!15] (refbuf) at (5.5, -3.8) {Reference\\buffer};
+
+% --- Mode decision ---
+\node[block, fill=green!15] (mode) at (8.5, -3.8) {Mode\\decision};
+
+% --- Prediction ---
+\node[block, fill=green!15] (pred) at (5.5, -5.5) {Prediction\\(intra/inter)};
+
+% --- Forward path ---
+\draw[arrow] (input) -- (sub);
+\draw[arrow] (sub) -- node[above, label] {$e$} (transform);
+\draw[arrow] (transform) -- (quant);
+\draw[arrow] (quant) -- (entropy);
+\draw[arrow] (entropy) -- (bitstream);
+
+% --- Reconstruction path ---
+\draw[arrow] (quant) -- (iquant);
+\draw[arrow] (iquant) -- (itransform);
+\draw[arrow] (itransform) -- node[above, label] {$\hat{e}$} (add);
+
+% --- Filter and buffer ---
+\draw[arrow] (add) -- (filter);
+\draw[arrow] (filter) -- (refbuf);
+
+% --- Prediction feedback ---
+\draw[arrow] (refbuf) -- (mode);
+\draw[arrow] (mode) -- (pred);
+\draw[arrow] (pred) -| (sub);
+\draw[arrow] (pred) -| (add);
+
+% --- Labels ---
+\node[label, anchor=west] at (0, -5.5) {$\hat{f}_{\text{pred}}$};
+
+\end{tikzpicture}
+\caption{Block-based hybrid encoder architecture. Every codec from H.264
+  through VVC follows this structure: predict each block from previously
+  coded data (green), transform and quantize the residual (orange), entropy
+  code the result (purple), then reconstruct and filter for future
+  reference (red). The coding efficiency gap $\Delta$
+  (eq.~\ref{eq:coding-gap}) arises from sub-optimal prediction, imperfect
+  energy compaction, quantization beyond the rate-distortion bound, and
+  entropy coding overhead.}
+\label{fig:hybrid-encoder}
+\end{figure}
+
+The four sub-optimal components of Figure~\ref{fig:hybrid-encoder}---prediction,
+transform, quantization, and entropy coding---each contribute to $\Delta$:
+\begin{equation}
+  \Delta \approx \Delta_{\text{pred}} + \Delta_{\text{transform}}
+    + \Delta_{\text{quant}} + \Delta_{\text{entropy}}
+  \label{eq:delta-decomp}
+\end{equation}
+Generational codec improvements reduce one or more of these terms. The codec
+lineages in Sections~\ref{sec:mpeg-lineage}--\ref{sec:aom-lineage} trace
+exactly which tools target which terms.
+
+%% ---------------------------------------------------------------------------
+\subsection{Transforms}
+\label{sec:transforms}
+
+The transform stage decorrelates the prediction residual, concentrating
+energy into a few coefficients that can be efficiently quantized and coded.
+
+\subsubsection{The KLT and Its DCT Approximation}
+\label{sec:klt-dct}
+
+The optimal decorrelating transform for a stationary source is the
+\emph{Karhunen-Lo\`eve Transform} (KLT), whose basis vectors are the
+eigenvectors of the input autocorrelation matrix $\mathbf{R}_{xx}$. For a
+first-order Markov source with correlation $\rho$ (eq.~\ref{eq:spatial-autocorr}),
+the KLT basis converges to the Type-II DCT as block size grows:
+\begin{equation}
+  C_k(n) = \alpha_k \cos\!\left[\frac{\pi k (2n+1)}{2N}\right],
+  \quad k,n = 0, \ldots, N-1
+  \label{eq:dct-ii}
+\end{equation}
+where $\alpha_0 = \sqrt{1/N}$ and $\alpha_k = \sqrt{2/N}$ for $k > 0$.
+
+The energy compaction efficiency---the fraction of total energy captured by
+the first $K$ of $N$ coefficients---is:
+\begin{equation}
+  \eta(K, N) = \frac{\sum_{k=0}^{K-1} \sigma_k^2}
+    {\sum_{k=0}^{N-1} \sigma_k^2}
+  \label{eq:energy-compaction}
+\end{equation}
+where $\sigma_k^2$ is the variance of the $k$-th transform coefficient.
+For a typical intra residual with $\rho = 0.95$ and $N = 8$, the first 3
+DCT coefficients capture approximately 95\% of the energy. This
+concentration enables aggressive quantization of high-frequency coefficients
+with minimal perceptual impact.
+
+\subsubsection{Integer Transforms in Practice}
+\label{sec:integer-transforms}
+
+Practical codecs use integer approximations of the DCT to ensure bit-exact
+encoder-decoder agreement. H.264 introduced a $4 \times 4$ integer
+transform:
+\begin{equation}
+  \mathbf{H}_4 = \begin{pmatrix}
+    1 &  1 &  1 &  1 \\
+    2 &  1 & -1 & -2 \\
+    1 & -1 & -1 &  1 \\
+    1 & -2 &  2 & -1
+  \end{pmatrix}
+  \label{eq:h264-transform}
+\end{equation}
+The non-unity scaling factors are absorbed into the quantization step,
+preserving exact integer arithmetic throughout the encode-decode loop.
+
+Each codec generation expands the transform toolkit:
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXX}
+\toprule
+\textbf{Codec} & \textbf{Transform sizes} & \textbf{Transform types}
+  & \textbf{Selection method} \\
+\midrule
+H.264 &
+  $4\!\times\!4$, $8\!\times\!8$ &
+  Integer DCT &
+  Fixed per block size \\
+VP9 &
+  $4\!\times\!4$ to $32\!\times\!32$ &
+  DCT, ADST &
+  Row/column adaptive \\
+HEVC &
+  $4\!\times\!4$ to $32\!\times\!32$ &
+  Integer DCT, DST ($4\!\times\!4$ intra) &
+  Mode-dependent \\
+AV1 &
+  $4\!\times\!4$ to $64\!\times\!64$ &
+  DCT, ADST, FlipADST, Identity &
+  RD-optimized per block \\
+VVC &
+  $4\!\times\!4$ to $64\!\times\!64$ &
+  DCT-II, DST-VII $+$ LFNST &
+  RD-optimized $+$ secondary \\
+\bottomrule
+\end{tabularx}
+\caption{Transform sizes and types across codec generations. AV1 applies
+  four 1D transform types independently to rows and columns, yielding
+  16~possible 2D combinations per block. VVC adds a non-separable secondary
+  transform (LFNST) applied to low-frequency coefficients after the primary
+  separable transform.}
+\label{tab:transforms}
+\end{table}
+
+The Asymmetric Discrete Sine Transform (ADST) used in VP9 and AV1 is
+particularly effective for intra-predicted residuals, which tend to have
+larger magnitudes near the prediction boundary. AV1's FlipADST extends
+this to blocks where the large residuals are on the opposite edge, while
+the Identity transform (skip) handles blocks where the residual is already
+well-distributed in the spatial domain.
+
+The progression from fixed transforms (H.264) to RD-optimized multi-type
+selection (AV1, VVC) directly reduces $\Delta_{\text{transform}}$ in
+(\ref{eq:delta-decomp}): better energy compaction means fewer bits are
+needed to represent the same residual at a given distortion level.
+
+%% ---------------------------------------------------------------------------
+\subsection{Motion Estimation and Inter Prediction}
+\label{sec:motion}
+
+Inter prediction exploits temporal redundancy by predicting blocks in the
+current frame from previously coded reference frames. This is the single
+largest source of compression gain---the prediction residual
+(eq.~\ref{eq:residual}) typically has 10--20$\times$ less energy than the
+original signal.
+
+\subsubsection{Block Matching and Motion Vectors}
+\label{sec:block-matching}
+
+The encoder searches for the best-matching region in a reference frame by
+minimizing a cost function over candidate displacement vectors
+$\mathbf{d} = (d_x, d_y)$:
+\begin{equation}
+  \text{SAD}(\mathbf{d}) = \sum_{(x,y) \in B}
+    \left| f_t(x,y) - f_{t-1}(x + d_x,\, y + d_y) \right|
+  \label{eq:sad}
+\end{equation}
+The Sum of Absolute Differences (SAD) is the simplest distortion measure.
+A better rate-distortion proxy is the Sum of Absolute Transformed
+Differences (SATD), which applies the Hadamard transform before summation:
+\begin{equation}
+  \text{SATD}(\mathbf{d}) = \sum \left| \mathbf{H}
+    \cdot \left( f_t - f_{t-1}(\mathbf{d}) \right) \right|
+  \label{eq:satd}
+\end{equation}
+SATD approximates the post-transform energy and thus better predicts the
+actual coded bit cost. Rate-constrained motion estimation augments the
+distortion with a motion vector coding cost:
+\begin{equation}
+  \mathbf{d}^* = \arg\min_{\mathbf{d}} \left[
+    \text{SATD}(\mathbf{d}) + \lambda_{\text{motion}} \cdot R(\mathbf{d})
+  \right]
+  \label{eq:rcme}
+\end{equation}
+where $R(\mathbf{d})$ is the bit cost of encoding the motion vector
+relative to a predictor.
+
+\subsubsection{Sub-Pixel Interpolation}
+\label{sec:subpixel}
+
+Motion in natural video rarely aligns to integer pixel positions. All modern
+codecs perform sub-pixel motion compensation by interpolating reference
+frame samples at fractional positions.
+
+H.264 uses a 6-tap filter for half-pixel luma interpolation:
+\begin{equation}
+  h_{\frac{1}{2}} = \{1, -5, 20, 20, -5, 1\} / 32
+  \label{eq:h264-halfpel}
+\end{equation}
+with quarter-pixel positions obtained by bilinear averaging of integer and
+half-pixel samples. HEVC extends this to an 8-tap filter for half-pixel and
+a 7-tap filter for quarter-pixel positions. AV1 introduces a switchable
+filter bank with three 8-tap options---Regular (sharp), Smooth (low-pass),
+and Sharp (high-frequency preserving)---selected per block via RD
+optimization. VVC adds DMVR (Decoder-side Motion Vector Refinement) and
+BDOF (Bi-Directional Optical Flow) for sub-pixel refinement at the decoder
+without additional signaling bits.
+
+The progression from H.264's fixed 6-tap filter to AV1's switchable bank
+reduces $\Delta_{\text{pred}}$: better interpolation means smaller
+prediction residuals, which require fewer bits.
+
+\subsubsection{Advanced Inter Prediction Tools}
+\label{sec:advanced-inter}
+
+Beyond basic block matching, each codec generation adds tools to handle
+complex motion and occlusion:
+
+\begin{itemize}
+\item \textbf{Multiple reference frames.} H.264 introduced up to 16
+  reference frames; practical WebRTC encoders use 1--3 for latency reasons.
+  More references improve prediction for periodic motion and uncovered
+  backgrounds.
+
+\item \textbf{Bi-prediction.} A weighted average of predictions from two
+  reference frames, reducing noise and handling gradual scene changes.
+  Available from H.264 onward (in B-frames) and in AV1's compound modes.
+
+\item \textbf{Compound prediction (AV1).} Wedge masks and
+  difference-weighted blending combine two predictions at the block level,
+  handling occlusion boundaries where a single motion model fails.
+
+\item \textbf{Overlapped Block Motion Compensation (AV1).} Blends
+  predictions from neighboring blocks at motion boundaries, reducing
+  blocking artifacts without post-processing.
+
+\item \textbf{Warped motion (AV1).} An affine model with up to 6
+  parameters handles rotation, zoom, and perspective---common in
+  screen sharing and camera motion.
+
+\item \textbf{VVC additions.} Geometric Partitioning Mode (non-rectangular
+  block splits for motion boundaries), BDOF (optical flow refinement at the
+  decoder), and DMVR (decoder-side MV refinement using bilateral matching).
+\end{itemize}
+
+\excursus{Excursus: Motion estimation in real-time encoding.}{Full-search
+block matching has complexity $O(N^2 \cdot S^2)$ where $N$ is the block
+dimension and $S$ is the search range in pixels. For a $64\!\times\!64$
+block with $S = 64$, this is ${\sim}17$ million SAD operations per
+block---far too expensive for real-time encoding. WebRTC encoders use
+hierarchical search patterns (diamond, hexagon) that reduce complexity to
+$O(N^2 \cdot \log S)$ with typically $< 5\%$ rate-distortion penalty
+relative to full search. This is why real-time encoders use only a subset
+of each codec's inter prediction tools: the full tool set is available
+for offline encoding, but the real-time constraint forces aggressive
+pruning of the mode decision search space.}
+
+%% ---------------------------------------------------------------------------
+\subsection{Quantization}
+\label{sec:quantization}
+
+Quantization is the sole lossy step in the hybrid coding pipeline. It maps
+continuous-valued (or high-precision integer) transform coefficients to a
+discrete set of reconstruction levels, introducing controlled information
+loss to achieve the target bit rate.
+
+\subsubsection{Scalar Quantization}
+
+Uniform scalar quantization maps coefficient $c$ to a quantization index:
+\begin{equation}
+  q = \text{round}\!\left(\frac{c}{Q_{\text{step}}}\right), \quad
+  \hat{c} = q \cdot Q_{\text{step}}
+  \label{eq:uniform-quant}
+\end{equation}
+Modern codecs use \emph{dead-zone quantization}, where coefficients near
+zero are mapped to zero more aggressively than uniform rounding predicts:
+\begin{equation}
+  q = \text{sign}(c) \cdot \left\lfloor
+    \frac{|c| - f \cdot Q_{\text{step}}}{Q_{\text{step}}}
+  \right\rfloor
+  \label{eq:deadzone}
+\end{equation}
+where $f \in [0, 0.5)$ controls the dead-zone width. Dead-zone
+quantization increases sparsity---the fraction of zero-valued
+coefficients---which dramatically improves entropy coding efficiency.
+
+\subsubsection{QP-to-Step-Size Mapping}
+
+The quantization parameter (QP) controls the step size via an exponential
+relationship. In the H.264/HEVC/VVC family:
+\begin{equation}
+  Q_{\text{step}} = Q_0 \cdot 2^{(QP - QP_0)/6}
+  \label{eq:qp-mapping}
+\end{equation}
+A 6-unit increase in QP doubles the step size, approximately doubling the
+bit rate. AV1 uses a similar but codec-specific mapping with separate QP
+values for DC and AC coefficients, plus per-segment QP adjustment for
+region-of-interest coding.
+
+\subsubsection{Quantization Distortion}
+
+For a single coefficient under uniform quantization at high rate, the
+distortion is:
+\begin{equation}
+  D_q = \frac{Q_{\text{step}}^2}{12}
+  \label{eq:quant-distortion}
+\end{equation}
+For a block of $N$ transform coefficients where $K$ survive quantization
+(nonzero) and $N - K$ are quantized to zero:
+\begin{equation}
+  D_{\text{block}} \approx K \cdot \frac{Q_{\text{step}}^2}{12}
+    + \sum_{k \notin K} c_k^2
+  \label{eq:block-distortion}
+\end{equation}
+The second term represents the energy of coefficients eliminated by the
+dead zone---information permanently discarded. The QP is thus the primary
+control knob for navigating the rate-distortion curve in
+Figure~\ref{fig:rate-distortion}. The WebCodecs \texttt{VideoEncoder} API
+exposes this control via the \texttt{quantizer} configuration parameter,
+giving JavaScript applications direct access to this fundamental
+trade-off.
+
+%% ---------------------------------------------------------------------------
+\subsection{Entropy Coding}
+\label{sec:entropy-coding}
+
+After quantization, the surviving coefficients and all side information
+(motion vectors, prediction modes, block partitions) must be losslessly
+compressed. The entropy coder converts these symbols into a bitstream,
+approaching the conditional entropy $H(X|\text{context})$ as closely as
+possible. The gap between the entropy coder's output rate and the true
+conditional entropy is $\Delta_{\text{entropy}}$ in
+(\ref{eq:delta-decomp}).
+
+\subsubsection{Context-Adaptive Binary Arithmetic Coding (CABAC)}
+\label{sec:cabac}
+
+CABAC, used in H.264, HEVC, and VVC, encodes each syntax element as a
+sequence of binary decisions (bins). For each bin, the arithmetic coder
+subdivides the current interval $[L, H)$ based on the estimated
+probability $p$:
+\begin{equation}
+  [L, H) \to \begin{cases}
+    [L,\; L + p \cdot (H - L)) & \text{if bin} = 0 \\
+    [L + p \cdot (H - L),\; H) & \text{if bin} = 1
+  \end{cases}
+  \label{eq:arithmetic-coding}
+\end{equation}
+The theoretical output length approaches the entropy:
+\begin{equation}
+  \ell \to \sum_{i=1}^{n} -\log_2 p(b_i \mid \text{ctx}_i)
+  \label{eq:cabac-length}
+\end{equation}
+CABAC achieves redundancy below 0.01 bits/symbol relative to the true
+conditional entropy---near-optimal compression.
+
+Context modeling is the key to CABAC's effectiveness. Each bin type has an
+associated context, whose probability is updated after each observation via
+a state-machine-based exponential moving average:
+\begin{equation}
+  p_{k+1} = p_k + \alpha(s_k) \cdot (b_k - p_k)
+  \label{eq:cabac-update}
+\end{equation}
+where $\alpha(s_k)$ is a state-dependent adaptation rate, indexed by a
+lookup table with 64 states (H.264) or 128 states (HEVC/VVC). This design
+avoids floating-point arithmetic entirely.
+
+CABAC also provides a \emph{bypass mode} for bins with approximately
+uniform probability (e.g., sign bits, high-magnitude coefficient levels),
+which skips the context lookup and probability estimation for throughput.
+
+\subsubsection{Multi-Symbol Arithmetic Coding in AV1}
+\label{sec:av1-entropy}
+
+AV1 departs from binary arithmetic coding. Its entropy coder operates on
+multi-symbol alphabets using CDF (Cumulative Distribution Function) tables:
+\begin{equation}
+  \text{Encode symbol } s: \quad
+  [L, H) \to \left[L + \frac{\text{CDF}(s-1)}{M} \cdot (H-L),\;
+    L + \frac{\text{CDF}(s)}{M} \cdot (H-L)\right)
+  \label{eq:av1-entropy}
+\end{equation}
+where $M$ is the total frequency count. CDF tables are adapted after
+each symbol:
+\begin{equation}
+  \text{CDF}_{k+1}(s) = \text{CDF}_k(s) + \left\lfloor
+    \frac{\text{target}(s) - \text{CDF}_k(s)}{n}
+  \right\rfloor
+  \label{eq:cdf-update}
+\end{equation}
+where $n$ controls the adaptation rate. Multi-symbol coding is more
+efficient than CABAC's binarization for syntax elements with moderate
+alphabet sizes (e.g., intra prediction modes, transform types), as it
+avoids the overhead of converting each symbol into a binary tree of
+decisions.
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXXXX}
+\toprule
+\textbf{Feature} & \textbf{H.264} & \textbf{HEVC} & \textbf{VP9}
+  & \textbf{AV1} & \textbf{VVC} \\
+\midrule
+Method &
+  Binary AC &
+  Binary AC &
+  Boolean AC &
+  Multi-sym AC &
+  Binary AC \\
+Contexts &
+  ${\sim}400$ &
+  ${\sim}200$ &
+  ${\sim}900$ &
+  ${\sim}300$ &
+  ${\sim}700$ \\
+Adaptation &
+  64-state LUT &
+  128-state LUT &
+  Counter &
+  CDF update &
+  128-state LUT \\
+Bypass mode &
+  Yes &
+  Yes &
+  N/A &
+  N/A &
+  Yes \\
+Parallelism &
+  Slice &
+  WPP / Tiles &
+  Tiles &
+  Tiles &
+  WPP / Tiles \\
+\bottomrule
+\end{tabularx}
+\caption{Entropy coding comparison across codecs. HEVC reduced context
+  count relative to H.264 for throughput; VVC increased it again for
+  improved compression. AV1's multi-symbol approach operates on full
+  alphabets rather than binary decompositions.}
+\label{tab:entropy-coding}
+\end{table}
+
+The frame entropy $\hat{H}(f_t)$ from eq.~(\ref{eq:frame-entropy}) is
+ultimately determined by how well the entropy coder's probability model
+matches the true symbol distribution. Both CABAC and AV1's multi-symbol
+coder achieve near-zero entropy coding gaps; the remaining
+$\Delta_{\text{entropy}}$ arises primarily from context model mismatch on
+non-stationary content (scene changes, sudden motion onset).
+
+%% ---------------------------------------------------------------------------
+\subsection{In-Loop Filtering}
+\label{sec:filtering}
+
+Block-based coding introduces visible artifacts at block boundaries:
+discontinuities from independent quantization of adjacent blocks, and
+ringing from coefficient truncation. In-loop filters reduce these artifacts
+\emph{before} the reconstructed frame enters the reference buffer, improving
+prediction quality for subsequent frames and thus reducing
+$\Delta_{\text{pred}}$.
+
+\begin{itemize}
+\item \textbf{Deblocking filter (all codecs).} Smooths discontinuities
+  at block edges, with filter strength adapted to the quantization level
+  and local gradient. Introduced in H.264; refined in each subsequent
+  codec.
+
+\item \textbf{Sample Adaptive Offset---SAO (HEVC).} Classifies
+  reconstructed samples by intensity or edge direction and applies
+  per-class offsets to reduce systematic bias introduced by quantization.
+
+\item \textbf{Constrained Directional Enhancement Filter---CDEF (AV1).}
+  A directional filter that identifies edge orientation per
+  $8\!\times\!8$ block and applies filtering only along the edge,
+  preserving sharpness while reducing ringing.
+
+\item \textbf{Loop Restoration Filter (AV1).} A switchable per-tile
+  filter choosing between a Wiener filter (FIR designed to minimize MSE
+  between original and reconstruction) and a Self-Guided filter (non-linear
+  denoising based on guided image filtering). This is AV1's most powerful
+  quality enhancement tool.
+
+\item \textbf{Adaptive Loop Filter---ALF (VVC).} A diamond-shaped filter
+  with coefficients signaled per frame, applied adaptively per
+  $4\!\times\!4$ block based on local classification. Subsumes HEVC's
+  SAO functionality.
+\end{itemize}
+
+The evolution from simple deblocking (H.264) to multi-stage adaptive
+filtering (AV1: deblocking $\to$ CDEF $\to$ loop restoration) exemplifies
+how each codec generation reduces $\Delta_{\text{pred}}$ by improving
+reference frame quality.
+
+%% ---------------------------------------------------------------------------
+\subsection{Codec Lineage: MPEG/ITU Family}
+\label{sec:mpeg-lineage}
+
+The MPEG/ITU standardization track has produced three codec generations
+relevant to the 2021--2031 timeframe of this document.
+
+\subsubsection{H.264/AVC (2003)}
+\label{sec:h264}
+
+H.264 defined the modern era of video compression and remains the most
+widely deployed codec. Its key innovations over its predecessors (H.263,
+MPEG-2):
+
+\begin{itemize}
+\item Variable block sizes: $16\!\times\!16$ macroblock partitioned into
+  $16\!\times\!8$, $8\!\times\!16$, $8\!\times\!8$, $8\!\times\!4$,
+  $4\!\times\!8$, and $4\!\times\!4$ sub-partitions for motion
+  compensation.
+
+\item Quarter-pixel motion compensation with 6-tap interpolation
+  (eq.~\ref{eq:h264-halfpel}).
+
+\item Context-adaptive intra prediction: 9~angular modes for
+  $4\!\times\!4$ blocks, 4~modes for $16\!\times\!16$.
+
+\item Dual entropy coding: CAVLC (simpler, faster) and CABAC
+  (Section~\ref{sec:cabac}; 10--15\% better compression).
+
+\item In-loop deblocking filter, mandatory for the decoder.
+
+\item Multiple reference frames (up to 16) and weighted prediction.
+\end{itemize}
+
+Three profiles are relevant to WebRTC: \textbf{Constrained Baseline}
+(no CABAC, no B-frames, lowest complexity---the mandatory WebRTC profile),
+\textbf{Main} (CABAC, B-frames, ${\sim}$10\% better compression), and
+\textbf{High} ($8\!\times\!8$ transform, adaptive quantization matrices,
+${\sim}$15\% better).
+
+At the 720p/30fps reference point, H.264 Constrained Baseline operates at
+approximately 2.0--2.5~Mbps for ``good'' quality (PSNR ${\sim}$37~dB),
+corresponding to $\Delta_{\text{H.264}} \approx 2.1$ from
+Appendix~\ref{app:info-theory}. H.264 was the only codec Safari supported
+in 2021 (Section~3.1), and its higher $\Delta$ is directly responsible
+for the bandwidth disparity between Safari-only and VP9-capable sessions
+documented in the main text.
+
+\subsubsection{H.265/HEVC (2013)}
+\label{sec:hevc}
+
+HEVC replaced H.264's fixed $16\!\times\!16$ macroblock with a recursive
+Coding Tree Unit (CTU) of up to $64\!\times\!64$ pixels, using quad-tree
+partitioning down to $8\!\times\!8$. Key advances:
+
+\begin{itemize}
+\item 35 intra prediction angular directions (vs.\ H.264's 9).
+\item Transform sizes from $4\!\times\!4$ to $32\!\times\!32$, with
+  DST for $4\!\times\!4$ intra blocks.
+\item Advanced Motion Vector Prediction (AMVP): two MVP candidates selected
+  from spatial and temporal neighbors, replacing H.264's less structured
+  motion vector prediction.
+\item Merge mode: inherits the full motion information (MV, reference
+  index, prediction direction) from a neighboring block, requiring zero
+  additional motion bits.
+\item Sample Adaptive Offset (SAO) in-loop filter.
+\item Parallel processing: Wavefront Parallel Processing (WPP) and tiles.
+\end{itemize}
+
+HEVC achieves approximately 40\% rate reduction over H.264 at equivalent
+PSNR. However, HEVC is absent from WebRTC entirely---not due to technical
+limitations, but due to patent licensing.
+
+\excursus{Excursus: Why no HEVC in WebRTC?}{HEVC's patent licensing is
+fragmented across three separate pools (MPEG-LA, HEVC Advance, Velos Media)
+plus independent licensors who are not members of any pool. The resulting
+uncertainty about total royalty cost---estimated at \$0.20--\$0.40 per device
+for some use cases---led Google, Mozilla, Cisco, and others to form the
+Alliance for Open Media (AOM) in 2015 and develop AV1 as a royalty-free
+alternative. This patent-driven fork is why the WebRTC ecosystem followed the
+VP8$\to$VP9$\to$AV1 path rather than H.264$\to$HEVC$\to$VVC, and why the two
+codec families must be understood in parallel.}
+
+\subsubsection{H.266/VVC (2020)}
+\label{sec:vvc}
+
+VVC extends HEVC's quad-tree with binary and ternary splits, creating a
+\emph{multi-type tree} (MTT) that enables asymmetric block shapes (e.g.,
+$32\!\times\!8$, $8\!\times\!32$, $32\!\times\!4$). Additional
+innovations:
+
+\begin{itemize}
+\item 67 intra prediction directions plus Matrix-based Intra Prediction
+  (MIP), which applies a learned linear transform to neighboring samples.
+
+\item Multiple Transform Selection (MTS): explicit signaling of DCT-II or
+  DST-VII per block, plus the Low-Frequency Non-Separable Transform
+  (LFNST)---a $16\!\times\!16$ or $8\!\times\!8$ non-separable transform
+  applied to low-frequency coefficients after the primary separable
+  transform.
+
+\item Affine motion model: 4-parameter (translation $+$ rotation/scaling)
+  or 6-parameter (full affine) motion, derived from control point MVs at
+  block corners.
+
+\item Decoder-side tools: DMVR refines motion vectors at the decoder using
+  bilateral template matching; BDOF applies optical flow equations to
+  refine bi-predicted samples, both without additional signaling bits.
+
+\item Geometric Partitioning Mode: divides a block diagonally for separate
+  motion compensation of each partition, targeting motion boundaries.
+
+\item Adaptive Loop Filter (ALF): a diamond-shaped Wiener filter with
+  coefficients signaled per frame and applied adaptively per
+  $4\!\times\!4$ block.
+\end{itemize}
+
+VVC achieves approximately 30--50\% rate reduction over HEVC, placing it at
+$\Delta_{\text{VVC}} \approx 0.3$. Its relevance to this document is
+forward-looking: VVC may appear in WebCodecs codec registries by
+${\sim}$2030 if licensing concerns are resolved, and its tool set
+represents the current efficiency frontier against which AV1's performance
+should be measured.
+
+%% ---------------------------------------------------------------------------
+\subsection{Codec Lineage: Google/AOM Family}
+\label{sec:aom-lineage}
+
+The royalty-free codec family dominates the WebRTC ecosystem. Its
+development was driven by the patent licensing concerns described in the
+HEVC excursus above.
+
+\subsubsection{VP8 (2010)}
+\label{sec:vp8}
+
+VP8 was Google's first open-source video codec, released alongside the
+WebM container. Its design is conservative:
+
+\begin{itemize}
+\item $16\!\times\!16$ macroblocks with $4\!\times\!4$ subblock partitions.
+\item $4\!\times\!4$ Walsh-Hadamard Transform (WHT) for DC coefficients,
+  $4\!\times\!4$ DCT for AC coefficients.
+\item Boolean arithmetic coder with tree-structured syntax (single-bit
+  alphabet).
+\item 4 intra prediction modes for $16\!\times\!16$, 10 for
+  $4\!\times\!4$ subblocks.
+\item Simple loop filter with per-edge strength adaptation.
+\item Single reference frame for WebRTC (plus a ``golden'' frame for
+  screen content).
+\end{itemize}
+
+VP8's compression efficiency is roughly equivalent to H.264 Constrained
+Baseline. It served as the baseline WebRTC codec---supported by Chrome and
+Firefox since WebRTC~1.0---but has been superseded by VP9 in all modern
+deployments.
+
+\subsubsection{VP9 (2013)}
+\label{sec:vp9}
+
+VP9 introduced a superblock architecture and several tools that brought it
+within range of HEVC:
+
+\begin{itemize}
+\item $64\!\times\!64$ superblocks with recursive quad-tree partitioning
+  down to $4\!\times\!4$.
+\item 10 intra prediction modes.
+\item Transforms: DCT and ADST applied independently per row and column,
+  at sizes from $4\!\times\!4$ to $32\!\times\!32$.
+\item Switchable interpolation filters: 8-tap Regular, Smooth, and
+  Sharp, selected per block.
+\item Compound prediction: weighted average from two reference frames.
+\item Segmentation: per-segment QP adjustment for region-of-interest
+  coding.
+\end{itemize}
+
+VP9 achieves approximately 35\% rate reduction over H.264
+(eq.~\ref{eq:vp9-savings}), placing it at $\Delta_{\text{VP9}} \approx 0.8$.
+VP9 is the dominant WebRTC codec in Chrome and Firefox as of March~2026,
+and its temporal SVC support (Section~\ref{sec:svc}) is the primary
+mechanism enabling adaptive quality in multi-participant calls.
+
+\subsubsection{AV1 (2018)}
+\label{sec:av1}
+
+AV1 represents the most ambitious single-generation improvement in the
+royalty-free family. Its tool set approaches VVC in breadth while
+maintaining royalty-free status:
+
+\begin{itemize}
+\item $128\!\times\!128$ superblocks with flexible partitioning (quad-tree
+  plus rectangular splits) down to $4\!\times\!4$.
+
+\item 56+ directional intra prediction modes plus non-directional modes
+  (Paeth, Smooth variants, DC).
+
+\item Full inter prediction toolkit: OBMC, warped motion (affine),
+  compound modes (Wedge, Difference-weighted), inter-intra compound
+  prediction.
+
+\item 16 transform type combinations ($4$ 1D types $\times$ rows/columns),
+  at sizes up to $64\!\times\!64$.
+
+\item Film Grain Synthesis: the encoder characterizes noise/grain
+  parameters and transmits them as metadata; the decoder re-synthesizes
+  grain after reconstruction. This removes non-compressible high-frequency
+  noise from the coding loop---a major bitrate saving for camera-captured
+  content.
+
+\item Multi-stage in-loop filtering: deblocking $\to$ CDEF $\to$ loop
+  restoration (Wiener or Self-Guided), as described in
+  Section~\ref{sec:filtering}.
+
+\item Multi-symbol arithmetic coding with CDF-based context adaptation
+  (Section~\ref{sec:av1-entropy}).
+\end{itemize}
+
+AV1 achieves approximately 30\% rate reduction over VP9
+(eq.~\ref{eq:av1-savings}), a cumulative ${\sim}$54\% over H.264, placing
+it at $\Delta_{\text{AV1}} \approx 0.5$ with current hardware encoders and
+approaching 0.4 by 2030 as encoder implementations mature.
+
+AV1's tools directly explain why its $\Delta$ is smaller than VP9's:
+more transform types capture residual structure better (reducing
+$\Delta_{\text{transform}}$), warped and compound motion reduce prediction
+residual energy (reducing $\Delta_{\text{pred}}$), and film grain synthesis
+removes non-compressible variance from the coding loop (effectively
+reducing the source variance $\sigma^2$ that the codec must represent).
+
+%% ---------------------------------------------------------------------------
+\subsection{Block Partitioning: A Generational Comparison}
+\label{sec:partitioning}
+
+Block partitioning is the most architecturally consequential difference
+between codec generations. Larger and more flexible partitions allow the
+encoder to match block boundaries to content structure---smooth regions
+get large blocks (few bits for partition overhead), detailed regions get
+small blocks (better prediction accuracy).
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth, scale=0.55, every node/.style={scale=0.55}]
+
+% --- H.264 panel ---
+\begin{scope}[xshift=0cm]
+  \node[font=\normalsize\bfseries, anchor=south] at (2, 8.4) {H.264};
+  \node[font=\small, anchor=south] at (2, 7.8) {$16\!\times\!16$ max};
+  % 4x4 grid of 16x16 macroblocks in a 64x64 region
+  \draw[thick] (0,0) rectangle (4,4);
+  \draw[thick] (0,0) rectangle (4,4);
+  % macroblock grid
+  \foreach \x in {0,1,2,3} {
+    \foreach \y in {0,1,2,3} {
+      \draw[gray] (\x, \y) rectangle (\x+1, \y+1);
+    }
+  }
+  % show some sub-partitions
+  \draw[blue!60, thick] (0,3) -- (0.5,3) -- (0.5,4) -- (0,4);
+  \draw[blue!60, thick] (0.5,3) -- (0.5,4);
+  \draw[blue!60, thick] (0,3.5) -- (1,3.5);
+  % 8x8 in another
+  \draw[blue!60, thick] (1,2.5) -- (2,2.5);
+  \draw[blue!60, thick] (1.5,2) -- (1.5,3);
+  % 4x4 in another
+  \draw[red!60, thick] (2,0) -- (2,1) -- (3,1) -- (3,0);
+  \draw[red!60, thick] (2.5,0) -- (2.5,0.5);
+  \draw[red!60, thick] (2,0.5) -- (2.5,0.5);
+  \draw[red!60, thick] (2.5,0.5) -- (2.5,1);
+  \draw[red!60, thick] (2.5,0) -- (3,0) -- (3,0.5) -- (2.5,0.5);
+  % Scale label
+  \node[font=\small, anchor=north] at (2, -0.3) {64 pixels};
+\end{scope}
+
+% --- VP9/HEVC panel ---
+\begin{scope}[xshift=6cm]
+  \node[font=\normalsize\bfseries, anchor=south] at (4, 8.4) {VP9 / HEVC};
+  \node[font=\small, anchor=south] at (4, 7.8) {$64\!\times\!64$ max};
+  % One 64x64 superblock
+  \draw[thick] (0,0) rectangle (8,8);
+  % quad-tree splits
+  \draw[thick] (4,0) -- (4,8);
+  \draw[thick] (0,4) -- (8,4);
+  % further splits in top-left quadrant
+  \draw[blue!60, thick] (2,4) -- (2,8);
+  \draw[blue!60, thick] (0,6) -- (4,6);
+  % further split in top-left-top-left
+  \draw[red!60, thick] (1,6) -- (1,8);
+  \draw[red!60, thick] (0,7) -- (2,7);
+  % split bottom-right quadrant
+  \draw[blue!60, thick] (6,0) -- (6,4);
+  \draw[blue!60, thick] (4,2) -- (8,2);
+  % deeper in bottom-right-bottom-left
+  \draw[red!60, thick] (5,0) -- (5,2);
+  \draw[red!60, thick] (4,1) -- (6,1);
+  % Scale label
+  \node[font=\small, anchor=north] at (4, -0.3) {64 pixels};
+\end{scope}
+
+% --- AV1 panel ---
+\begin{scope}[xshift=16cm]
+  \node[font=\normalsize\bfseries, anchor=south] at (4, 8.4) {AV1};
+  \node[font=\small, anchor=south] at (4, 7.8) {$128\!\times\!128$ max};
+  % 128x128 shown as 8x8 grid (each cell = 16px)
+  \draw[thick] (0,0) rectangle (8,8);
+  % quad split: top half / bottom half
+  \draw[thick] (4,0) -- (4,8);
+  \draw[thick] (0,4) -- (8,4);
+  % rectangular splits in top-left
+  \draw[blue!60, thick] (0,6) -- (4,6);
+  \draw[blue!60, thick] (2,4) -- (2,6);
+  % asymmetric in bottom-left (4:1 rect)
+  \draw[orange!80, thick] (0,3) -- (4,3);
+  \draw[orange!80, thick] (0,2) -- (4,2);
+  \draw[orange!80, thick] (0,1) -- (4,1);
+  % quad + rect in top-right
+  \draw[blue!60, thick] (6,4) -- (6,8);
+  \draw[red!60, thick] (4,6) -- (6,6);
+  \draw[red!60, thick] (5,4) -- (5,6);
+  % bottom-right: large blocks
+  \draw[blue!60, thick] (4,2) -- (8,2);
+  % Scale label
+  \node[font=\small, anchor=north] at (4, -0.3) {128 pixels};
+\end{scope}
+
+% --- VVC panel ---
+\begin{scope}[xshift=26cm]
+  \node[font=\normalsize\bfseries, anchor=south] at (4, 8.4) {VVC};
+  \node[font=\small, anchor=south] at (4, 7.8) {$128\!\times\!128$ max};
+  \draw[thick] (0,0) rectangle (8,8);
+  % quad split
+  \draw[thick] (4,0) -- (4,8);
+  \draw[thick] (0,4) -- (8,4);
+  % binary split (horizontal) in top-left
+  \draw[blue!60, thick] (0,6) -- (4,6);
+  % ternary split (vertical) in top-left-bottom
+  \draw[orange!80, thick] (1,4) -- (1,6);
+  \draw[orange!80, thick] (3,4) -- (3,6);
+  % binary split (vertical) in top-right
+  \draw[blue!60, thick] (6,4) -- (6,8);
+  % ternary horizontal in top-right-left
+  \draw[orange!80, thick] (4,5.33) -- (6,5.33);
+  \draw[orange!80, thick] (4,6.67) -- (6,6.67);
+  % bottom-left: binary horizontal
+  \draw[blue!60, thick] (0,2) -- (4,2);
+  % deeper ternary in bottom-left-top
+  \draw[orange!80, thick] (1,2) -- (1,4);
+  \draw[orange!80, thick] (3,2) -- (3,4);
+  % bottom-right: mostly large
+  \draw[blue!60, thick] (6,0) -- (6,4);
+  \draw[blue!60, thick] (4,2) -- (8,2);
+  % Scale label
+  \node[font=\small, anchor=north] at (4, -0.3) {128 pixels};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Block partitioning comparison across codec generations. H.264 is
+  limited to $16\!\times\!16$ macroblocks with fixed sub-partitions (left).
+  VP9/HEVC use quad-tree partitioning within $64\!\times\!64$ superblocks
+  (center-left). AV1 extends to $128\!\times\!128$ with quad-tree plus
+  rectangular splits (center-right). VVC adds binary and ternary splits for
+  maximum flexibility (right). Blue lines show first-level splits; red
+  shows deeper partitioning; orange shows asymmetric/ternary splits.}
+\label{fig:block-partitioning}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXXXX}
+\toprule
+\textbf{Feature} & \textbf{H.264} & \textbf{VP9} & \textbf{HEVC}
+  & \textbf{AV1} & \textbf{VVC} \\
+\midrule
+Max block &
+  $16\!\times\!16$ &
+  $64\!\times\!64$ &
+  $64\!\times\!64$ &
+  $128\!\times\!128$ &
+  $128\!\times\!128$ \\
+Min block &
+  $4\!\times\!4$ &
+  $4\!\times\!4$ &
+  $8\!\times\!8$ &
+  $4\!\times\!4$ &
+  $4\!\times\!4$ \\
+Split types &
+  Fixed partitions &
+  Quad-tree &
+  Quad-tree &
+  Quad $+$ rect &
+  Quad $+$ BT $+$ TT \\
+Asymmetric &
+  Limited &
+  No &
+  No &
+  4:1 rectangles &
+  Full (BT/TT) \\
+\bottomrule
+\end{tabularx}
+\caption{Block partitioning capabilities by codec. BT = binary tree
+  (horizontal or vertical), TT = ternary tree (1:2:1 split). Larger maximum
+  blocks reduce overhead for homogeneous regions; asymmetric splits improve
+  partitioning efficiency at content boundaries.}
+\label{tab:partitioning}
+\end{table}
+
+%% ---------------------------------------------------------------------------
+\subsection{Rate-Distortion Operating Points by Codec}
+\label{sec:rd-comparison}
+
+The codec-specific analyses of
+Sections~\ref{sec:mpeg-lineage}--\ref{sec:aom-lineage} can be unified
+through the Bj\o ntegaard Delta Rate (BD-Rate), the standard metric for
+comparing codec efficiency. BD-Rate computes the average percentage rate
+difference between two codecs at equivalent distortion by integrating the
+difference between their rate-distortion curves fit as cubic polynomials in
+PSNR-vs-log-rate space:
+\begin{equation}
+  \text{BD-Rate} = \frac{1}{\Delta\text{PSNR}}
+    \int_{\text{PSNR}_{\min}}^{\text{PSNR}_{\max}}
+    \left[ \ln R_A(p) - \ln R_B(p) \right] dp
+  \label{eq:bd-rate}
+\end{equation}
+A negative BD-Rate indicates that codec~$A$ requires fewer bits than
+codec~$B$ at the same quality.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth]
+
+% --- Axes ---
+\draw[->, thick] (0, 0) -- (11, 0);
+\draw[->, thick] (0, 0) -- (0, 6.5);
+
+% --- Axis titles ---
+\node[font=\small] at (5.5, -0.85) {Rate [Mbps]};
+\node[font=\small, rotate=90] at (-0.9, 3.25) {PSNR [dB]};
+
+% --- X-axis labels ---
+\foreach \x/\lab in {0/0, 2/0.5, 4/1.0, 6/1.5, 8/2.0, 10/2.5} {
+  \draw (\x, -0.1) -- (\x, 0.1);
+  \node[font=\tiny, anchor=north] at (\x, -0.15) {\lab};
+}
+
+% --- Y-axis labels ---
+\foreach \y/\lab in {0/28, 1/30, 2/32, 3/34, 4/36, 5/38, 6/40} {
+  \draw (-0.1, \y) -- (0.1, \y);
+  \node[font=\tiny, anchor=east] at (-0.15, \y) {\lab};
+}
+
+% --- Grid ---
+\foreach \y in {1,2,3,4,5,6} {
+  \draw[gray!15] (0, \y) -- (10.5, \y);
+}
+
+% --- Shannon R(D) bound (leftmost curve) ---
+\draw[very thick, green!60!black]
+  (0.4, 0.5) .. controls (0.6, 2) and (0.8, 3.5) ..
+  (1.2, 4.5) .. controls (1.8, 5.5) and (2.5, 6.0) ..
+  (3.5, 6.3);
+\node[font=\scriptsize, green!60!black, anchor=south west] at (2.5, 6.1)
+  {$R(D)$};
+
+% --- VVC curve ---
+\draw[very thick, violet!70]
+  (0.8, 0.3) .. controls (1.2, 2.0) and (1.6, 3.5) ..
+  (2.2, 4.5) .. controls (3.0, 5.5) and (4.0, 6.0) ..
+  (5.5, 6.3);
+\node[font=\scriptsize, violet!70, anchor=south west] at (4.2, 6.1)
+  {VVC};
+
+% --- AV1 curve ---
+\draw[very thick, orange!80!black]
+  (1.0, 0.2) .. controls (1.5, 1.8) and (2.2, 3.3) ..
+  (3.0, 4.3) .. controls (4.0, 5.3) and (5.2, 5.9) ..
+  (7.0, 6.2);
+\node[font=\scriptsize, orange!80!black, anchor=south] at (6.0, 6.1)
+  {AV1};
+
+% --- HEVC curve ---
+\draw[very thick, teal!70]
+  (1.2, 0.1) .. controls (1.8, 1.6) and (2.6, 3.1) ..
+  (3.6, 4.1) .. controls (4.8, 5.1) and (6.2, 5.8) ..
+  (8.0, 6.1);
+\node[font=\scriptsize, teal!70, anchor=south] at (7.2, 6.0)
+  {HEVC};
+
+% --- VP9 curve ---
+\draw[very thick, blue!70]
+  (1.4, 0.0) .. controls (2.0, 1.4) and (3.0, 2.9) ..
+  (4.2, 4.0) .. controls (5.5, 5.0) and (7.0, 5.7) ..
+  (9.0, 6.0);
+\node[font=\scriptsize, blue!70, anchor=south west] at (8.2, 5.9)
+  {VP9};
+
+% --- H.264 curve (rightmost) ---
+\draw[very thick, red!70!black]
+  (2.0, 0.0) .. controls (3.0, 1.2) and (4.2, 2.6) ..
+  (5.5, 3.7) .. controls (7.0, 4.7) and (8.5, 5.4) ..
+  (10.2, 5.8);
+\node[font=\scriptsize, red!70!black, anchor=south west] at (9.5, 5.6)
+  {H.264};
+
+% --- 37 dB reference line ---
+\draw[thin, gray, dashed] (0, 4.5) -- (10.5, 4.5);
+\node[font=\tiny, gray, anchor=west] at (10.6, 4.5) {37\,dB};
+
+% --- Operating points at 37 dB ---
+\fill[red!70!black] (5.2, 4.5) circle (2.5pt);
+\fill[blue!70] (3.9, 4.5) circle (2.5pt);
+\fill[teal!70] (3.3, 4.5) circle (2.5pt);
+\fill[orange!80!black] (2.7, 4.5) circle (2.5pt);
+\fill[violet!70] (2.0, 4.5) circle (2.5pt);
+\fill[green!60!black] (1.1, 4.5) circle (2.5pt);
+
+% --- Annotation ---
+\node[font=\scriptsize\itshape, text=black!60, align=center,
+  anchor=north] at (5.5, -1.1)
+  {At 37~dB PSNR (720p ``good'' quality), each generation
+  requires fewer bits.\\
+  The gap to the Shannon bound $R(D)$ narrows but never closes.};
+
+\end{tikzpicture}
+\caption{Rate-distortion curves for six codecs at 720p/30fps, with the
+  Shannon $R(D)$ bound (green). At constant quality (37~dB dashed line),
+  the rate progression from H.264 through VVC illustrates the BD-Rate
+  savings in Table~\ref{tab:bd-rate}. This figure extends
+  Figure~\ref{fig:rate-distortion} from Appendix~\ref{app:info-theory}
+  with the full codec lineage.}
+\label{fig:rd-curves-detailed}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXXX}
+\toprule
+\textbf{Codec} & \textbf{BD-Rate vs.\ H.264}
+  & \textbf{$\Delta$ (720p)} & \textbf{Family} & \textbf{Year} \\
+\midrule
+VP8  & ${\sim}$0\%    & ${\sim}$2.1 & Google    & 2010 \\
+VP9  & $-$35\%        & ${\sim}$0.8 & AOM       & 2013 \\
+HEVC & $-$40\%        & ${\sim}$0.7 & MPEG/ITU  & 2013 \\
+AV1  & $-$54\%        & ${\sim}$0.5 & AOM       & 2018 \\
+VVC  & $-$63\%        & ${\sim}$0.3 & MPEG/ITU  & 2020 \\
+\bottomrule
+\end{tabularx}
+\caption{BD-Rate savings and coding efficiency gap $\Delta$
+  (eq.~\ref{eq:coding-gap}) for each codec relative to H.264 at 720p/30fps.
+  The two families (MPEG/ITU and Google/AOM) achieve comparable efficiency
+  within each generation; AV1 slightly trails HEVC, VVC leads AV1 by
+  ${\sim}$20\%.}
+\label{tab:bd-rate}
+\end{table}
+
+Table~\ref{tab:bd-rate} provides the DSP-grounded explanation for the codec
+ordering in eq.~(\ref{eq:codec-ordering}) and the savings figures in
+eqs.~(\ref{eq:vp9-savings})--(\ref{eq:av1-savings}): each generation adds
+tools that reduce $\Delta_{\text{pred}}$, $\Delta_{\text{transform}}$, and
+$\Delta_{\text{quant}}$ in (\ref{eq:delta-decomp}), with diminishing
+returns as the Shannon bound is approached.
+
+%% ---------------------------------------------------------------------------
+\subsection{Scalable Video Coding and Simulcast}
+\label{sec:svc-simulcast}
+
+Multi-participant WebRTC sessions require adaptive quality: different
+receivers have different bandwidths, and a single encode rate cannot serve
+all. Two architectures address this.
+
+\subsubsection{Simulcast}
+\label{sec:simulcast}
+
+Simulcast encodes the source at $N$ independent resolution/bitrate
+combinations:
+\begin{equation}
+  R_{\text{simulcast}} = \sum_{i=1}^{N} R_i
+  \label{eq:simulcast-rate}
+\end{equation}
+Each encoding is a fully independent bitstream. A Selective Forwarding
+Unit (SFU) selects which stream to forward to each receiver based on
+reported bandwidth. The overhead is substantial: a typical 3-layer
+simulcast (720p/1.5~Mbps, 360p/500~kbps, 180p/150~kbps) requires
+2.15~Mbps total---approximately 1.4$\times$ the cost of the highest
+layer alone---with no inter-layer compression benefit.
+
+\subsubsection{Scalable Video Coding (SVC)}
+\label{sec:svc}
+
+SVC produces a layered bitstream where a base layer $L_0$ is independently
+decodable and enhancement layers $L_1, \ldots, L_K$ refine quality
+progressively. Three scalability dimensions exist:
+
+\textbf{Temporal scalability.} The base layer encodes at a reduced frame
+rate (e.g., 7.5~fps); enhancement layers add intermediate frames:
+\begin{equation}
+  R_{\text{temporal}} = R_0 + \sum_{k=1}^{K} \Delta R_k
+  \label{eq:temporal-svc}
+\end{equation}
+where $\Delta R_k \ll R_0$ because enhancement frames reference lower
+layers and carry primarily motion-compensated residuals. An SFU drops
+enhancement layers for bandwidth-constrained receivers, gracefully
+degrading frame rate while preserving spatial quality.
+
+\textbf{Spatial scalability.} The base layer encodes at reduced resolution;
+enhancement layers add detail via inter-layer prediction:
+\begin{equation}
+  R_{\text{spatial}} = R_0 + \Delta R_{\text{upscale}}
+  \label{eq:spatial-svc}
+\end{equation}
+where $\Delta R_{\text{upscale}}$ exploits correlation between the
+upsampled base layer and the full-resolution source.
+
+\textbf{Quality (SNR) scalability.} Refinement of quantization at the same
+resolution, encoded as the difference between coarse and fine
+reconstructions.
+
+SVC achieves 20--30\% rate savings over simulcast for equivalent
+adaptivity because enhancement layers exploit inter-layer prediction:
+\begin{equation}
+  R_{\text{SVC}} < R_{\text{simulcast}} \quad
+  \text{(typically by 20--30\%)}
+  \label{eq:svc-advantage}
+\end{equation}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Stealth, scale=0.85, every node/.style={scale=0.85},
+  layer/.style={draw, rounded corners=2pt, minimum width=1.8cm,
+    minimum height=0.6cm, font=\scriptsize, align=center, thick}]
+
+% --- Simulcast (left) ---
+\node[font=\normalsize\bfseries] at (2, 5.8) {Simulcast};
+
+% Three independent columns
+\node[layer, fill=red!15] (s720) at (0.5, 4.5) {720p\\1.5 Mbps};
+\node[layer, fill=blue!15] (s360) at (2.0, 4.5) {360p\\500 kbps};
+\node[layer, fill=green!15] (s180) at (3.5, 4.5) {180p\\150 kbps};
+
+\node[layer, fill=gray!10] (sfu1) at (2.0, 2.5) {SFU};
+
+\draw[->, thick] (s720) -- (sfu1);
+\draw[->, thick] (s360) -- (sfu1);
+\draw[->, thick] (s180) -- (sfu1);
+
+\node[font=\scriptsize, text=red!60!black] at (2.0, 1.5)
+  {Total: 2.15 Mbps};
+\node[font=\tiny\itshape, text=black!50] at (2.0, 1.0)
+  {No inter-layer benefit};
+
+% --- SVC (right) ---
+\node[font=\normalsize\bfseries] at (8.5, 5.8) {SVC};
+
+% Pyramid
+\node[layer, fill=green!15, minimum width=2.0cm] (t0) at (8.5, 2.0)
+  {$T_0$: Base\\7.5 fps};
+\node[layer, fill=blue!15, minimum width=2.8cm] (t1) at (8.5, 3.2)
+  {$T_1$: Enhancement\\15 fps};
+\node[layer, fill=red!15, minimum width=3.6cm] (t2) at (8.5, 4.4)
+  {$T_2$: Enhancement\\30 fps};
+
+% Dependency arrows
+\draw[->, thick, green!50!black] (t0) -- (t1);
+\draw[->, thick, blue!50!black] (t1) -- (t2);
+
+% Drop annotations
+\draw[thick, dashed, red!40] (6.2, 3.8) -- (10.8, 3.8);
+\node[font=\tiny\itshape, text=red!50!black, anchor=west] at (10.9, 3.8)
+  {SFU can drop};
+
+\node[font=\scriptsize, text=green!50!black] at (8.5, 1.0)
+  {Total: ${\sim}$1.7 Mbps};
+\node[font=\tiny\itshape, text=black!50] at (8.5, 0.5)
+  {20--30\% savings via};
+\node[font=\tiny\itshape, text=black!50] at (8.5, 0.1)
+  {inter-layer prediction};
+
+\end{tikzpicture}
+\caption{Simulcast (left) encodes three independent bitstreams with no
+  inter-layer compression. SVC (right) encodes a layered bitstream where
+  temporal enhancement layers ($T_1$, $T_2$) reference the base layer
+  ($T_0$), achieving 20--30\% savings. The SFU drops enhancement layers
+  for bandwidth-constrained receivers.}
+\label{fig:svc-architecture}
+\end{figure}
+
+Codec-specific SVC support relevant to WebRTC:
+
+\begin{itemize}
+\item \textbf{H.264 SVC (Annex~G).} Defines temporal, spatial, and quality
+  scalability. Complex to implement; rarely used in WebRTC deployments.
+
+\item \textbf{VP9 SVC.} Temporal scalability is widely deployed in WebRTC
+  via libvpx (up to 3~temporal layers). Spatial SVC is defined but
+  implementation-limited. VP9 temporal SVC is the primary mechanism
+  enabling adaptive quality in Chrome/Firefox SFU-based calls.
+
+\item \textbf{AV1 SVC.} Temporal scalability supported in both libaom and
+  SVT-AV1. A key enabler for AV1 adoption in production WebRTC
+  infrastructure, as SFUs require layered bitstreams to serve heterogeneous
+  receivers.
+\end{itemize}
+
+Safari's lack of simulcast and SVC support in 2021 (Section~3.1) meant
+that Safari users in multi-participant calls could not benefit from adaptive
+quality---every receiver got the same stream regardless of bandwidth,
+degrading the experience for all participants.
+
+%% ---------------------------------------------------------------------------
+\subsection{Hardware vs.\ Software Encoding}
+\label{sec:hw-sw}
+
+The main paper identifies hardware encoding as the deployment gate for
+AV1 (Sections~8.5, 9.5). This section quantifies why.
+
+\subsubsection{Encoding Complexity}
+
+The computational cost of encoding a video frame is dominated by motion
+estimation and RD-optimized mode decision. We express complexity as
+operations per pixel:
+\begin{equation}
+  C_{\text{enc}} = C_{\text{ME}} + C_{\text{transform}}
+    + C_{\text{quant}} + C_{\text{entropy}}
+    + C_{\text{mode}}
+  \label{eq:enc-complexity}
+\end{equation}
+
+Representative values for real-time presets:
+
+\begin{itemize}
+\item H.264 Constrained Baseline (``veryfast''): $C_{\text{enc}} \approx
+  200$~ops/pixel
+\item VP9 (speed~8, real-time): $C_{\text{enc}} \approx 600$~ops/pixel
+\item AV1 (speed~10, real-time): $C_{\text{enc}} \approx 2000$~ops/pixel
+\end{itemize}
+
+The real-time constraint requires:
+\begin{equation}
+  C_{\text{enc}} \times W \times H \times \text{fps}
+    \leq F_{\text{available}}
+  \label{eq:realtime-constraint}
+\end{equation}
+where $F_{\text{available}}$ is the available computational throughput
+(operations per second). For 720p/30fps AV1 at 2000~ops/pixel:
+\begin{equation}
+  2000 \times 921{,}600 \times 30 = 55.3 \times 10^9 \;\text{ops/s}
+  \label{eq:av1-cost}
+\end{equation}
+This consumes approximately one full core of a modern desktop CPU. On
+mobile devices with thermal and power constraints, software AV1 encoding
+at 720p/30fps remains impractical without hardware acceleration.
+
+\subsubsection{Hardware Encoder Architecture}
+
+Hardware encoders implement a fixed subset of the codec's tool set in
+dedicated silicon. The trade-off is quality for throughput: hardware
+encoders typically produce output 10--20\% larger than software encoders
+at equivalent visual quality because they implement fewer mode decision
+candidates and simpler motion search:
+\begin{equation}
+  \Delta_{\text{HW}} \approx (1.1 \text{--} 1.2)
+    \cdot \Delta_{\text{SW}}
+  \label{eq:hw-quality-gap}
+\end{equation}
+
+This quality penalty is acceptable for real-time communication because:
+(a)~the alternative---software encoding at a lower speed preset or reduced
+resolution---incurs a larger quality penalty, and (b)~the freed CPU
+capacity can be used for pre/post-processing, noise reduction, or
+additional application logic.
+
+\subsubsection{Hardware Encoder Availability}
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXXX}
+\toprule
+\textbf{Platform} & \textbf{H.264 HW} & \textbf{VP9 HW encode}
+  & \textbf{AV1 HW encode} & \textbf{AV1 year} \\
+\midrule
+Intel (QSV) &
+  Sandy Bridge+ (2011) &
+  Kaby Lake+ (2017) &
+  Arc / Meteor Lake+ &
+  2022 \\
+NVIDIA (NVENC) &
+  Kepler+ (2012) &
+  --- &
+  Ada Lovelace+ &
+  2022 \\
+AMD (VCN) &
+  VCN~1.0+ (2017) &
+  --- &
+  VCN~4.0+ (RDNA~3) &
+  2023 \\
+Apple (VideoToolbox) &
+  A4+ (2010) &
+  --- &
+  M3+ &
+  2023 \\
+Qualcomm &
+  SD~820+ (2016) &
+  --- &
+  SD~8 Gen~2+ &
+  2023 \\
+\bottomrule
+\end{tabularx}
+\caption{Hardware encoder availability timeline. H.264 hardware encoding
+  has been ubiquitous for over a decade. AV1 hardware encoding began
+  shipping in 2022--2023 across all major platforms; the main paper projects
+  it becomes the practical WebRTC default by 2028--2030 as these chipsets
+  reach market saturation.}
+\label{tab:hw-encoders}
+\end{table}
+
+\excursus{Excursus: WebCodecs and hardware acceleration.}{When a WebCodecs
+\texttt{VideoEncoder} is configured with \texttt{codec: "av01"}, the browser
+selects hardware or software encoding based on platform capability and the
+\texttt{hardwareAcceleration} preference (\texttt{"prefer-hardware"},
+\texttt{"prefer-software"}, or \texttt{"no-preference"}). The application
+receives encoded \texttt{EncodedVideoChunk} objects either way, but latency
+and CPU cost differ dramatically: hardware encoding typically adds
+$<\!1$~ms per frame and consumes near-zero CPU, while software AV1 at
+real-time presets consumes an entire CPU core
+(eq.~\ref{eq:av1-cost}). This abstraction is what makes the hardware
+timeline in Table~\ref{tab:hw-encoders} directly relevant to the WebCodecs
+adoption curve in Section~7.}
+
+The hardware encoding timeline directly underpins the main paper's
+projections: the ``AV1 becomes practical'' milestone (Section~8.5) and
+``AV1 HW ubiquitous'' milestone (Section~9.5) depend on the chipset
+generations in Table~\ref{tab:hw-encoders} reaching market saturation.
+
+%% ---------------------------------------------------------------------------
+\subsection{Implications for Real-Time Web Communication}
+\label{sec:video-implications}
+
+The DSP analysis of this appendix maps back to concrete implications for
+the technologies surveyed in the main text.
+
+\textbf{The hybrid coding framework is universal; innovation is
+incremental.} Every codec from VP8 to VVC implements the same
+prediction--transform--quantization--entropy framework
+(Figure~\ref{fig:hybrid-encoder}). Generational improvements come from
+expanding the tool set within this framework---more block sizes
+(Table~\ref{tab:partitioning}), more prediction modes, more transform
+types (Table~\ref{tab:transforms})---not from fundamentally new
+architectures. This means the efficiency gap $\Delta$ approaches but never
+reaches zero: each additional tool yields diminishing rate-distortion
+improvement at increasing computational cost.
+
+\textbf{Transform and prediction innovations explain the BD-Rate
+progression.} The 35\% rate saving from H.264 to VP9 comes primarily from
+larger blocks ($64\!\times\!64$ vs.\ $16\!\times\!16$) and adaptive
+transforms (DCT$+$ADST vs.\ fixed DCT). The additional 30\% from VP9 to
+AV1 comes from compound and warped motion, film grain synthesis, and
+16-way transform type selection (Table~\ref{tab:bd-rate}). Each tool adds
+encoding complexity proportional to its rate-distortion benefit, which is
+why real-time encoders must aggressively prune the tool set.
+
+\textbf{SVC is what makes multi-participant WebRTC work.} Without temporal
+SVC, an SFU must forward full-rate streams to all participants regardless
+of their bandwidth. With VP9/AV1 temporal SVC
+(Section~\ref{sec:svc}), the SFU drops enhancement temporal layers for
+bandwidth-constrained receivers, degrading frame rate gracefully while
+preserving spatial quality. The 20--30\% savings over simulcast
+(eq.~\ref{eq:svc-advantage}) translate directly to reduced server egress
+bandwidth in large meetings.
+
+\textbf{Hardware encoding is the deployment gate, not codec specification.}
+AV1 was specified in 2018 but becomes a practical WebRTC default only
+when hardware encoders are ubiquitous (${\sim}$2028--2030). The DSP tools
+that make AV1 efficient---warped motion, OBMC, $128\!\times\!128$
+superblocks with flexible partitioning---are precisely the tools that make
+it computationally expensive in software (eq.~\ref{eq:av1-cost}). The
+${\sim}$10--20\% quality penalty of hardware encoders
+(eq.~\ref{eq:hw-quality-gap}) is the price of real-time feasibility, and
+it is a price worth paying: $\Delta_{\text{AV1,HW}} \approx 0.6$ is still
+far below $\Delta_{\text{VP9,SW}} \approx 0.8$.
+
+\textbf{The convergence toward Shannon is real but asymptotic.}
+Cross-referencing with Appendix~\ref{app:info-theory}: H.264's
+$\Delta \approx 2.1$ means it operates at $3.1\times$ the theoretical
+minimum rate. VP9's $\Delta \approx 0.8$ means $1.8\times$. AV1's
+$\Delta \approx 0.5$ means $1.5\times$. VVC's $\Delta \approx 0.3$ means
+$1.3\times$. Each generation captures more spatial, temporal, and
+perceptual redundancy, but the returns are diminishing: the distance from
+H.264 to VP9 ($-$35\%) exceeds VP9 to AV1 ($-$30\%), which exceeds AV1 to
+VVC ($-$17\%). The next generation of efficiency gains for real-time web
+communication will come not from codecs alone, but from the co-optimization
+of transport (QUIC, WebTransport), application architecture (WebCodecs,
+unbundled pipelines), and network infrastructure that the main text
+describes.

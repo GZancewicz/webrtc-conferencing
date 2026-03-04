@@ -35,6 +35,9 @@ class WebConference {
     // Stats broadcast interval
     this.statsBroadcastInterval = null;
 
+    // Last received stats from each peer: Map<username, {stats, timestamp}>
+    this.receivedPeerStats = new Map();
+
     this.init();
   }
 
@@ -338,6 +341,20 @@ class WebConference {
       this.toggleStats();
     });
 
+    // Tooltip click/tap handling
+    document.addEventListener('click', (e) => {
+      const tip = e.target.closest('.has-tip');
+      // Close all open tips
+      document.querySelectorAll('.has-tip.tip-open').forEach(el => {
+        if (el !== tip) el.classList.remove('tip-open');
+      });
+      // Toggle clicked tip
+      if (tip) {
+        e.stopPropagation();
+        tip.classList.toggle('tip-open');
+      }
+    });
+
     // Toggle AI
     document.getElementById('toggle-ai').addEventListener('click', () => {
       this.toggleAI();
@@ -460,6 +477,7 @@ class WebConference {
 
     // Stats broadcast from other participants
     this.socket.on('stats-update', ({ username, stats, timestamp }) => {
+      this.receivedPeerStats.set(username, { stats, timestamp });
       this.addStatsMessage(username, stats, timestamp);
     });
 
@@ -951,8 +969,10 @@ class WebConference {
 
   statsRow(label, value) {
     const tip = this.statsTip(label);
-    const titleAttr = tip ? ` title="${tip}" style="cursor:help;text-decoration:underline dotted var(--text-secondary)"` : '';
-    return `<tr><td${titleAttr}>${label}</td><td>${value}</td></tr>`;
+    if (tip) {
+      return `<tr><td class="has-tip">${label}<span class="tip-popup">${this.escapeHtml(tip)}</span></td><td>${value}</td></tr>`;
+    }
+    return `<tr><td>${label}</td><td>${value}</td></tr>`;
   }
 
   async renderStats() {
@@ -1112,6 +1132,23 @@ class WebConference {
       html += '</div>';
     }
 
+    // Received stats from other peers
+    if (this.receivedPeerStats.size > 0) {
+      for (const [username, { stats, timestamp }] of this.receivedPeerStats) {
+        const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        html += '<div class="stats-section">';
+        html += `<div class="stats-section-title" style="color:var(--text-secondary);">${this.escapeHtml(username)}'s view → ${this.escapeHtml(stats.peer)} <span style="font-weight:400;font-size:11px;">(${time})</span></div>`;
+        if (stats.rows) {
+          html += '<table class="stats-table">';
+          stats.rows.forEach(([label, value]) => {
+            html += `<tr><td>${this.escapeHtml(label)}</td><td>${this.escapeHtml(value)}</td></tr>`;
+          });
+          html += '</table>';
+        }
+        html += '</div>';
+      }
+    }
+
     body.innerHTML = html;
   }
 
@@ -1262,7 +1299,7 @@ class WebConference {
 
   addStatsMessage(username, stats, timestamp) {
     const container = document.getElementById('chat-messages');
-    const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     let tableRows = '';
     if (stats.rows) {
@@ -1351,7 +1388,7 @@ class WebConference {
 
   addSystemMessage(text) {
     const container = document.getElementById('chat-messages');
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const el = document.createElement('div');
     el.className = 'chat-system-message';
     el.innerHTML = `<span class="chat-time">${time}</span> ${this.escapeHtml(text)}`;

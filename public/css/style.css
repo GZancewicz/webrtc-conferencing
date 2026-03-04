@@ -151,6 +151,7 @@ body {
 /* Room page */
 .room-container {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -694,6 +695,38 @@ body {
   word-break: break-all;
 }
 
+/* CSS tooltips for stats labels */
+.has-tip {
+  position: relative;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--text-secondary);
+}
+
+.has-tip .tip-popup {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  z-index: 300;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  line-height: 1.4;
+}
+
+.has-tip.tip-open .tip-popup {
+  display: block;
+}
+
 .stats-candidate {
   padding: 4px 8px;
   margin: 2px 0;
@@ -716,12 +749,41 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .room-header {
+    padding: 8px 12px;
+  }
+
+  .room-info {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .room-info h1 {
+    display: none;
+  }
+
+  .room-id {
+    font-size: 12px;
+    padding: 2px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 120px;
+  }
+
+  .participant-count {
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
   .sidebar {
     position: fixed;
     right: 0;
-    top: 60px;
-    bottom: 80px;
+    top: 50px;
+    bottom: 0;
     z-index: 100;
+    width: 100%;
     transform: translateX(100%);
   }
 
@@ -731,22 +793,41 @@ body {
 
   .video-grid {
     grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .video-container {
+    border-radius: 8px;
   }
 
   .room-controls {
-    gap: 8px;
-    padding: 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    justify-content: center;
   }
 
   .control-btn {
-    padding: 8px 16px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    min-width: 0;
+  }
+
+  .control-icon {
+    font-size: 20px;
   }
 
   .control-label {
     display: none;
   }
 
-  .room-info h1 {
-    display: none;
+  .stats-panel {
+    top: 50px;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
   }
 }

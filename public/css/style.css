@@ -116,6 +116,17 @@ body {
   color: var(--text-secondary);
 }
 
+/* Join error message */
+.join-error {
+  color: var(--danger-color);
+  background-color: rgba(220, 38, 38, 0.1);
+  border: 1px solid var(--danger-color);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
 .features {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

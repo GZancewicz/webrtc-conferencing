@@ -51,7 +51,7 @@ export function startTelemetryBroadcast() {
   if (this.telemetryBroadcastInterval) return;
   this.telemetryBroadcastInterval = setTimeout(() => {
     this.broadcastTelemetry();
-    this.telemetryBroadcastInterval = setInterval(() => this.broadcastTelemetry(), 30000);
+    this.telemetryBroadcastInterval = setInterval(() => this.broadcastTelemetry(), 10000);
   }, 5000);
 }
 
@@ -172,7 +172,27 @@ export async function renderTelemetry() {
         html += `<tr><td>${this.escapeHtml(field)}</td><td>${this.escapeHtml(value)}</td></tr>`;
       });
 
-      html += '</table></div>';
+      html += '</table>';
+
+      // ICE candidates
+      const candidateEntry = this.iceCandidates.get(userId);
+      if (candidateEntry && candidateEntry.local.length > 0) {
+        html += '<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--text-secondary);">Local Candidates</div>';
+        candidateEntry.local.forEach(c => {
+          const parsed = this.parseCandidateString(c.candidate);
+          html += `<div class="stats-candidate">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+        });
+      }
+      if (candidateEntry && candidateEntry.remote.length > 0) {
+        html += '<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--text-secondary);">Remote Candidates</div>';
+        candidateEntry.remote.forEach(c => {
+          const candStr = c.candidate || c;
+          const parsed = this.parseCandidateString(typeof candStr === 'string' ? candStr : c.candidate);
+          html += `<div class="stats-candidate">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+        });
+      }
+
+      html += '</div>';
     }
   }
 

@@ -1,0 +1,1188 @@
+\documentclass[11pt,letterpaper]{article}
+
+% Packages
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{makecell}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{pdflscape}
+\usepackage{multirow}
+\usepackage{caption}
+
+% Color definitions
+\definecolor{compliant}{HTML}{27AE60}
+\definecolor{partial}{HTML}{F39C12}
+\definecolor{noncompliant}{HTML}{E74C3C}
+\definecolor{notapplicable}{HTML}{95A5A6}
+\definecolor{critical}{HTML}{C0392B}
+\definecolor{major}{HTML}{E67E22}
+\definecolor{minor}{HTML}{F1C40F}
+\definecolor{informational}{HTML}{3498DB}
+\definecolor{sectionbg}{HTML}{ECF0F1}
+\definecolor{headerbg}{HTML}{2C3E50}
+\definecolor{headertext}{HTML}{FFFFFF}
+\definecolor{lightgray}{HTML}{F8F9FA}
+
+% Compliance badge commands
+\newcommand{\compliant}{\colorbox{compliant}{\textcolor{white}{\textbf{\small~Compliant~}}}}
+\newcommand{\mostlycompliant}{\colorbox{partial}{\textcolor{white}{\textbf{\small~Mostly Compliant~}}}}
+\newcommand{\partiallycompliant}{\colorbox{noncompliant}{\textcolor{white}{\textbf{\small~Partially Compliant~}}}}
+\newcommand{\notapplicablebadge}{\colorbox{notapplicable}{\textcolor{white}{\textbf{\small~Not Applicable~}}}}
+
+% Severity commands
+\newcommand{\sevcritical}{\textcolor{critical}{\textbf{Critical}}}
+\newcommand{\sevmajor}{\textcolor{major}{\textbf{Major}}}
+\newcommand{\sevminor}{\textcolor{minor!80!black}{\textbf{Minor}}}
+\newcommand{\sevinformational}{\textcolor{informational}{\textbf{Info}}}
+
+% Priority commands
+\newcommand{\pricritical}{\colorbox{critical}{\textcolor{white}{\small\textbf{CRITICAL}}}}
+\newcommand{\prihigh}{\colorbox{major}{\textcolor{white}{\small\textbf{HIGH}}}}
+\newcommand{\primedium}{\colorbox{minor!80!black}{\textcolor{white}{\small\textbf{MEDIUM}}}}
+\newcommand{\prilow}{\colorbox{notapplicable}{\textcolor{white}{\small\textbf{LOW}}}}
+
+% Header/footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textsc{Web Conference --- Standards Compliance Report}}
+\fancyhead[R]{\small\textsc{March 2026}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Section formatting
+\titleformat{\section}{\Large\bfseries\color{headerbg}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{headerbg!80}}{}{0em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{headerbg!60}}{}{0em}{}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=headerbg,
+    urlcolor=informational,
+    citecolor=headerbg,
+    pdftitle={Web Conference Application - Standards Compliance Report},
+    pdfauthor={Compliance Analysis},
+    pdfsubject={WebRTC Standards Compliance}
+}
+
+% Custom column types
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{headerbg} Standards Compliance Report\par}
+\vspace{0.5cm}
+{\LARGE\color{headerbg!70} Web Conference Application\par}
+\vspace{2cm}
+{\large Assessment of 15 standards across WebRTC, RTP/SRTP, ICE,\\QUIC, HTTP/3, WebCodecs, and WebTransport\par}
+\vspace{2cm}
+
+\begin{tabular}{ll}
+\toprule
+\textbf{Application} & web-conference \\
+\textbf{Assessment Date} & March 2, 2026 \\
+\textbf{Standards Assessed} & 15 \\
+\textbf{Total Requirements} & 420 \\
+\textbf{Directly Applicable} & 5 standards \\
+\textbf{Indirectly Applicable} & 3 standards \\
+\textbf{Not Applicable} & 7 standards \\
+\bottomrule
+\end{tabular}
+
+\vspace{2cm}
+{\large\textbf{Overall Assessment:} \mostlycompliant\ for applicable standards\par}
+\vspace{0.5cm}
+{\normalsize Security posture: \partiallycompliant\par}
+
+\vfill
+{\small\textit{Generated from automated compliance analysis of source code against\\official W3C and IETF specifications.}\par}
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{Executive Summary}
+%=============================================================================
+
+This report documents the compliance of the \textbf{web-conference} application against 15 industry standards governing real-time communication on the web. The application is a browser-based video conferencing tool built on WebRTC with Socket.IO signaling.
+
+\subsection{Scope}
+
+The assessment covers three categories of standards:
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Directly Applicable (5 standards)} --- Standards whose APIs and requirements the application directly implements: W3C WebRTC 1.0, W3C WebRTC Editor's Draft, RFC~8829 (JSEP), RFC~8826 (WebRTC Security), and RFC~8827 (WebRTC Security Architecture).
+    \item \textbf{Indirectly Applicable (3 standards)} --- Standards implemented by the browser where application configuration choices affect compliance: RFC~8445 (ICE), RFC~3550 (RTP), and RFC~3711 (SRTP).
+    \item \textbf{Not Applicable (7 standards)} --- Standards for technologies not used by the application: RFC~9000 (QUIC), RFC~9114 (HTTP/3), RFC~9297 (HTTP Datagrams), W3C WebCodecs (both drafts), and W3C WebTransport (both drafts).
+\end{itemize}
+
+\subsection{Key Findings}
+
+Across the 8 applicable standards, the application was assessed against \textbf{178 requirements}, yielding:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Status} & \textbf{Count} & \textbf{Percentage} \\
+\midrule
+\rowcolor{compliant!15} Compliant & 88 & 49.4\% \\
+\rowcolor{partial!15} Partially Compliant & 33 & 18.5\% \\
+\rowcolor{noncompliant!15} Non-Compliant & 25 & 14.0\% \\
+\rowcolor{notapplicable!10} Not Applicable & 26 & 14.6\% \\
+Not Assessable & 6 & 3.4\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Top Cross-Cutting Issues}
+
+Six critical issues recur across multiple standards:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{No TURN servers} --- Only Google STUN servers configured; connections fail behind symmetric NATs or restrictive firewalls. \textit{Cited in 6 reports.}
+    \item \textbf{Wildcard CORS (\texttt{origin: '*'})} --- Undermines origin-based security model; any website can connect to the signaling server. \textit{Cited in 4 reports.}
+    \item \textbf{No user authentication} --- Anyone can join any room with a self-assigned username. \textit{Cited in 2 reports (both critical severity).}
+    \item \textbf{No ICE restart} --- Connection failures result in permanent peer removal with no recovery attempt. \textit{Cited in 4 reports.}
+    \item \textbf{No \texttt{onnegotiationneeded} handler} --- Cannot renegotiate sessions mid-call. \textit{Cited in 2 reports.}
+    \item \textbf{Deprecated API usage} --- Uses \texttt{new RTCSessionDescription()} and \texttt{new RTCIceCandidate()} constructors. \textit{Cited in 3 reports.}
+\end{enumerate}
+
+\newpage
+
+%=============================================================================
+\section{Application Overview}
+%=============================================================================
+
+This section describes the current implementation of the web-conference application to provide context for the compliance findings that follow. Understanding the architecture and design decisions is essential for interpreting the gap analysis against each standard.
+
+\subsection{Architecture}
+
+The web-conference application is a self-hosted, peer-to-peer video conferencing system with four main components:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Signaling Server} --- A Node.js server using Express.js and Socket.IO that relays session negotiation messages between peers. It does not process or inspect media.
+    \item \textbf{Client Application} --- A monolithic JavaScript class (\texttt{WebConference}, approximately 1,000 lines) that manages all WebRTC peer connections, media tracks, and UI interactions.
+    \item \textbf{Web Frontend} --- HTML/CSS pages for the landing screen (room creation/joining) and the meeting room (video grid, controls, chat sidebar).
+    \item \textbf{AI Assistant} (optional) --- An OpenAI-powered chatbot activated when an API key is configured, providing in-meeting conversational AI with text-to-speech.
+\end{enumerate}
+
+\subsection{Server Implementation}
+
+The server is built on Node.js with the following stack:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Component} & \textbf{Technology} \\
+\midrule
+HTTP Server & Node.js \texttt{http.createServer()} \\
+Web Framework & Express.js 4.18 \\
+Real-Time Transport & Socket.IO 4.7 (WebSocket with long-polling fallback) \\
+Static Assets & Express static middleware serving \texttt{/public} \\
+AI Integration & OpenAI SDK 4.24 (optional) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The server maintains an in-memory \texttt{Map<roomId, Map<socketId, userInfo>>} for room and participant management. Rooms are created implicitly when the first user joins and destroyed when the last user leaves. All state is ephemeral --- a server restart clears all rooms and sessions.
+
+\textbf{CORS configuration} is set to \texttt{origin: '*'} with \texttt{GET} and \texttt{POST} methods allowed. The server listens on plain HTTP; HTTPS termination is delegated to the hosting platform (Render.com).
+
+\subsection{Signaling Flow}
+
+The application implements the JSEP (JavaScript Session Establishment Protocol, Appendix~\ref{app:rfc8829}) signaling pattern over Socket.IO:
+
+\begin{enumerate}[leftmargin=2em]
+    \item A user joins a room; the server emits \texttt{existing-users} with the list of current participants and broadcasts \texttt{user-joined} to others.
+    \item For each existing peer, the new user and the existing peer each create an \texttt{RTCPeerConnection}. The existing peer acts as the \textbf{initiator} (offerer).
+    \item The initiator calls \texttt{createOffer()}, sets the local description, and sends the SDP offer via Socket.IO.
+    \item The answerer receives the offer, sets the remote description, calls \texttt{createAnswer()}, sets the local description, and sends the SDP answer back.
+    \item ICE candidates are trickled continuously --- each peer sends candidates as they are discovered via the \texttt{onicecandidate} handler. Candidates arriving before the remote description is set are buffered in a \texttt{pendingCandidates} map and flushed after \texttt{setRemoteDescription} completes.
+\end{enumerate}
+
+\subsection{WebRTC Configuration}
+
+The \texttt{RTCPeerConnection} is constructed with the following ICE server configuration:
+
+\begin{verbatim}
+iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+]
+\end{verbatim}
+
+Only STUN servers are configured. No TURN servers are present, which means relayed candidates cannot be generated. This is the root cause of connectivity failures in restrictive network environments (see Sections~3--5 for related findings across multiple standards).
+
+Default values are used for all other \texttt{RTCConfiguration} properties: \texttt{bundlePolicy: 'balanced'}, \texttt{rtcpMuxPolicy: 'require'}, \texttt{iceTransportPolicy: 'all'}, and \texttt{iceCandidatePoolSize: 0}.
+
+\subsection{Media Handling}
+
+\textbf{Local media acquisition} uses \texttt{getUserMedia(\{video: true, audio: true\})} with a fallback to audio-only if the camera is unavailable. Screen sharing uses \texttt{getDisplayMedia(\{video: true\})}.
+
+\textbf{Track management:}
+\begin{itemize}[leftmargin=2em]
+    \item Local audio and video tracks are added to each peer connection via \texttt{addTrack(track, stream)}.
+    \item Screen sharing replaces the video track in all peer connections using \texttt{RTCRtpSender.replaceTrack()} --- no renegotiation is required.
+    \item Audio and video muting is implemented via \texttt{track.enabled = false}, which causes the browser to send black frames (video) or silence (audio) rather than stopping the RTP stream entirely.
+    \item The \texttt{track.onended} event is monitored on screen share tracks to automatically revert to the camera when the user stops sharing via the browser's built-in controls.
+\end{itemize}
+
+\subsection{Connection State Management}
+
+The application monitors \texttt{onconnectionstatechange} on each peer connection. When the state transitions to \texttt{disconnected} or \texttt{failed}, the peer is immediately removed: the connection is closed, video elements are removed from the DOM, and remaining participants are notified.
+
+Notably, the application does \textbf{not}:
+\begin{itemize}[leftmargin=2em]
+    \item Attempt ICE restart before removing a peer (see RFC~8445, Appendix~\ref{app:rfc8445})
+    \item Differentiate between \texttt{disconnected} (potentially transient) and \texttt{failed} (permanent)
+    \item Monitor \texttt{oniceconnectionstatechange} for ICE-specific state transitions
+    \item Handle the \texttt{onnegotiationneeded} event for mid-session renegotiation
+    \item Implement glare handling for simultaneous offers (see RFC~8829, Appendix~\ref{app:rfc8829})
+\end{itemize}
+
+\subsection{Network Topology}
+
+The application uses a \textbf{full-mesh peer-to-peer} topology: each participant maintains a direct \texttt{RTCPeerConnection} to every other participant. For $N$ participants, this requires $\frac{N(N-1)}{2}$ connections, making it practical for small groups (2--6 participants) but unsuitable for larger meetings without migration to an SFU (Selective Forwarding Unit) or MCU (Multipoint Control Unit) architecture.
+
+\subsection{Security Posture}
+
+The current security implementation is minimal:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Aspect} & \textbf{Status} & \textbf{Details} \\
+\midrule
+Authentication & None & Self-assigned usernames in \texttt{sessionStorage} \\
+Authorization & None & Any user can join any room by ID \\
+CORS & Open & \texttt{origin: '*'} on both Express and Socket.IO \\
+Transport Encryption & Partial & DTLS-SRTP for media (browser-enforced); HTTP for signaling \\
+HTTPS & Delegated & Render.com terminates TLS; server itself is HTTP \\
+Room ID Entropy & Moderate & 12 alphanumeric characters ($\approx 36^{12}$ combinations) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Media streams are encrypted end-to-end via DTLS-SRTP (Appendix~\ref{app:rfc3711}), which the browser enforces automatically. However, the signaling channel carries SDP containing DTLS fingerprints over an unauthenticated, wildcard-CORS HTTP connection, undermining the security guarantees defined by RFC~8826 (Appendix~\ref{app:rfc8826}) and RFC~8827 (Appendix~\ref{app:rfc8827}).
+
+\subsection{Dependencies}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Package} & \textbf{Version} & \textbf{Purpose} \\
+\midrule
+\texttt{express} & \^{}4.18.2 & HTTP server and routing \\
+\texttt{socket.io} & \^{}4.7.2 & WebSocket-based signaling \\
+\texttt{dotenv} & \^{}16.3.1 & Environment variable management \\
+\texttt{openai} & \^{}4.24.0 & AI assistant integration (optional) \\
+\texttt{uuid} & \^{}9.0.1 & UUID generation utility \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\newpage
+
+%=============================================================================
+\section{Compliance Overview}
+%=============================================================================
+
+\subsection{Directly Applicable Standards}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{L{3.8cm}cccccX}
+\toprule
+\textbf{Standard} & \textbf{Level} & \rotatebox{70}{\textbf{Compliant}} & \rotatebox{70}{\textbf{Partial}} & \rotatebox{70}{\textbf{Non-Compl.}} & \rotatebox{70}{\textbf{N/A}} & \textbf{Recs} \\
+\midrule
+W3C WebRTC 1.0 & \mostlycompliant & 19 & 6 & 5 & 5 & 9 \\
+W3C WebRTC 1.0 ED & \mostlycompliant & 17 & 5 & 4 & 4 & 6 \\
+RFC 8829 JSEP & \mostlycompliant & 20 & 6 & 4 & 5 & 6 \\
+RFC 8826 Security & \partiallycompliant & 4 & 4 & 5 & 2 & 6 \\
+RFC 8827 Sec.\ Arch. & \partiallycompliant & 6 & 4 & 3 & 5 & 5 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Indirectly Applicable Standards}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{L{3.8cm}cccccX}
+\toprule
+\textbf{Standard} & \textbf{Level} & \rotatebox{70}{\textbf{Compliant}} & \rotatebox{70}{\textbf{Partial}} & \rotatebox{70}{\textbf{Non-Compl.}} & \rotatebox{70}{\textbf{N/A}} & \textbf{Recs} \\
+\midrule
+RFC 8445 ICE & \partiallycompliant & 7 & 4 & 4 & 3 & 4 \\
+RFC 3550 RTP & \mostlycompliant & 8 & 2 & 0 & 4 & 3 \\
+RFC 3711 SRTP & \mostlycompliant & 7 & 2 & 0 & 4 & 2 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Not Applicable Standards}
+
+The following 7 standards were assessed and determined to be \textbf{not applicable}. The application does not use QUIC, HTTP/3, WebCodecs, or WebTransport. All 267 requirements across these standards were classified as not applicable.
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Standard} & \textbf{Findings} & \textbf{Status} \\
+\midrule
+RFC 9000 --- QUIC & 45 & \notapplicablebadge \\
+RFC 9114 --- HTTP/3 & 40 & \notapplicablebadge \\
+RFC 9297 --- HTTP Datagrams & 22 & \notapplicablebadge \\
+W3C WebCodecs & 30 & \notapplicablebadge \\
+W3C WebCodecs Editor's Draft & 30 & \notapplicablebadge \\
+W3C WebTransport & 30 & \notapplicablebadge \\
+W3C WebTransport Editor's Draft & 30 & \notapplicablebadge \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\newpage
+
+%=============================================================================
+\section{Directly Applicable Standards --- Detailed Findings}
+%=============================================================================
+
+%-----------------------------------------------------------------------------
+\subsection{W3C WebRTC 1.0: Real-Time Communication Between Browsers}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & W3C-WebRTC-1.0 \\
+\textbf{Source:} & \texttt{standards/webrtc/w3c-webrtc-1.0.html} (28,009 lines) \\
+\textbf{Applicability:} & Direct --- uses RTCPeerConnection, getUserMedia, getDisplayMedia \\
+\textbf{Overall:} & \mostlycompliant \\
+\textbf{Requirements:} & 35 assessed (19 compliant, 6 partial, 5 non-compliant, 4 N/A, 1 N/A-able) \\
+\end{tabular}
+
+\subsubsection{Non-Compliant and Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.5cm}C{1.5cm}C{1.2cm}L{7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-002 & 4.2.2 RTCIceServer & Partial & \sevmajor & Only STUN servers configured; no TURN. Connections fail in restrictive NAT environments. \\
+\midrule
+F-013 & 4.4.2 connectionState & Partial & \sevminor & No ICE restart on \texttt{failed}. No \texttt{closed} state handling. No \texttt{connected} state feedback to user. \\
+\midrule
+F-014 & 4.7 negotiationneeded & Non-Compl. & \sevmajor & No \texttt{onnegotiationneeded} handler. Relies on explicit offer creation only at initial setup. \\
+\midrule
+F-021 & 4.6.2 RTCSessionDescription & Partial & \sevminor & Uses deprecated \texttt{new RTCSessionDescription()} and \texttt{new RTCIceCandidate()} constructors. \\
+\midrule
+F-022 & 4.5.1 Error Handling & Partial & \sevminor & Error handling limited to \texttt{console.error}. No user-facing notifications or retry logic. \\
+\midrule
+F-023 & 4.3.3 PeerConnectionState & Partial & \sevminor & \texttt{disconnected} treated same as \texttt{failed} (immediate peer removal). No monitoring of \texttt{connecting}/\texttt{connected}. \\
+\midrule
+F-024 & 4.3.4 IceConnectionState & Non-Compl. & \sevminor & No \texttt{oniceconnectionstatechange} handler. \\
+\midrule
+F-028 & 8. getStats() & Non-Compl. & \sevminor & No \texttt{getStats()} usage for connection quality monitoring. \\
+\midrule
+F-029 & 13.2 IP Addresses & Non-Compl. & \sevmajor & No IP address privacy consideration. Default \texttt{all} policy exposes host candidates. No TURN for relay-only mode. \\
+\midrule
+F-030 & 13.4 Confidentiality & Partial & \sevmajor & CORS wildcard (\texttt{*}). Server uses HTTP not HTTPS. SDP transits through server without authentication. \\
+\midrule
+F-032 & 4.4.2 restartIce() & Non-Compl. & \sevmajor & No ICE restart mechanism. Connection failures result in permanent peer removal. \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \prihigh\ \textbf{Implement ICE restart for connection recovery.} Use \texttt{restartIce()} or \texttt{createOffer(\{ iceRestart: true \})} when state reaches \texttt{failed}. \textit{Effort: Small. Findings: F-013, F-024, F-032.}
+    \item \prihigh\ \textbf{Add TURN server configuration.} Only STUN is configured; TURN is essential for connectivity through symmetric NATs and firewalls. \textit{Effort: Small. Findings: F-002, F-029.}
+    \item \prihigh\ \textbf{Secure the signaling channel.} Restrict CORS from \texttt{*} to application domain, enforce HTTPS, add signaling authentication. \textit{Effort: Medium. Findings: F-030.}
+    \item \primedium\ \textbf{Implement \texttt{onnegotiationneeded} handler.} Essential for session renegotiation and future extensibility. \textit{Effort: Small. Findings: F-014.}
+    \item \primedium\ \textbf{Remove deprecated constructor usage.} Pass plain objects to \texttt{setRemoteDescription}/\texttt{addIceCandidate}. \textit{Effort: Trivial. Findings: F-021.}
+    \item \primedium\ \textbf{Improve connection state handling granularity.} Differentiate \texttt{disconnected} from \texttt{failed}; add timeout before removing peers; monitor ICE-specific states. \textit{Effort: Small. Findings: F-013, F-023, F-024.}
+    \item \prilow\ \textbf{Implement connection quality monitoring.} Use \texttt{getStats()} to monitor bytes sent/received, packet loss, and RTT. \textit{Effort: Medium. Findings: F-028.}
+    \item \prilow\ \textbf{Add IP address privacy controls.} Provide \texttt{iceTransportPolicy: 'relay'} option; requires TURN server. \textit{Effort: Small. Findings: F-029.}
+    \item \prilow\ \textbf{Enhance error handling with user notifications.} Show toast notifications for failures; implement retry logic. \textit{Effort: Small. Findings: F-022.}
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{W3C WebRTC 1.0 Editor's Draft}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & W3C-WebRTC-1.0-Editors-Draft \\
+\textbf{Source:} & \texttt{standards/webrtc/w3c-webrtc-1.0-editors-draft.html} (18,374 lines) \\
+\textbf{Applicability:} & Direct --- uses RTCPeerConnection API, getUserMedia, related WebRTC APIs \\
+\textbf{Overall:} & \mostlycompliant \\
+\textbf{Requirements:} & 30 assessed (17 compliant, 5 partial, 4 non-compliant, 3 N/A, 1 N/A-able) \\
+\end{tabular}
+
+\subsubsection{Non-Compliant and Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.8cm}C{1.5cm}C{1.2cm}L{6.7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-001 & 4.2.1 RTCConfiguration & Partial & \sevmajor & No TURN servers; connectivity fails behind symmetric NATs. \\
+\midrule
+F-006 & 4.3.2 Unloading Cleanup & Partial & \sevminor & No \texttt{beforeunload} event handler for graceful connection cleanup when tab closes. \\
+\midrule
+F-009 & 4.4.3 RTCSessionDescription & Partial & \sevminor & Uses deprecated \texttt{new RTCSessionDescription(...)} for \texttt{setRemoteDescription} calls. \\
+\midrule
+F-012 & 4.4.2 addIceCandidate & Partial & \sevminor & Uses deprecated \texttt{new RTCIceCandidate(...)} in \texttt{addIceCandidate} calls. \\
+\midrule
+F-015 & 4.4.3.3 connectionstatechange & Partial & \sevminor & No ICE restart on \texttt{failed}; immediate peer removal on \texttt{disconnected} may be premature. \\
+\midrule
+F-026 & 4.4.3.5 negotiationneeded & Non-Compl. & \sevmajor & No \texttt{onnegotiationneeded} handler; manual offer management only at initial setup. \\
+\midrule
+F-030 & Security --- HTTPS & Non-Compl. & \sevcritical & Server uses plain HTTP (\texttt{http.createServer}). Relies entirely on Render.com for HTTPS termination. \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \pricritical\ \textbf{Add TURN server configuration.} Essential for reliable connectivity across all network types. \textit{Effort: Small. Findings: F-001.}
+    \item \prihigh\ \textbf{Implement \texttt{onnegotiationneeded} handler.} Required for renegotiation support; also handle glare scenarios. \textit{Effort: Medium. Findings: F-026.}
+    \item \prihigh\ \textbf{Implement ICE restart on connection failure.} Use \texttt{createOffer(\{ iceRestart: true \})} when state reaches \texttt{failed}. \textit{Effort: Small. Findings: F-015.}
+    \item \primedium\ \textbf{Remove deprecated constructor usage.} Pass plain objects to \texttt{setRemoteDescription} and \texttt{addIceCandidate}. \textit{Effort: Trivial. Findings: F-009, F-012.}
+    \item \primedium\ \textbf{Add HTTPS support or document HTTPS requirements.} Add \texttt{http-to-https} redirect, configure HSTS. \textit{Effort: Small. Findings: F-030.}
+    \item \prilow\ \textbf{Add \texttt{beforeunload} handler for graceful cleanup.} Close peer connections when tab/window closes. \textit{Effort: Trivial. Findings: F-006.}
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{RFC 8829 --- JavaScript Session Establishment Protocol (JSEP)}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & RFC-8829 \\
+\textbf{Source:} & \texttt{standards/webrtc/rfc8829-jsep.txt} (4,896 lines) \\
+\textbf{Applicability:} & Direct --- implements JSEP signaling flow: offers/answers, SDP, ICE trickling \\
+\textbf{Overall:} & \mostlycompliant \\
+\textbf{Requirements:} & 35 assessed (20 compliant, 6 partial, 4 non-compliant, 4 N/A, 1 N/A-able) \\
+\end{tabular}
+
+\subsubsection{Non-Compliant and Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.8cm}C{1.5cm}C{1.2cm}L{6.7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-023 & 5.6 Processing Remote Desc & Partial & \sevmajor & No signaling state check or glare handling before \texttt{setRemoteDescription}. \\
+\midrule
+F-024 & 5.2.3.1 IceRestart & Non-Compl. & \sevmajor & No ICE restart implemented; peer removed on failure instead of attempting recovery. \\
+\midrule
+F-027 & 7.1 Simple Example & Partial & \sevminor & Answerer adds tracks before \texttt{setRemoteDescription} rather than after (works but deviates from JSEP example). \\
+\midrule
+F-028 & 7.2 Trickle ICE Example & Partial & \sevminor & Initial trickle ICE correct, but no subsequent renegotiation supported. \\
+\midrule
+F-029 & 4.1.10 RTCSessionDescription & Partial & \sevminor & Uses legacy explicit constructors instead of plain init objects. \\
+\midrule
+F-033 & 5.2 Constructing Offer & Partial & \sevminor & \texttt{createOffer} never called with \texttt{iceRestart: true}. \\
+\midrule
+F-035 & 8 Security Considerations & Non-Compl. & \sevcritical & Signaling over plain HTTP; CORS \texttt{*}; SDP with DTLS fingerprints could be intercepted or modified. \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \pricritical\ \textbf{Secure the signaling channel.} Enforce HTTPS, restrict CORS to application domain, authenticate signaling connections. \textit{Effort: Small. Findings: F-035.}
+    \item \prihigh\ \textbf{Implement ICE restart for connection recovery.} Call \texttt{createOffer(\{ iceRestart: true \})} on \texttt{failed} state. \textit{Effort: Small. Findings: F-024, F-033.}
+    \item \prihigh\ \textbf{Implement signaling glare handling.} Check \texttt{signalingState} before \texttt{setRemoteDescription}; implement tiebreaking for simultaneous offers. \textit{Effort: Medium. Findings: F-023.}
+    \item \primedium\ \textbf{Support mid-session renegotiation.} Implement \texttt{onnegotiationneeded} handler. \textit{Effort: Medium. Findings: F-028.}
+    \item \primedium\ \textbf{Remove legacy constructor usage.} Pass plain objects directly to WebRTC methods. \textit{Effort: Trivial. Findings: F-029.}
+    \item \prilow\ \textbf{Add TURN server support.} Ensures connectivity in restrictive network environments. \textit{Effort: Small.}
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{RFC 8826 --- Security Considerations for WebRTC}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & RFC-8826 \\
+\textbf{Source:} & \texttt{standards/webrtc/rfc8826-webrtc-security.txt} (1,156 lines) \\
+\textbf{Applicability:} & Direct --- defines WebRTC threat model; relates to signaling security, CORS, device permissions \\
+\textbf{Overall:} & \partiallycompliant \\
+\textbf{Requirements:} & 15 assessed (4 compliant, 4 partial, 5 non-compliant, 2 N/A) \\
+\end{tabular}
+
+\subsubsection{Non-Compliant and Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.8cm}C{1.5cm}C{1.2cm}L{6.7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-002 & 4.1.3 Origin Security & Partial & \sevmajor & HTTPS via Render.com, but server itself uses \texttt{http.createServer} with no HTTPS enforcement or redirect. \\
+\midrule
+F-003 & 4.1.4 Calling Page & Partial & \sevmajor & No native TLS, no HSTS header, no HTTP-to-HTTPS redirect. \\
+\midrule
+F-006 & 4.2.4 IP Location & Non-Compl. & \sevmajor & No TURN servers, no \texttt{iceTransportPolicy} option, ICE begins immediately on room join. \\
+\midrule
+F-008 & 4.3.1 Retrospective & Partial & \sevminor & DTLS provides forward secrecy, but no mechanism to detect signaling server MITM on fingerprints. \\
+\midrule
+F-009 & 3.3 CORS/SOP & Non-Compl. & \sevcritical & CORS \texttt{origin: '*'} allows any origin to connect to the signaling server. \\
+\midrule
+F-010 & 4.1.2 Signaling Auth & Non-Compl. & \sevcritical & No authentication whatsoever. Self-assigned usernames in \texttt{sessionStorage}. Anyone can join any room. \\
+\midrule
+F-011 & 4.3.2 During-Call Attack & Non-Compl. & \sevmajor & No identity verification, no IdP integration, no SDP integrity verification, no fingerprint display. \\
+\midrule
+F-013 & 4.1.1 Screen Sharing & Partial & \sevminor & Browser consent obtained, but no application-level warning about screen sharing risks. \\
+\midrule
+F-014 & 3.2 SOP/Signaling & Non-Compl. & \sevcritical & CORS \texttt{*} combined with no authentication creates an open signaling server exploitable by any website. \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \pricritical\ \textbf{Restrict CORS to trusted origins.} Change from \texttt{*} to actual application domain(s). \textit{Effort: Trivial. Findings: F-009, F-014.}
+    \item \pricritical\ \textbf{Implement user authentication and room access control.} Add room passwords, JWT tokens, or Socket.IO authentication middleware. \textit{Effort: Medium. Findings: F-010.}
+    \item \prihigh\ \textbf{Enforce HTTPS at application level.} Add HTTP-to-HTTPS redirect, HSTS header, \texttt{helmet.js} middleware. \textit{Effort: Small. Findings: F-002, F-003.}
+    \item \prihigh\ \textbf{Add IP address privacy controls with TURN support.} Deploy TURN server; offer relay-only mode. \textit{Effort: Medium. Findings: F-006.}
+    \item \primedium\ \textbf{Add peer identity verification.} Display DTLS fingerprints in UI for manual verification. \textit{Effort: Medium. Findings: F-008, F-011.}
+    \item \prilow\ \textbf{Enhance screen sharing warnings.} Show application-level confirmation dialog before sharing. \textit{Effort: Trivial. Findings: F-013.}
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{RFC 8827 --- WebRTC Security Architecture}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & RFC-8827 \\
+\textbf{Source:} & \texttt{standards/webrtc/rfc8827-dtls-webrtc.txt} (1,899 lines) \\
+\textbf{Applicability:} & Direct --- defines security architecture: DTLS-SRTP, origin security, peer identity \\
+\textbf{Overall:} & \partiallycompliant \\
+\textbf{Requirements:} & 18 assessed (6 compliant, 4 partial, 3 non-compliant, 3 N/A, 2 N/A-able) \\
+\end{tabular}
+
+\subsubsection{Non-Compliant and Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.8cm}C{1.5cm}C{1.2cm}L{6.7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-001 & 6.1 Origin/Web Security & Partial & \sevmajor & Server uses \texttt{http.createServer}; no HTTPS enforcement, no HSTS header. \\
+\midrule
+F-008 & 6.4 IP Location Privacy & Non-Compl. & \sevmajor & No TURN servers, no TURN-only option, ICE starts immediately without user accept/decline. \\
+\midrule
+F-013 & 6.5 Security UI & Non-Compl. & \sevmajor & No security inspector UI: no encryption indicator, no cipher information, no fingerprint display. \\
+\midrule
+F-014 & 4.1/6.1 Signaling Security & Partial & \sevcritical & CORS \texttt{*} allows any origin; no signaling authentication mechanism. \\
+\midrule
+F-015 & 3/4.1 Trust Model & Non-Compl. & \sevcritical & No user authentication; anyone can join any room with any self-assigned username. \\
+\midrule
+F-018 & 9.2 Privacy & Partial & \sevminor & No privacy disclosure about IP exposure; no TURN support for IP address privacy. \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \pricritical\ \textbf{Restrict CORS and add signaling authentication.} Use JWT tokens; restrict CORS to application domain. \textit{Effort: Medium. Findings: F-014, F-015.}
+    \item \pricritical\ \textbf{Implement user authentication.} Room passwords, OAuth/SSO, or similar mechanism. \textit{Effort: Large. Findings: F-015.}
+    \item \prihigh\ \textbf{Add HTTPS enforcement.} HTTP-to-HTTPS redirect, HSTS header. \textit{Effort: Small. Findings: F-001.}
+    \item \prihigh\ \textbf{Configure TURN servers and IP privacy controls.} Deploy TURN; offer \texttt{iceTransportPolicy: 'relay'} option. \textit{Effort: Medium. Findings: F-008, F-018.}
+    \item \primedium\ \textbf{Implement security characteristics UI.} Lock icon for encryption status, cipher suite display, DTLS fingerprint display. \textit{Effort: Medium. Findings: F-013.}
+\end{enumerate}
+
+\newpage
+
+%=============================================================================
+\section{Indirectly Applicable Standards --- Detailed Findings}
+%=============================================================================
+
+These standards are implemented by the browser's WebRTC stack. The application's configuration choices (ICE servers, connection handling, track management) affect compliance.
+
+%-----------------------------------------------------------------------------
+\subsection{RFC 8445 --- Interactive Connectivity Establishment (ICE)}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & RFC-8445 \\
+\textbf{Source:} & \texttt{standards/webrtc/rfc8445-ice.txt} (5,603 lines) \\
+\textbf{Applicability:} & Indirect --- ICE implemented by browser; app configuration affects compliance \\
+\textbf{Overall:} & \partiallycompliant \\
+\textbf{Requirements:} & 18 assessed (7 compliant, 4 partial, 4 non-compliant, 2 N/A, 1 N/A-able) \\
+\end{tabular}
+
+\subsubsection{Non-Compliant and Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.8cm}C{1.5cm}C{1.2cm}L{6.7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-001 & 5.1.1 Gathering & Partial & \sevmajor & Only STUN configured; relayed (TURN) candidates impossible. \\
+\midrule
+F-002 & 5.1.1.2 Relayed Candidates & Non-Compl. & \sevcritical & No TURN server credentials or URLs; no mechanism to configure TURN. \\
+\midrule
+F-003 & 9 ICE Restarts & Non-Compl. & \sevmajor & No ICE restart; \texttt{removePeer} called on \texttt{disconnected}/\texttt{failed} instead. \\
+\midrule
+F-010 & 19.1 IP Address Privacy & Non-Compl. & \sevminor & No mechanism to restrict candidate types or hide IP addresses. \\
+\midrule
+F-015 & 17.1 NAT/Firewall Types & Non-Compl. & \sevcritical & No TURN means no connectivity through symmetric NATs or restrictive firewalls. \\
+\midrule
+F-017 & 5.1.1.2 DNS Discovery & Partial & \sevminor & STUN servers hardcoded rather than DNS-discovered. \\
+\midrule
+F-018 & 2.4/8 ICE Restart/Concluding & Partial & \sevmajor & Both \texttt{disconnected} and \texttt{failed} trigger immediate peer removal; no restart attempt. \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \pricritical\ \textbf{Add TURN server support.} Essential for real-world connectivity. Use coturn or managed TURN service. \textit{Effort: Medium. Findings: F-001, F-002, F-015.}
+    \item \prihigh\ \textbf{Implement ICE restart.} Use \texttt{restartIce()} with exponential backoff before removing peers. \textit{Effort: Small. Findings: F-003, F-018.}
+    \item \primedium\ \textbf{Add IP address privacy controls.} Expose \texttt{iceTransportPolicy: 'relay'} toggle in settings. \textit{Effort: Small. Findings: F-010.}
+    \item \prilow\ \textbf{Make ICE server configuration dynamic.} Fetch server list from signaling server at session start. \textit{Effort: Small. Findings: F-017.}
+\end{enumerate}
+
+\newpage
+
+%-----------------------------------------------------------------------------
+\subsection{RFC 3550 --- RTP: A Transport Protocol for Real-Time Applications}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & RFC-3550 \\
+\textbf{Source:} & \texttt{standards/webrtc/rfc3550-rtp.txt} (5,827 lines) \\
+\textbf{Applicability:} & Indirect --- browser implements RTP; app's use of tracks affects session construction \\
+\textbf{Overall:} & \mostlycompliant \\
+\textbf{Requirements:} & 14 assessed (8 compliant, 2 partial, 0 non-compliant, 4 N/A) \\
+\end{tabular}
+
+\subsubsection{Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.8cm}C{1.5cm}C{1.2cm}L{6.7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-013 & 6.2 Track Management & Partial & \sevminor & \texttt{replaceTrack} works correctly but has no error handling; no support for simultaneous camera + screen share. \\
+\midrule
+F-014 & 6.2 Audio/Video Enable & Partial & \sevminor & \texttt{track.enabled = false} sends black frames/silence (wastes bandwidth vs.\ deactivating encoding). \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \primedium\ \textbf{Optimize muted track bandwidth.} Use \texttt{RTCRtpSender.setParameters()} to deactivate encoding when tracks are muted. \textit{Effort: Small. Findings: F-014.}
+    \item \prilow\ \textbf{Add error handling for \texttt{replaceTrack}.} Handle failures gracefully with user notification. \textit{Effort: Trivial. Findings: F-013.}
+    \item \prilow\ \textbf{Consider \texttt{getStats()} for quality monitoring.} Monitor packet loss, jitter, and round-trip time. \textit{Effort: Medium.}
+\end{enumerate}
+
+%-----------------------------------------------------------------------------
+\subsection{RFC 3711 --- The Secure Real-time Transport Protocol (SRTP)}
+%-----------------------------------------------------------------------------
+
+\begin{tabular}{ll}
+\textbf{Standard ID:} & RFC-3711 \\
+\textbf{Source:} & \texttt{standards/webrtc/rfc3711-srtp.txt} (3,139 lines) \\
+\textbf{Applicability:} & Indirect --- browser handles SRTP; app should not undermine encryption \\
+\textbf{Overall:} & \mostlycompliant \\
+\textbf{Requirements:} & 13 assessed (7 compliant, 2 partial, 0 non-compliant, 4 N/A) \\
+\end{tabular}
+
+\subsubsection{Partially Compliant Findings}
+
+\begin{longtable}{C{1cm}L{2.8cm}C{1.5cm}C{1.2cm}L{6.7cm}}
+\toprule
+\textbf{ID} & \textbf{Section} & \textbf{Status} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\endhead
+F-008 & 9.4 RTP Header Conf. & Partial & \sevminor & RTP headers exposed by design; application cannot change this behavior. \\
+\midrule
+F-013 & 3/6.5 Encryption Enforce. & Partial & \sevminor & App relies on browser defaults; no explicit verification that DTLS-SRTP is active, no UI indicator. \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Recommendations}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \primedium\ \textbf{Add encryption status verification and UI indicator.} Use \texttt{getStats()} to verify DTLS-SRTP is active; display a lock icon in the UI. \textit{Effort: Small. Findings: F-013.}
+    \item \prilow\ \textbf{Document SRTP security properties for users.} Explain what is and is not encrypted. \textit{Effort: Trivial. Findings: F-008.}
+\end{enumerate}
+
+\newpage
+
+%=============================================================================
+\section{Not Applicable Standards}
+%=============================================================================
+
+The following seven standards were assessed for completeness and found to be \textbf{not applicable} to the current application architecture. The application uses HTTP/1.1 with Express.js, WebSocket via Socket.IO, and WebRTC for media transport. It does not use QUIC, HTTP/3, WebCodecs, or WebTransport.
+
+\subsection{Summary}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{L{4.5cm}cL{7.5cm}}
+\toprule
+\textbf{Standard} & \textbf{Findings} & \textbf{Rationale} \\
+\midrule
+RFC 9000 --- QUIC & 45 & App uses TCP (Express/Socket.IO), not QUIC. Media uses WebRTC ICE/DTLS-SRTP over UDP. \\
+\midrule
+RFC 9114 --- HTTP/3 & 40 & App uses HTTP/1.1. Note: HTTP/3 does not support 101 Switching Protocols used by Socket.IO WebSocket upgrade. \\
+\midrule
+RFC 9297 --- HTTP Datagrams & 22 & Infrastructure-level HTTP extension; app uses standard HTTP/1.1 GET/POST. \\
+\midrule
+W3C WebCodecs & 30 & App uses WebRTC API with \texttt{<video>} elements; does not use VideoEncoder/Decoder or AudioEncoder/Decoder. \\
+\midrule
+W3C WebCodecs (ED) & 30 & Same as above; Editor's Draft has substantively identical normative sections. \\
+\midrule
+W3C WebTransport & 30 & App uses Socket.IO (WebSocket); no WebTransport API, no HTTP/3, no QUIC. \\
+\midrule
+W3C WebTransport (ED) & 30 & Same as above; Editor's Draft tracks latest features. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Future Considerations}
+
+While not currently applicable, several of these technologies may become relevant as the application evolves:
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{HTTP/3 (QUIC)} --- Could improve signaling latency with 0-RTT connection establishment and eliminate head-of-line blocking. However, Socket.IO's WebSocket upgrade mechanism is incompatible with HTTP/3, requiring architectural changes.
+    \item \textbf{WebTransport} --- Could replace Socket.IO for signaling with independent streams, unreliable datagrams (useful for ephemeral data like typing indicators), and built-in QUIC benefits. Browser support is maturing (Chrome/Edge available; Firefox/Safari in progress).
+    \item \textbf{WebCodecs} --- Could enable advanced video processing (background blur, virtual backgrounds, custom filters) and explicit codec control (AV1, hardware-accelerated H.264, custom bitrate management).
+\end{itemize}
+
+\newpage
+
+%=============================================================================
+\section{Consolidated Recommendations}
+%=============================================================================
+
+The following table consolidates all unique recommendations across all applicable standards, ordered by priority. Duplicate recommendations that appear across multiple standards are merged.
+
+\subsection{Critical Priority}
+
+\begin{longtable}{C{0.5cm}L{4cm}L{4.5cm}C{1.2cm}L{3.5cm}}
+\toprule
+\textbf{\#} & \textbf{Recommendation} & \textbf{Description} & \textbf{Effort} & \textbf{Standards} \\
+\midrule
+\endhead
+1 & Restrict CORS to trusted origins & Change \texttt{origin: '*'} to application domain(s) & Trivial & RFC 8826, 8827, 8829, WebRTC 1.0 \\
+\midrule
+2 & Implement user authentication & Room passwords, JWT, OAuth, or Socket.IO middleware & Medium & RFC 8826, 8827 \\
+\midrule
+3 & Add TURN server configuration & Deploy coturn or managed TURN for NAT traversal & Small & WebRTC 1.0, WebRTC ED, RFC 8445, 8826, 8827, 8829 \\
+\bottomrule
+\end{longtable}
+
+\subsection{High Priority}
+
+\begin{longtable}{C{0.5cm}L{4cm}L{4.5cm}C{1.2cm}L{3.5cm}}
+\toprule
+\textbf{\#} & \textbf{Recommendation} & \textbf{Description} & \textbf{Effort} & \textbf{Standards} \\
+\midrule
+\endhead
+4 & Implement ICE restart & \texttt{restartIce()} with backoff on \texttt{failed} state & Small & WebRTC 1.0, WebRTC ED, RFC 8829, 8445 \\
+\midrule
+5 & Enforce HTTPS at application level & HTTP-to-HTTPS redirect, HSTS, \texttt{helmet.js} & Small & RFC 8826, 8827, WebRTC ED \\
+\midrule
+6 & Implement \texttt{onnegotiationneeded} & Handle renegotiation and glare scenarios & Medium & WebRTC 1.0, WebRTC ED, RFC 8829 \\
+\midrule
+7 & Implement signaling glare handling & Check \texttt{signalingState} before \texttt{setRemoteDescription} & Medium & RFC 8829 \\
+\midrule
+8 & Add IP privacy controls with TURN & \texttt{iceTransportPolicy: 'relay'} option & Medium & RFC 8826, 8827, 8445 \\
+\bottomrule
+\end{longtable}
+
+\subsection{Medium Priority}
+
+\begin{longtable}{C{0.5cm}L{4cm}L{4.5cm}C{1.2cm}L{3.5cm}}
+\toprule
+\textbf{\#} & \textbf{Recommendation} & \textbf{Description} & \textbf{Effort} & \textbf{Standards} \\
+\midrule
+\endhead
+9 & Remove deprecated constructors & Pass plain objects to WebRTC methods & Trivial & WebRTC 1.0, WebRTC ED, RFC 8829 \\
+\midrule
+10 & Improve connection state handling & Differentiate \texttt{disconnected} from \texttt{failed}; add timeouts & Small & WebRTC 1.0, RFC 8445 \\
+\midrule
+11 & Add security characteristics UI & Lock icon, cipher suite, fingerprint display & Medium & RFC 8827, 3711 \\
+\midrule
+12 & Add peer identity verification & Display DTLS fingerprints for manual verification & Medium & RFC 8826 \\
+\midrule
+13 & Optimize muted track bandwidth & Deactivate encoding via \texttt{setParameters()} & Small & RFC 3550 \\
+\bottomrule
+\end{longtable}
+
+\subsection{Low Priority}
+
+\begin{longtable}{C{0.5cm}L{4cm}L{4.5cm}C{1.2cm}L{3.5cm}}
+\toprule
+\textbf{\#} & \textbf{Recommendation} & \textbf{Description} & \textbf{Effort} & \textbf{Standards} \\
+\midrule
+\endhead
+14 & Implement \texttt{getStats()} monitoring & Track packet loss, jitter, RTT & Medium & WebRTC 1.0, RFC 3550 \\
+\midrule
+15 & Enhance error handling with notifications & Toast notifications, retry logic & Small & WebRTC 1.0 \\
+\midrule
+16 & Add \texttt{beforeunload} cleanup handler & Close peer connections on tab close & Trivial & WebRTC ED \\
+\midrule
+17 & Make ICE servers dynamic & Fetch from signaling server at session start & Small & RFC 8445 \\
+\midrule
+18 & Enhance screen sharing warnings & Application-level confirmation dialog & Trivial & RFC 8826 \\
+\midrule
+19 & Document SRTP security properties & Explain encryption to end users & Trivial & RFC 3711 \\
+\midrule
+20 & Add \texttt{replaceTrack} error handling & Graceful failure with user notification & Trivial & RFC 3550 \\
+\bottomrule
+\end{longtable}
+
+\newpage
+
+%=============================================================================
+\section{Conclusion}
+%=============================================================================
+
+The web-conference application demonstrates \textbf{mostly compliant} implementation of core WebRTC APIs (RTCPeerConnection, getUserMedia, offer/answer exchange, trickle ICE) with correct signaling flow and media track management. The browser's built-in RTP and SRTP implementations are properly leveraged without interference.
+
+However, the application has significant gaps in three areas:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Security} --- The combination of wildcard CORS, no user authentication, no HTTPS enforcement, and unprotected signaling creates a critical security posture. Any website can connect to the signaling server, join rooms, and potentially intercept SDP containing DTLS fingerprints.
+
+    \item \textbf{Connectivity} --- The absence of TURN servers means the application fails for users behind symmetric NATs or restrictive firewalls --- a common scenario in corporate and mobile networks. Combined with no ICE restart capability, connection failures are permanent.
+
+    \item \textbf{Resilience} --- No \texttt{onnegotiationneeded} handler, no glare handling, no ICE restart, and aggressive peer removal on \texttt{disconnected} state mean the application cannot recover from transient network issues or adapt to mid-session changes.
+\end{enumerate}
+
+The three \textbf{critical-priority} recommendations (restrict CORS, add authentication, deploy TURN) would address the most impactful issues with relatively modest implementation effort. Implementing all high-priority items would bring the application to a \textbf{fully compliant} status for the directly applicable standards.
+
+The seven not-applicable standards (QUIC, HTTP/3, WebCodecs, WebTransport) represent future technology directions that may become relevant as the application scales or adds advanced features such as custom video processing, improved signaling transport, or server-side recording.
+
+\vspace{1cm}
+\begin{center}
+\textit{--- End of Main Report ---}
+\end{center}
+
+\newpage
+\appendix
+
+%=============================================================================
+\section{Standards Reference}
+\label{app:standards}
+%=============================================================================
+
+This appendix provides a description of each standard assessed in this report. Standards are grouped by technology area, corresponding to the subdirectories in the \texttt{standards/} folder of the project repository. A total of 15 standards from the W3C and IETF were assessed, comprising over 122,000 lines of normative text.
+
+%-----------------------------------------------------------------------------
+\subsection{WebRTC Standards}
+\label{app:webrtc-standards}
+%-----------------------------------------------------------------------------
+
+The WebRTC (Web Real-Time Communication) standards define the browser APIs and underlying protocols that enable peer-to-peer audio, video, and data communication directly between web browsers without requiring plugins or intermediary servers for media relay. The web-conference application is built directly on these standards.
+
+\subsubsection{W3C WebRTC 1.0: Real-Time Communication Between Browsers}
+\label{app:w3c-webrtc}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & World Wide Web Consortium (W3C) \\
+\textbf{Status:} & W3C Recommendation (with Candidate Amendments) \\
+\textbf{Date:} & 2011--2025 \\
+\textbf{Source File:} & \texttt{standards/webrtc/w3c-webrtc-1.0.html} (28,009 lines) \\
+\textbf{Applicability:} & Direct \\
+\end{tabular}
+
+\vspace{0.5em}
+This is the primary W3C specification defining the JavaScript APIs for WebRTC. It specifies the \texttt{RTCPeerConnection} interface (the central object for establishing peer-to-peer connections), the offer/answer negotiation model, ICE candidate handling, media track management (\texttt{addTrack}, \texttt{replaceTrack}, \texttt{getSenders}), the \texttt{RTCDataChannel} for arbitrary data, the statistics model (\texttt{getStats}), and the \texttt{RTCSessionDescription}/\texttt{RTCIceCandidate} types. It also defines the \texttt{MediaStream} and \texttt{getUserMedia}/\texttt{getDisplayMedia} APIs for local media capture.
+
+The web-conference application directly uses \texttt{RTCPeerConnection}, \texttt{getUserMedia}, \texttt{getDisplayMedia}, \texttt{addTrack}, \texttt{replaceTrack}, \texttt{createOffer}/\texttt{createAnswer}, \texttt{setLocalDescription}/\texttt{setRemoteDescription}, and \texttt{addIceCandidate} from this specification.
+
+\subsubsection{W3C WebRTC 1.0 Editor's Draft}
+\label{app:w3c-webrtc-ed}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & World Wide Web Consortium (W3C) \\
+\textbf{Status:} & Editor's Draft (working document) \\
+\textbf{Source File:} & \texttt{standards/webrtc/w3c-webrtc-1.0-editors-draft.html} (18,374 lines) \\
+\textbf{Applicability:} & Direct \\
+\end{tabular}
+
+\vspace{0.5em}
+The Editor's Draft represents the most current working version of the WebRTC specification, incorporating proposed amendments and corrections not yet formally published as a W3C Recommendation. It tracks the same API surface as the official release but may include clarifications, deprecation notices (such as the deprecation of explicit \texttt{RTCSessionDescription} and \texttt{RTCIceCandidate} constructors), and requirements for secure contexts (HTTPS). Assessing against both the official release and the Editor's Draft ensures compliance with both current and forthcoming requirements.
+
+\subsubsection{RFC 8829 --- JavaScript Session Establishment Protocol (JSEP)}
+\label{app:rfc8829}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard \\
+\textbf{Date:} & January 2021 \\
+\textbf{Source File:} & \texttt{standards/webrtc/rfc8829-jsep.txt} (4,896 lines) \\
+\textbf{Applicability:} & Direct \\
+\end{tabular}
+
+\vspace{0.5em}
+JSEP describes how JavaScript applications control the signaling plane of a multimedia session via the \texttt{RTCPeerConnection} API. While WebRTC deliberately does not mandate a specific signaling protocol, JSEP defines the \textit{interface} between the application and the browser: how to create offers and answers, how to apply session descriptions, how the SDP state machine operates, how ICE candidates are trickled, and how ICE restart works.
+
+The web-conference application implements the JSEP offer/answer flow with trickle ICE over a custom Socket.IO signaling channel. The signaling protocol itself (Socket.IO events for \texttt{offer}, \texttt{answer}, \texttt{ice-candidate}) is application-defined, which JSEP explicitly permits.
+
+\subsubsection{RFC 8826 --- Security Considerations for WebRTC}
+\label{app:rfc8826}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard \\
+\textbf{Date:} & January 2021 \\
+\textbf{Source File:} & \texttt{standards/webrtc/rfc8826-webrtc-security.txt} (1,156 lines) \\
+\textbf{Applicability:} & Direct \\
+\end{tabular}
+
+\vspace{0.5em}
+This RFC defines the threat model for WebRTC applications, analyzing security considerations from the perspective of both the browser and the web application. It covers threats related to access to local devices (camera, microphone, screen), the origin-based security model (same-origin policy, CORS), communications consent verification (ensuring both parties agree to communicate), IP location privacy (the risk of exposing a user's IP address through ICE candidates), communications security (DTLS-SRTP encryption), and the security properties of the calling page (HTTPS requirements).
+
+Many of this standard's requirements are \textit{application-level} decisions rather than browser-level --- for example, whether the signaling channel is authenticated, whether CORS is restricted, and whether TURN servers are provided for IP privacy. These are areas where the web-conference application has significant gaps.
+
+\subsubsection{RFC 8827 --- WebRTC Security Architecture}
+\label{app:rfc8827}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard \\
+\textbf{Date:} & January 2021 \\
+\textbf{Source File:} & \texttt{standards/webrtc/rfc8827-dtls-webrtc.txt} (1,899 lines) \\
+\textbf{Applicability:} & Direct \\
+\end{tabular}
+
+\vspace{0.5em}
+This companion RFC to RFC~8826 defines the overall security architecture for WebRTC. It establishes the trust model (what the browser trusts, what the application controls), specifies that DTLS-SRTP is mandatory for all media, defines requirements for origin and web security (HTTPS, secure contexts), device permissions (user consent for camera/microphone access), communications consent (ICE verification), IP location privacy (TURN relay support), and web-based peer authentication (the Identity Provider mechanism).
+
+The standard is particularly relevant for evaluating the application's signaling security, authentication model, and whether the security architecture allows users to verify peer identity.
+
+\subsubsection{RFC 8445 --- Interactive Connectivity Establishment (ICE)}
+\label{app:rfc8445}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard (obsoletes RFC 5245) \\
+\textbf{Date:} & July 2018 \\
+\textbf{Source File:} & \texttt{standards/webrtc/rfc8445-ice.txt} (5,603 lines) \\
+\textbf{Applicability:} & Indirect \\
+\end{tabular}
+
+\vspace{0.5em}
+ICE is the protocol that enables WebRTC peers to discover the best network path for communication, even when one or both parties are behind Network Address Translators (NATs) or firewalls. ICE works by gathering ``candidates'' (potential transport addresses) of three types: \textbf{host} candidates (local IP addresses), \textbf{server-reflexive} candidates (public-facing addresses discovered via STUN), and \textbf{relayed} candidates (addresses allocated on a TURN server).
+
+While ICE is implemented entirely by the browser, the application's configuration choices directly affect its operation: the ICE server list (STUN/TURN URLs and credentials), the \texttt{iceTransportPolicy} (whether to use all candidates or only relayed ones), and whether ICE restart is triggered on connection failure. The web-conference application's lack of TURN servers means relayed candidates are never available, causing connectivity failures in restrictive network environments.
+
+\subsubsection{RFC 3550 --- RTP: A Transport Protocol for Real-Time Applications}
+\label{app:rfc3550}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Standard \\
+\textbf{Date:} & July 2003 \\
+\textbf{Source File:} & \texttt{standards/webrtc/rfc3550-rtp.txt} (5,827 lines) \\
+\textbf{Applicability:} & Indirect \\
+\end{tabular}
+
+\vspace{0.5em}
+RTP provides end-to-end network transport functions for applications transmitting real-time data such as audio and video. It defines the packet format, sequence numbering, timestamping, delivery monitoring via RTCP (RTP Control Protocol), and participant identification via SSRCs (Synchronization Sources) and CNAMEs.
+
+In WebRTC, RTP is the transport layer for all audio and video media. The browser constructs, sends, receives, and processes RTP packets; the application influences RTP behavior through its use of \texttt{addTrack} (which creates RTP streams), \texttt{replaceTrack} (which changes the media source without creating a new stream), and \texttt{track.enabled} (which controls whether media is actively sent).
+
+\subsubsection{RFC 3711 --- The Secure Real-time Transport Protocol (SRTP)}
+\label{app:rfc3711}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard \\
+\textbf{Date:} & March 2004 \\
+\textbf{Source File:} & \texttt{standards/webrtc/rfc3711-srtp.txt} (3,139 lines) \\
+\textbf{Applicability:} & Indirect \\
+\end{tabular}
+
+\vspace{0.5em}
+SRTP is a profile of RTP that adds confidentiality (encryption), message authentication, and replay protection. In WebRTC, SRTP is mandatory --- the browser encrypts all RTP media using keys exchanged via DTLS (Datagram Transport Layer Security). The default cipher suite is AES-128-CM with HMAC-SHA1-80 authentication.
+
+The web-conference application does not interact with SRTP directly, but it should not undermine SRTP's guarantees. The application's compliance is assessed on whether it avoids introducing insecure alternatives (such as SDES key exchange), whether it provides users with verification that encryption is active, and whether the signaling channel adequately protects the DTLS fingerprints exchanged in SDP.
+
+%-----------------------------------------------------------------------------
+\subsection{QUIC Standards}
+\label{app:quic-standards}
+%-----------------------------------------------------------------------------
+
+\subsubsection{RFC 9000 --- QUIC: A UDP-Based Multiplexed and Secure Transport}
+\label{app:rfc9000}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard \\
+\textbf{Date:} & May 2021 \\
+\textbf{Source File:} & \texttt{standards/quic/rfc9000-quic.txt} (8,485 lines) \\
+\textbf{Applicability:} & Not applicable \\
+\end{tabular}
+
+\vspace{0.5em}
+QUIC is a UDP-based transport protocol that provides multiplexed streams, built-in TLS~1.3 encryption, low-latency connection establishment (including 0-RTT), and connection migration across network changes. It was originally developed by Google and standardized by the IETF as the transport layer for HTTP/3.
+
+The web-conference application does not use QUIC. Its HTTP server uses TCP-based HTTP/1.1 (Express.js), its signaling uses WebSocket via Socket.IO, and its media transport uses WebRTC's ICE/DTLS-SRTP over UDP (which is a separate protocol stack from QUIC). QUIC could become relevant if the application migrates to HTTP/3 for signaling or adopts WebTransport.
+
+%-----------------------------------------------------------------------------
+\subsection{HTTP/3 Standards}
+\label{app:http3-standards}
+%-----------------------------------------------------------------------------
+
+\subsubsection{RFC 9114 --- HTTP/3}
+\label{app:rfc9114}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard \\
+\textbf{Date:} & June 2022 \\
+\textbf{Source File:} & \texttt{standards/http3/rfc9114-http3.txt} (3,234 lines) \\
+\textbf{Applicability:} & Not applicable \\
+\end{tabular}
+
+\vspace{0.5em}
+HTTP/3 maps HTTP semantics over the QUIC transport protocol, replacing TCP with QUIC's multiplexed streams to eliminate head-of-line blocking and enable faster connection establishment. It provides the same HTTP request/response semantics as HTTP/1.1 and HTTP/2 but with improved performance characteristics.
+
+The web-conference application uses HTTP/1.1 via Express.js. A critical consideration for any future migration is that HTTP/3 does \textit{not} support the 101 Switching Protocols mechanism that Socket.IO uses for WebSocket upgrade. Migrating to HTTP/3 would require replacing Socket.IO with an alternative signaling mechanism such as WebTransport or Server-Sent Events.
+
+%-----------------------------------------------------------------------------
+\subsection{WebCodecs Standards}
+\label{app:webcodecs-standards}
+%-----------------------------------------------------------------------------
+
+\subsubsection{W3C WebCodecs}
+\label{app:w3c-webcodecs}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & World Wide Web Consortium (W3C) \\
+\textbf{Status:} & Working Draft \\
+\textbf{Date:} & November 27, 2025 \\
+\textbf{Source Files:} & \texttt{standards/webcodecs/w3c-webcodecs.html} (12,870 lines) \\
+ & \texttt{standards/webcodecs/w3c-webcodecs-editors-draft.html} (12,859 lines) \\
+\textbf{Applicability:} & Not applicable \\
+\end{tabular}
+
+\vspace{0.5em}
+WebCodecs provides low-level JavaScript interfaces to the browser's built-in audio and video codecs, enabling applications to encode and decode media frames directly. The API includes \texttt{VideoEncoder}, \texttt{VideoDecoder}, \texttt{AudioEncoder}, \texttt{AudioDecoder}, along with raw media types like \texttt{VideoFrame}, \texttt{AudioData}, and encoded chunk types. It also includes \texttt{ImageDecoder} for efficient image decoding.
+
+WebCodecs is designed for use cases requiring fine-grained codec control: video processing pipelines (background blur, virtual backgrounds), custom bitrate management, server-side recording/transcoding, and Scalable Video Coding (SVC). The web-conference application uses the higher-level WebRTC API, which handles encoding/decoding transparently through the browser's media pipeline, making WebCodecs not applicable.
+
+Both the official Working Draft and the Editor's Draft were assessed. The Editor's Draft has substantively identical normative sections, with minor editorial differences.
+
+%-----------------------------------------------------------------------------
+\subsection{WebTransport Standards}
+\label{app:webtransport-standards}
+%-----------------------------------------------------------------------------
+
+\subsubsection{RFC 9297 --- HTTP Datagrams and the Capsule Protocol}
+\label{app:rfc9297}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & Internet Engineering Task Force (IETF) \\
+\textbf{Status:} & Proposed Standard \\
+\textbf{Date:} & August 2022 \\
+\textbf{Source File:} & \texttt{standards/webtransport/rfc9297-webtransport-http3.txt} (717 lines) \\
+\textbf{Applicability:} & Not applicable \\
+\end{tabular}
+
+\vspace{0.5em}
+This RFC defines HTTP Datagrams, a convention for conveying multiplexed, potentially unreliable datagrams inside HTTP connections, and the Capsule Protocol for HTTP/1.1 and HTTP/2 fallback. In HTTP/3, HTTP Datagrams can be sent unreliably using the QUIC DATAGRAM extension. This mechanism provides the foundation for WebTransport over HTTP/3.
+
+The web-conference application uses standard HTTP/1.1 GET/POST requests and does not require HTTP-level datagram support.
+
+\subsubsection{W3C WebTransport}
+\label{app:w3c-webtransport}
+
+\begin{tabular}{ll}
+\textbf{Publisher:} & World Wide Web Consortium (W3C) \\
+\textbf{Status:} & Working Draft \\
+\textbf{Date:} & January 6, 2026 \\
+\textbf{Source Files:} & \texttt{standards/webtransport/w3c-webtransport.html} (7,533 lines) \\
+ & \texttt{standards/webtransport/w3c-webtransport-editors-draft.html} (7,621 lines) \\
+\textbf{Applicability:} & Not applicable \\
+\end{tabular}
+
+\vspace{0.5em}
+WebTransport is a web API for bidirectional communication between a browser and a server, built on QUIC and HTTP/3. It offers capabilities beyond WebSocket: multiple independent streams (avoiding head-of-line blocking), both reliable streams and unreliable datagrams, unidirectional streams, and 0-RTT connection establishment.
+
+WebTransport could serve as a future replacement for Socket.IO in the web-conference application's signaling channel. Unreliable datagrams would be particularly suitable for time-sensitive, loss-tolerant data such as ICE candidate trickle messages or presence indicators. Browser support is maturing (available in Chrome, Edge, and Opera; in progress for Firefox and Safari).
+
+Both the official Working Draft and the Editor's Draft were assessed. The Editor's Draft tracks the latest features including stream priority and enhanced connection statistics.
+
+\newpage
+
+%=============================================================================
+\section{Glossary}
+\label{app:glossary}
+%=============================================================================
+
+\begin{longtable}{L{3.5cm}L{12cm}}
+\toprule
+\textbf{Term} & \textbf{Definition} \\
+\midrule
+\endhead
+CORS & Cross-Origin Resource Sharing --- an HTTP mechanism that allows a server to indicate which origins are permitted to access its resources. \\
+\midrule
+DTLS & Datagram Transport Layer Security --- provides TLS-equivalent security for datagram protocols (UDP). Used in WebRTC for key exchange before SRTP media encryption begins. \\
+\midrule
+DTLS-SRTP & The combination of DTLS key exchange with SRTP media encryption, mandatory in WebRTC. \\
+\midrule
+Full Mesh & A network topology where every participant maintains a direct connection to every other participant. \\
+\midrule
+Glare & A condition where both peers simultaneously send SDP offers, causing a conflict in the JSEP state machine. \\
+\midrule
+HSTS & HTTP Strict Transport Security --- a response header that instructs browsers to only access the site over HTTPS. \\
+\midrule
+ICE & Interactive Connectivity Establishment --- the protocol used by WebRTC to discover the optimal network path between peers through NATs and firewalls. \\
+\midrule
+ICE Restart & A mechanism to refresh ICE credentials and re-gather candidates without tearing down the entire peer connection. \\
+\midrule
+JSEP & JavaScript Session Establishment Protocol --- defines how JavaScript controls WebRTC session negotiation. \\
+\midrule
+MCU & Multipoint Control Unit --- a server that receives media from all participants, mixes/composes it, and sends a single combined stream to each participant. \\
+\midrule
+NAT & Network Address Translator --- a device that maps private IP addresses to public ones, complicating direct peer-to-peer connectivity. \\
+\midrule
+QUIC & A UDP-based multiplexed and secure transport protocol with built-in TLS~1.3, developed as the transport for HTTP/3. \\
+\midrule
+RTP & Real-time Transport Protocol --- the standard for delivering audio and video over IP networks. \\
+\midrule
+SDP & Session Description Protocol --- a format for describing multimedia session parameters (codecs, transport addresses, encryption keys). \\
+\midrule
+SFU & Selective Forwarding Unit --- a server that receives media streams from participants and selectively forwards them to other participants without mixing. \\
+\midrule
+SRTP & Secure Real-time Transport Protocol --- RTP with added encryption, authentication, and replay protection. \\
+\midrule
+STUN & Session Traversal Utilities for NAT --- a protocol that allows a client behind a NAT to discover its public IP address and port. \\
+\midrule
+Symmetric NAT & A NAT type that maps each \{internal IP, internal port, destination IP, destination port\} tuple to a unique external port, making direct peer-to-peer connectivity impossible without a relay (TURN) server. \\
+\midrule
+Trickle ICE & A mechanism where ICE candidates are sent to the remote peer as they are discovered, rather than waiting for all candidates to be gathered before signaling. \\
+\midrule
+TURN & Traversal Using Relays around NAT --- a protocol that provides a relay server for cases where direct peer-to-peer connectivity fails. \\
+\bottomrule
+\end{longtable}
+
+\end{document}

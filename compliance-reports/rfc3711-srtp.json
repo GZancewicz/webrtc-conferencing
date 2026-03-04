@@ -1,0 +1,285 @@
+{
+  "meta": {
+    "standard": {
+      "title": "The Secure Real-time Transport Protocol (SRTP)",
+      "identifier": "RFC-3711",
+      "source_file": "standards/webrtc/rfc3711-srtp.txt",
+      "line_count": 3139
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "indirect",
+    "applicability_rationale": "SRTP encryption and authentication are implemented by the browser's WebRTC media engine, not by the application. However, the application's configuration choices (or lack thereof) affect whether media encryption is guaranteed. The critical question is whether the application explicitly forces SRTP usage or relies on browser defaults. In WebRTC, DTLS-SRTP is mandatory per RFC 8827, so browsers always use SRTP for WebRTC media, but the application should not undermine this.",
+    "overall_compliance_level": "mostly-compliant",
+    "total_requirements_assessed": 13,
+    "compliant_count": 7,
+    "partially_compliant_count": 2,
+    "non_compliant_count": 0,
+    "not_applicable_count": 4,
+    "not_assessable_count": 0
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "3 SRTP Framework - Encryption",
+      "requirement": "SRTP provides confidentiality for RTP payload data using symmetric encryption. The default cipher is AES in Counter Mode (AES-CM) with 128-bit keys.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "SRTP encryption is handled by the browser's WebRTC implementation. WebRTC mandates DTLS-SRTP (per RFC 8827), and browsers implement AES-128-CM as a mandatory cipher for SRTP. The application uses default RTCPeerConnection configuration which does not disable or weaken SRTP encryption. All media traffic over WebRTC peer connections is SRTP-encrypted.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "3.3 SRTP Packet Processing - Authentication",
+      "requirement": "SRTP provides message authentication using HMAC-SHA1 with a 80-bit tag by default. Each SRTP stream SHOULD be protected by message authentication.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "SRTP authentication is mandatory in WebRTC (RFC 8827 Section 6.5: implementations MUST NOT negotiate cipher suites with NULL encryption modes, and SRTP_AES128_CM_HMAC_SHA1_80 MUST be supported). The browser enforces HMAC-SHA1 authentication with an 80-bit tag on all SRTP packets. The application does not disable or weaken authentication.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "3.4 SRTCP",
+      "requirement": "SRTCP MUST NOT be used with weak (or NULL) authentication. SRTCP provides confidentiality and authentication for RTCP traffic.",
+      "rfc_keyword": "MUST NOT",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "SRTCP authentication is handled by the browser and is always enabled in WebRTC. The browser does not allow NULL authentication for SRTCP. The application does not have any mechanism to disable SRTCP authentication.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "4.3 Key Derivation - Key Management",
+      "requirement": "It is REQUIRED that automatic key management be used for establishing and maintaining SRTP and SRTCP keying material. Manual key management MUST NOT be used.",
+      "rfc_keyword": "REQUIRED",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "WebRTC uses DTLS-SRTP for automatic key management. The DTLS handshake occurs automatically when the RTCPeerConnection is established, and SRTP keys are derived from the DTLS key exchange. The application does not use SDP Security Descriptions (SDES) or any manual key exchange mechanism. This is compliant with both RFC 3711 and RFC 8827.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "8.2 Key Management Parameters",
+      "requirement": "Key management must communicate various parameters including master key, SSRC, transform identifiers, key derivation rate, and encryption/authentication algorithms.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "360-383",
+            "code_snippet": "this.socket.on('offer', async ({ from, username, offer }) => {\n      ...\n      await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));\n      const answer = await peer.connection.createAnswer();\n      await peer.connection.setLocalDescription(answer);\n      this.socket.emit('answer', { to: from, answer });\n      ...\n    });\n\n    this.socket.on('answer', async ({ from, answer }) => {\n      ...\n      await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));\n      ...\n    });"
+          }
+        ],
+        "observation": "SRTP key management parameters are communicated through the SDP offer/answer exchange (via DTLS-SRTP fingerprint attributes in SDP). The application correctly passes complete SDP objects through the signaling channel without modification. The browser's DTLS-SRTP implementation handles all parameter negotiation including cipher suite selection, key exchange, and SRTP protection profile selection.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "9.1 SSRC Collision and Two-Time Pad",
+      "requirement": "The SSRC MUST be unique between all RTP streams within the same RTP session that share the same master key. A master key MUST NOT be shared among different RTP sessions.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "423-468",
+            "code_snippet": "createPeerConnection(userId, username, initiator) {\n    const connection = new RTCPeerConnection(this.iceServers);\n    if (this.localStream) {\n      this.localStream.getTracks().forEach(track => {\n        connection.addTrack(track, this.localStream);\n      });\n    }\n    ..."
+          }
+        ],
+        "observation": "Each RTCPeerConnection has its own DTLS session and therefore its own unique SRTP master key. Within each connection, the browser assigns unique SSRCs per track. Since each peer gets a separate RTCPeerConnection, there is no risk of master key sharing across different RTP sessions. The full-mesh topology ensures cryptographic separation between all peer connections.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "9.2 Key Usage",
+      "requirement": "When 2^48 SRTP packets or 2^31 SRTCP packets have been secured with the same key, the key management MUST be called to provide new master keys, or the session MUST be terminated.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "SRTP key lifetime management is handled by the browser's WebRTC implementation. At typical packet rates for audio/video conferencing, the 2^48 SRTP packet limit would not be reached in any practical session duration (at 50 packets/sec, this equeds roughly 178,000 years). The browser handles rekeying if needed through DTLS renegotiation. This is entirely a browser-level concern.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "9.4 Confidentiality of the RTP Header",
+      "requirement": "In SRTP, RTP headers are sent in the clear. Data such as payload type, SSRC, and timestamp are available to eavesdroppers.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "23-28",
+            "code_snippet": "this.iceServers = {\n  iceServers: [\n    { urls: 'stun:stun.l.google.com:19302' },\n    { urls: 'stun:stun1.l.google.com:19302' }\n  ]\n};"
+          }
+        ],
+        "observation": "SRTP by design leaves RTP headers unencrypted. This means metadata such as SSRC, payload type, and timing information is visible to any network observer. This is inherent to SRTP and the application has no way to change this behavior. However, the application does not use encrypted header extensions or other mechanisms that could provide additional metadata privacy.",
+        "gap_description": "RTP header metadata is exposed to network observers per SRTP design. The application cannot change this, but users should be aware that traffic analysis (timing, packet sizes) is possible even with SRTP encryption."
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "9.5 Integrity of the RTP Payload and Header",
+      "requirement": "Each SRTP stream SHOULD be protected by HMAC-SHA1 with an 80-bit output tag. Secure RTP SHOULD NOT be used without message authentication.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "WebRTC mandates SRTP_AES128_CM_HMAC_SHA1_80 as the mandatory-to-implement SRTP protection profile (RFC 8827). The browser enforces message authentication on all SRTP packets. NULL authentication is not permitted in WebRTC. The application does not interfere with this.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "3.1 Packet Index Determination / Replay Protection",
+      "requirement": "SRTP implementations SHOULD use a replay list (replay window) to detect and reject replayed packets. The minimum recommended window size is 64 packets.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "Replay protection is implemented by the browser's SRTP stack and is not configurable from JavaScript. Browsers implement replay windows as required. The application has no control over or visibility into replay protection parameters.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "7 Rationale for Defaults",
+      "requirement": "The default SRTP cryptographic transforms (AES-128-CM for encryption, HMAC-SHA1-80 for authentication) MUST be supported by all implementations.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "Default transform support is a browser implementation requirement, not an application requirement. All major browsers (Chrome, Firefox, Safari, Edge) support the mandatory SRTP transforms. The application does not need to explicitly configure these as they are the default.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "9.5.1 Risks of Weak or Null Message Authentication",
+      "requirement": "Null authentication MUST NOT be used when replay attacks could have non-negligible impact. Weak or null authentication MUST NOT be used when data forwarding or access control decisions are based on RTP data.",
+      "rfc_keyword": "MUST NOT",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "WebRTC prohibits NULL encryption and NULL authentication for media (RFC 8827 Section 6.5). The browser does not offer NULL authentication as an option for WebRTC peer connections. The application does not attempt to weaken or disable SRTP authentication.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "3 / 6.5 (RFC 8827) - Explicit Encryption Enforcement",
+      "requirement": "All media channels MUST be secured via SRTP. Media traffic MUST NOT be sent over plain (unencrypted) RTP. Implementations MUST NOT negotiate cipher suites with NULL encryption modes.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "23-28",
+            "code_snippet": "this.iceServers = {\n  iceServers: [\n    { urls: 'stun:stun.l.google.com:19302' },\n    { urls: 'stun:stun1.l.google.com:19302' }\n  ]\n};"
+          }
+        ],
+        "observation": "The application relies on the browser's default behavior to enforce SRTP encryption. In modern WebRTC implementations, DTLS-SRTP is always used and unencrypted RTP is not possible. However, the application does not explicitly verify or assert that encryption is in effect. There is no code that checks the security properties of the connection (e.g., via getStats() or checking the DTLS transport state). While browser defaults are secure, the application could provide additional assurance by verifying encryption is active.",
+        "gap_description": "The application does not explicitly verify or display that media encryption is active. While WebRTC browsers enforce SRTP by default, there is no application-level verification or user-facing indicator of encryption status."
+      },
+      "remediation": "Consider using RTCPeerConnection.getStats() to verify that DTLS-SRTP is active and display an encryption indicator in the UI. Check the dtlsCipher and srtpCipher fields from the transport stats to confirm encryption is in place."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "medium",
+      "category": "security",
+      "title": "Add encryption status verification and UI indicator",
+      "description": "Use RTCPeerConnection.getStats() to verify that DTLS-SRTP is active for all peer connections and display an encryption indicator in the meeting UI (e.g., a lock icon). Check transport stats for dtlsCipher and srtpCipher values. This provides users with assurance that their media is encrypted and helps detect any anomalies.",
+      "affected_findings": ["F-013"],
+      "effort_estimate": "small"
+    },
+    {
+      "priority": "low",
+      "category": "security",
+      "title": "Document SRTP security properties for users",
+      "description": "While SRTP encrypts payload data, RTP headers (including timing and packet sizes) remain visible to network observers. Consider providing documentation or a security FAQ that informs users about the encryption properties and limitations of the media transport.",
+      "affected_findings": ["F-008"],
+      "effort_estimate": "trivial"
+    }
+  ]
+}

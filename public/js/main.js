@@ -3,7 +3,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('join-form');
   const usernameInput = document.getElementById('username');
   const roomIdInput = document.getElementById('room-id');
+  const passwordInput = document.getElementById('room-password');
   const btnText = document.getElementById('btn-text');
+
+  // Show join error if redirected back from room
+  const joinError = sessionStorage.getItem('joinError');
+  if (joinError) {
+    const errorEl = document.getElementById('join-error');
+    errorEl.textContent = joinError;
+    errorEl.style.display = 'block';
+    sessionStorage.removeItem('joinError');
+  }
 
   // Update button text based on room ID input
   roomIdInput.addEventListener('input', () => {
@@ -20,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const username = usernameInput.value.trim();
     let roomId = roomIdInput.value.trim();
+    const password = passwordInput.value;
 
     if (!username) {
       alert('Please enter your name');
@@ -31,8 +42,13 @@ document.addEventListener('DOMContentLoaded', () => {
       roomId = generateRoomId();
     }
 
-    // Store username in session storage
+    // Store username and password in session storage
     sessionStorage.setItem('username', username);
+    if (password) {
+      sessionStorage.setItem('roomPassword', password);
+    } else {
+      sessionStorage.removeItem('roomPassword');
+    }
 
     // Navigate to room
     window.location.href = `/room.html?room=${encodeURIComponent(roomId)}`;

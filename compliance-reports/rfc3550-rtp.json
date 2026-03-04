@@ -1,0 +1,317 @@
+{
+  "meta": {
+    "standard": {
+      "title": "RTP: A Transport Protocol for Real-Time Applications",
+      "identifier": "RFC-3550",
+      "source_file": "standards/webrtc/rfc3550-rtp.txt",
+      "line_count": 5827
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "indirect",
+    "applicability_rationale": "RTP is implemented entirely by the browser's WebRTC media stack. The application does not directly create, parse, or manipulate RTP packets. However, the application's use of the WebRTC API (addTrack, replaceTrack, MediaStream management) affects how RTP sessions are constructed, how media tracks map to RTP streams, and whether the browser can properly manage RTP/RTCP for audio and video.",
+    "overall_compliance_level": "mostly-compliant",
+    "total_requirements_assessed": 14,
+    "compliant_count": 8,
+    "partially_compliant_count": 2,
+    "non_compliant_count": 0,
+    "not_applicable_count": 4,
+    "not_assessable_count": 0
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "3 Definitions / 5.1 RTP Fixed Header Fields",
+      "requirement": "RTP data packets contain a fixed header with version, payload type, sequence number, timestamp, and SSRC identifier. The version field MUST be set to 2.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "RTP packet construction (headers, SSRC, sequence numbers, timestamps) is handled entirely by the browser's WebRTC media engine. The application has no access to or control over RTP header fields. The browser generates valid RTP packets with version 2 for all WebRTC media tracks.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "6.2 RTP Header Validity Checks",
+      "requirement": "An RTP implementation SHOULD perform header validity checks on received packets to filter out invalid packets before they reach the application.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "RTP packet validation is performed by the browser's RTP stack. The application receives decoded media through the MediaStream API and never handles raw RTP packets. The browser performs all necessary header validity checks.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "6.3.1 Computing the RTCP Transmission Interval",
+      "requirement": "RTCP transmission intervals MUST be calculated according to the algorithm specified, with a minimum interval of 5 seconds (reduced to 360/session_bandwidth for the initial RTCP packet).",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "RTCP interval computation is handled by the browser's WebRTC stack. The application has no control over RTCP timing or content. The browser implements RFC 3550 RTCP scheduling algorithms internally.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "6.3.4 Sender and Receiver Reports",
+      "requirement": "Active senders MUST generate Sender Reports (SR); other participants generate Receiver Reports (RR). These are used for inter-media synchronization and reception quality feedback.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "RTCP SR/RR generation is handled by the browser. The application uses RTCPeerConnection which internally manages RTCP report generation and processing. The application does monitor getStats() for connection quality but this does not affect RTCP compliance.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "5.2 Multiplexing RTP Sessions",
+      "requirement": "In RTP, multiplexing is provided by the destination transport address (network address plus port). Separate media types SHOULD be carried in separate RTP sessions with their own RTCP packets.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "254-263",
+            "code_snippet": "this.localStream = await navigator.mediaDevices.getUserMedia({\n        video: true,\n        audio: true\n      });"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "427-430",
+            "code_snippet": "if (this.localStream) {\n      this.localStream.getTracks().forEach(track => {\n        connection.addTrack(track, this.localStream);\n      });\n    }"
+          }
+        ],
+        "observation": "The application adds both audio and video tracks to the same RTCPeerConnection using addTrack(). Modern WebRTC implementations use BUNDLE (RFC 8843) to multiplex multiple media types over a single transport connection, which is a widely-accepted deviation from the original RFC 3550 recommendation. The browser handles m-line negotiation and BUNDLE grouping in SDP. This is compliant with current WebRTC standards (RFC 8834) which mandate BUNDLE support.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "6.2 / 6.3 - SSRC Management",
+      "requirement": "Each RTP session participant is identified by a unique SSRC. The SSRC MUST be chosen randomly with the intent that no two participants in the same session will have the same SSRC.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "427-430",
+            "code_snippet": "if (this.localStream) {\n      this.localStream.getTracks().forEach(track => {\n        connection.addTrack(track, this.localStream);\n      });\n    }"
+          }
+        ],
+        "observation": "SSRC assignment is handled by the browser's RTP implementation. Each track added via addTrack() receives a unique, randomly generated SSRC. The application correctly adds individual tracks (audio and video separately) which results in proper SSRC allocation per stream.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "6.3.7 RTP Session Leave / BYE Packet",
+      "requirement": "When a participant leaves an RTP session, an RTCP BYE packet SHOULD be sent to inform other participants. This packet contains the SSRC of the sender.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "849-868",
+            "code_snippet": "leaveRoom() {\n    if (this.localStream) {\n      this.localStream.getTracks().forEach(track => track.stop());\n    }\n    if (this.screenStream) {\n      this.screenStream.getTracks().forEach(track => track.stop());\n    }\n    this.peers.forEach((peer) => {\n      peer.connection.close();\n    });\n    this.socket.disconnect();\n    window.location.href = '/';\n  }"
+          },
+          {
+            "path": "public/js/room.js",
+            "lines": "530-549",
+            "code_snippet": "removePeer(userId) {\n    const peer = this.peers.get(userId);\n    if (peer) {\n      peer.connection.close();\n      this.peers.delete(userId);\n    }\n    ..."
+          }
+        ],
+        "observation": "The application properly cleans up resources when leaving: tracks are stopped, peer connections are closed, and the socket is disconnected. When RTCPeerConnection.close() is called, the browser sends RTCP BYE packets for all active SSRCs in the session before tearing down the transport. Track.stop() ensures the media source is released.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "7 RTP Translators and Mixers",
+      "requirement": "RTP translators and mixers have specific requirements for SSRC handling, CSRC list management, and timing adjustments.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "1-31",
+            "code_snippet": "class WebConference {\n  constructor() {\n    this.socket = io();\n    this.localStream = null;\n    ...\n    this.peers = new Map();\n    ..."
+          }
+        ],
+        "observation": "The application uses a full-mesh peer-to-peer architecture where each participant has a direct RTCPeerConnection to every other participant. There are no RTP translators, mixers, or Selective Forwarding Units (SFUs) in the architecture. The server only handles signaling via Socket.IO; it does not process or relay media. Therefore, mixer/translator requirements are not applicable to this application, and the direct peer-to-peer model is compliant.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "5.3 Profile-Specific Modifications to the RTP Header",
+      "requirement": "The RTP profile defines payload type mappings and any modifications to the header interpretation. WebRTC mandates the use of dynamic payload types negotiated via SDP.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "485-493",
+            "code_snippet": "async createAndSendOffer(userId, connection) {\n    try {\n      const offer = await connection.createOffer();\n      await connection.setLocalDescription(offer);\n      this.socket.emit('offer', { to: userId, offer });\n    } catch (error) {\n      console.error('Error creating offer:', error);\n    }\n  }"
+          }
+        ],
+        "observation": "SDP offer/answer exchange is handled correctly through the signaling channel. The browser generates SDP with appropriate codec negotiation (including dynamic payload types for VP8/VP9/H.264 for video and Opus for audio). The application passes the full SDP offer/answer objects without modification, allowing the browser to correctly negotiate payload types.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "6.3.5 SDES: Source Description RTCP Packet - CNAME",
+      "requirement": "Each participant MUST have a CNAME (Canonical Name) that is unique among all participants. The CNAME SHOULD be derived from the owner/creator of the session.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "CNAME generation is handled by the browser's WebRTC implementation. Modern browsers generate privacy-preserving CNAMEs per RFC 7022, which are unique per RTCPeerConnection. The application does not interfere with CNAME generation.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "8.2 SSRC and CSRC - Participant Identification",
+      "requirement": "RTP applications need to handle participants joining and leaving sessions, including proper SSRC collision detection and resolution.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "336-421",
+            "code_snippet": "setupSocketListeners() {\n    this.socket.on('existing-users', (users) => {\n      users.forEach(user => {\n        this.createPeerConnection(user.id, user.username, true);\n      });\n    });\n    this.socket.on('user-joined', ({ userId, username }) => {\n      this.createPeerConnection(userId, username, false);\n    });\n    this.socket.on('user-left', ({ userId, username }) => {\n      this.removePeer(userId);\n    });\n    ..."
+          }
+        ],
+        "observation": "The application properly handles participants joining and leaving via the signaling channel. Each new participant gets a dedicated RTCPeerConnection with its own RTP session, so SSRC collision between different peer connections is not an issue. The browser handles SSRC collision detection within individual RTP sessions. Peer removal properly closes connections and cleans up resources.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "11 RTP over Network and Transport Protocols",
+      "requirement": "RTP is designed to be independent of the underlying transport and network layers. RTP packets SHOULD be carried in UDP, and RTP/RTCP SHOULD be multiplexed when possible (RFC 5761).",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "compliant",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "424",
+            "code_snippet": "const connection = new RTCPeerConnection(this.iceServers);"
+          }
+        ],
+        "observation": "WebRTC uses RTP over UDP by default, with ICE for connectivity. Modern browsers multiplex RTP and RTCP on the same port (rtcp-mux is mandatory in WebRTC per RFC 8834). The application uses default RTCPeerConnection settings which enable BUNDLE and rtcp-mux.",
+        "gap_description": null
+      },
+      "remediation": null
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "6.2 Track Management and RTP Stream Lifecycle",
+      "requirement": "Media tracks added to an RTP session should have proper lifecycle management. When a source changes (e.g., camera to screen share), the RTP session should be updated accordingly.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "589-621",
+            "code_snippet": "async startScreenShare() {\n    try {\n      this.screenStream = await navigator.mediaDevices.getDisplayMedia({\n        video: true\n      });\n      const screenTrack = this.screenStream.getVideoTracks()[0];\n      this.peers.forEach((peer) => {\n        const sender = peer.connection.getSenders().find(s =>\n          s.track && s.track.kind === 'video'\n        );\n        if (sender) {\n          sender.replaceTrack(screenTrack);\n        }\n      });\n      ..."
+          }
+        ],
+        "observation": "The application correctly uses replaceTrack() for switching between camera and screen share, which updates the media source without renegotiating the RTP session. This maintains the same SSRC and avoids disrupting the RTP stream. However, the screen share only replaces the video track and does not add a new audio track for system audio capture. The screenTrack.onended handler properly reverts to camera.",
+        "gap_description": "Screen sharing replaces the video track correctly but does not support simultaneous camera and screen share (e.g., as separate video streams), which some conferencing applications provide. Also, there is no handling for the case where replaceTrack() fails."
+      },
+      "remediation": "Add error handling for replaceTrack() failures. Consider supporting addTrack() for screen share as a separate video stream if simultaneous camera + screen share is desired (this would require renegotiation)."
+    },
+    {
+      "finding_id": "F-014",
+      "standard_section": "6.2 Audio/Video Track Enable/Disable",
+      "requirement": "Implementations should support enabling and disabling individual media components without tearing down the RTP session.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "partially-compliant",
+      "severity": "minor",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "551-579",
+            "code_snippet": "toggleAudio() {\n    if (this.localStream) {\n      const audioTrack = this.localStream.getAudioTracks()[0];\n      if (audioTrack) {\n        this.isAudioEnabled = !this.isAudioEnabled;\n        audioTrack.enabled = this.isAudioEnabled;\n        ...\n      }\n    }\n  }\n\n  toggleVideo() {\n    if (this.localStream) {\n      const videoTrack = this.localStream.getVideoTracks()[0];\n      if (videoTrack) {\n        this.isVideoEnabled = !this.isVideoEnabled;\n        videoTrack.enabled = this.isVideoEnabled;\n        ...\n      }\n    }\n  }"
+          }
+        ],
+        "observation": "Audio and video toggling uses track.enabled = false/true, which mutes/unmutes the track at the source level. When a track is disabled, the browser continues sending RTP packets but with silence (audio) or black frames (video). This maintains the RTP session. The application also signals mute state to other participants via the signaling channel. However, the approach of sending black frames/silence is not bandwidth-optimal compared to pausing the sender.",
+        "gap_description": "Using track.enabled = false still sends RTP packets with muted/black content. For bandwidth savings, the application could use RTCRtpSender.setParameters() to set the encoding to active: false, or could use track.stop() followed by renegotiation. Current approach is functional but not bandwidth-optimal."
+      },
+      "remediation": "Consider using RTCRtpSender.setParameters() to deactivate the encoding when muting for bandwidth savings, particularly important for video. The current approach works correctly but wastes bandwidth sending black frames."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "medium",
+      "category": "performance",
+      "title": "Optimize bandwidth usage when tracks are muted",
+      "description": "When video is disabled, the application still sends black frames because it only sets track.enabled = false. Consider using RTCRtpSender.setParameters() to deactivate the encoding or using track.stop() with renegotiation to stop sending video entirely. This is especially important on bandwidth-constrained connections.",
+      "affected_findings": ["F-014"],
+      "effort_estimate": "small"
+    },
+    {
+      "priority": "low",
+      "category": "functionality",
+      "title": "Add error handling for replaceTrack operations",
+      "description": "The screen sharing code calls sender.replaceTrack() without handling potential failures. If replaceTrack() fails (e.g., due to codec incompatibility), the application should gracefully handle the error and notify the user rather than silently failing.",
+      "affected_findings": ["F-013"],
+      "effort_estimate": "trivial"
+    },
+    {
+      "priority": "low",
+      "category": "best-practice",
+      "title": "Consider using RTCPeerConnection.getStats() for quality monitoring",
+      "description": "While RTCP is handled by the browser, the application could leverage getStats() to monitor connection quality (packet loss, jitter, round-trip time) and provide user-facing quality indicators or adaptive behavior such as automatic quality reduction.",
+      "affected_findings": [],
+      "effort_estimate": "medium"
+    }
+  ]
+}

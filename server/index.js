@@ -247,16 +247,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Stats broadcast
-  socket.on('stats-update', ({ roomId, stats }) => {
-    socket.to(roomId).emit('stats-update', {
-      userId: socket.id,
-      username: socket.username,
-      stats,
-      timestamp: new Date().toISOString()
-    });
-  });
-
   // Media state changes
   socket.on('toggle-audio', ({ roomId, enabled }) => {
     socket.to(roomId).emit('user-toggle-audio', {

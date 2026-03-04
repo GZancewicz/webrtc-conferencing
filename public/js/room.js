@@ -29,6 +29,9 @@ class WebConference {
 
     this.roomPassword = sessionStorage.getItem('roomPassword') || null;
 
+    // Per-peer ICE candidate tracking: Map<userId, {local: [], remote: []}>
+    this.iceCandidates = new Map();
+
     this.init();
   }
 
@@ -320,6 +323,14 @@ class WebConference {
       this.toggleChat();
     });
 
+    // Toggle stats panel
+    document.getElementById('toggle-stats').addEventListener('click', () => {
+      this.toggleStats();
+    });
+    document.getElementById('stats-close').addEventListener('click', () => {
+      this.toggleStats();
+    });
+
     // Toggle AI
     document.getElementById('toggle-ai').addEventListener('click', () => {
       this.toggleAI();
@@ -407,6 +418,8 @@ class WebConference {
 
     this.socket.on('ice-candidate', async ({ from, candidate }) => {
       if (!candidate) return;
+      const entry = this.iceCandidates.get(from);
+      if (entry) entry.remote.push(candidate);
       const peer = this.peers.get(from);
       if (peer && peer.connection.remoteDescription) {
         try {
@@ -446,6 +459,9 @@ class WebConference {
   createPeerConnection(userId, username, initiator) {
     const connection = new RTCPeerConnection(this.iceServers);
 
+    // Init candidate tracking for this peer
+    this.iceCandidates.set(userId, { local: [], remote: [] });
+
     // Add local tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
@@ -456,6 +472,8 @@ class WebConference {
     // Handle ICE candidates
     connection.onicecandidate = (event) => {
       if (event.candidate) {
+        const entry = this.iceCandidates.get(userId);
+        if (entry) entry.local.push(event.candidate);
         this.socket.emit('ice-candidate', {
           to: userId,
           candidate: event.candidate
@@ -557,6 +575,7 @@ class WebConference {
       this.peers.delete(userId);
     }
     this.pendingCandidates.delete(userId);
+    this.iceCandidates.delete(userId);
 
     // Remove video container
     const container = document.getElementById(`video-${userId}`);
@@ -867,6 +886,198 @@ class WebConference {
     if (container) {
       container.classList.toggle('typing', typing);
     }
+  }
+
+  async toggleStats() {
+    const panel = document.getElementById('stats-panel');
+    const btn = document.getElementById('toggle-stats');
+    const isVisible = panel.style.display !== 'none';
+
+    if (isVisible) {
+      panel.style.display = 'none';
+      btn.classList.remove('active');
+    } else {
+      panel.style.display = 'flex';
+      btn.classList.add('active');
+      await this.renderStats();
+    }
+  }
+
+  async renderStats() {
+    const body = document.getElementById('stats-panel-body');
+    let html = '';
+
+    // ICE server configuration
+    html += '<div class="stats-section">';
+    html += '<div class="stats-section-title">Configured ICE Servers</div>';
+    html += '<table class="stats-table">';
+    this.iceServers.iceServers.forEach((server, i) => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      urls.forEach(url => {
+        const type = url.startsWith('turn') ? 'TURN' : 'STUN';
+        html += `<tr><td>${type}</td><td>${this.escapeHtml(url)}</td></tr>`;
+      });
+    });
+    html += '</table></div>';
+
+    // Per-peer stats
+    if (this.peers.size === 0) {
+      html += '<div class="stats-no-peers">No peers connected</div>';
+      body.innerHTML = html;
+      return;
+    }
+
+    for (const [userId, peer] of this.peers) {
+      const pc = peer.connection;
+      html += `<div class="stats-section">`;
+      html += `<div class="stats-section-title">Peer: ${this.escapeHtml(peer.username)}</div>`;
+
+      // Connection states
+      html += '<table class="stats-table">';
+      html += `<tr><td>Connection</td><td>${pc.connectionState || 'N/A'}</td></tr>`;
+      html += `<tr><td>ICE State</td><td>${pc.iceConnectionState || 'N/A'}</td></tr>`;
+      html += `<tr><td>ICE Gather</td><td>${pc.iceGatheringState || 'N/A'}</td></tr>`;
+      html += `<tr><td>Signaling</td><td>${pc.signalingState || 'N/A'}</td></tr>`;
+
+      // Get stats snapshot
+      try {
+        const stats = await pc.getStats();
+        let activePairId = null;
+        const candidateMap = new Map();
+        let dtlsState = null, dtlsCipher = null, srtpCipher = null, tlsVersion = null;
+        let rtt = null, bytesSent = null, bytesRecv = null;
+        let audioCodec = null, videoCodec = null;
+        let videoWidth = null, videoHeight = null, fps = null;
+        let packetsLost = null, packetsRecv = null, jitter = null;
+        const codecMap = new Map();
+
+        // First pass: collect all stats
+        stats.forEach(report => {
+          if (report.type === 'transport') {
+            dtlsState = report.dtlsState;
+            dtlsCipher = report.dtlsCipher;
+            srtpCipher = report.srtpCipher;
+            tlsVersion = report.tlsVersion;
+            activePairId = report.selectedCandidatePairId;
+          }
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            if (!activePairId) activePairId = report.id;
+            rtt = report.currentRoundTripTime;
+            bytesSent = report.bytesSent;
+            bytesRecv = report.bytesReceived;
+          }
+          if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+            candidateMap.set(report.id, report);
+          }
+          if (report.type === 'codec') {
+            codecMap.set(report.id, report.mimeType);
+          }
+          if (report.type === 'inbound-rtp' && report.kind === 'video') {
+            videoWidth = report.frameWidth;
+            videoHeight = report.frameHeight;
+            fps = report.framesPerSecond;
+            packetsLost = report.packetsLost;
+            packetsRecv = report.packetsReceived;
+            jitter = report.jitter;
+            if (report.codecId) videoCodec = report.codecId;
+          }
+          if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+            if (report.codecId) audioCodec = report.codecId;
+            if (packetsLost == null) packetsLost = report.packetsLost;
+            if (packetsRecv == null) packetsRecv = report.packetsReceived;
+            if (jitter == null) jitter = report.jitter;
+          }
+        });
+
+        // Active candidate pair
+        let activePair = null;
+        if (activePairId) {
+          stats.forEach(report => {
+            if (report.id === activePairId) activePair = report;
+          });
+        }
+
+        // Transport/security
+        if (dtlsState) html += `<tr><td>DTLS</td><td>${dtlsState}</td></tr>`;
+        if (dtlsCipher) html += `<tr><td>DTLS Cipher</td><td>${dtlsCipher}</td></tr>`;
+        if (srtpCipher) html += `<tr><td>SRTP Cipher</td><td>${srtpCipher}</td></tr>`;
+        if (tlsVersion) html += `<tr><td>TLS Version</td><td>${tlsVersion}</td></tr>`;
+
+        // Media
+        if (audioCodec && codecMap.has(audioCodec)) html += `<tr><td>Audio Codec</td><td>${codecMap.get(audioCodec)}</td></tr>`;
+        if (videoCodec && codecMap.has(videoCodec)) html += `<tr><td>Video Codec</td><td>${codecMap.get(videoCodec)}</td></tr>`;
+        if (videoWidth && videoHeight) html += `<tr><td>Video Res</td><td>${videoWidth}x${videoHeight}</td></tr>`;
+        if (fps != null) html += `<tr><td>Framerate</td><td>${Math.round(fps)} fps</td></tr>`;
+
+        // Network
+        if (rtt != null) html += `<tr><td>RTT</td><td>${(rtt * 1000).toFixed(0)} ms</td></tr>`;
+        if (packetsRecv != null && packetsLost != null) {
+          const lossRate = packetsRecv > 0 ? ((packetsLost / (packetsRecv + packetsLost)) * 100).toFixed(2) : '0.00';
+          html += `<tr><td>Packet Loss</td><td>${lossRate}% (${packetsLost} lost)</td></tr>`;
+        }
+        if (jitter != null) html += `<tr><td>Jitter</td><td>${(jitter * 1000).toFixed(1)} ms</td></tr>`;
+        if (bytesSent != null) html += `<tr><td>Bytes Sent</td><td>${this.formatBytes(bytesSent)}</td></tr>`;
+        if (bytesRecv != null) html += `<tr><td>Bytes Recv</td><td>${this.formatBytes(bytesRecv)}</td></tr>`;
+
+        html += '</table>';
+
+        // Active candidate pair detail
+        if (activePair) {
+          const localCand = candidateMap.get(activePair.localCandidateId);
+          const remoteCand = candidateMap.get(activePair.remoteCandidateId);
+          html += '<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--success-color);">Active Pair</div>';
+          if (localCand) {
+            html += `<div class="stats-candidate active">Local: ${localCand.candidateType} ${localCand.protocol || ''} ${localCand.address || localCand.ip || ''}:${localCand.port || ''}</div>`;
+          }
+          if (remoteCand) {
+            html += `<div class="stats-candidate active">Remote: ${remoteCand.candidateType} ${remoteCand.protocol || ''} ${remoteCand.address || remoteCand.ip || ''}:${remoteCand.port || ''}</div>`;
+          }
+        }
+
+        // All gathered local candidates
+        const candidateEntry = this.iceCandidates.get(userId);
+        if (candidateEntry && candidateEntry.local.length > 0) {
+          html += '<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--text-secondary);">Local Candidates</div>';
+          candidateEntry.local.forEach(c => {
+            const parsed = this.parseCandidateString(c.candidate);
+            html += `<div class="stats-candidate">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+          });
+        }
+
+        if (candidateEntry && candidateEntry.remote.length > 0) {
+          html += '<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--text-secondary);">Remote Candidates</div>';
+          candidateEntry.remote.forEach(c => {
+            const candStr = c.candidate || c;
+            const parsed = this.parseCandidateString(typeof candStr === 'string' ? candStr : c.candidate);
+            html += `<div class="stats-candidate">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+          });
+        }
+
+      } catch (e) {
+        html += `<tr><td colspan="2">Stats unavailable: ${e.message}</td></tr></table>`;
+      }
+
+      html += '</div>';
+    }
+
+    body.innerHTML = html;
+  }
+
+  parseCandidateString(str) {
+    if (!str) return { type: '?', protocol: '?', address: '?', port: '?' };
+    const parts = str.split(' ');
+    return {
+      protocol: parts[2] || '?',
+      address: parts[4] || '?',
+      port: parts[5] || '?',
+      type: parts[7] || '?'
+    };
+  }
+
+  formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
   leaveRoom() {

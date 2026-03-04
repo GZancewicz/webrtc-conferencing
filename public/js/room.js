@@ -27,6 +27,8 @@ class WebConference {
       ]
     };
 
+    this.roomPassword = sessionStorage.getItem('roomPassword') || null;
+
     this.init();
   }
 
@@ -51,6 +53,9 @@ class WebConference {
     document.getElementById('room-id-display').textContent = this.roomId;
     document.getElementById('local-username').textContent = `${this.username} (You)`;
 
+    // Fetch ICE servers (including TURN) before any peer connections
+    await this.fetchIceServers();
+
     // Check if AI is available
     await this.checkAIAvailability();
 
@@ -65,6 +70,16 @@ class WebConference {
     } catch (error) {
       console.error('Failed to get media:', error);
       this.showToast('Failed to access camera/microphone', 'error');
+    }
+  }
+
+  async fetchIceServers() {
+    try {
+      const response = await fetch('/api/ice-servers');
+      const data = await response.json();
+      this.iceServers = { iceServers: data.iceServers };
+    } catch (error) {
+      console.error('Failed to fetch ICE servers, using STUN-only fallback:', error);
     }
   }
 
@@ -279,7 +294,8 @@ class WebConference {
   joinRoom() {
     this.socket.emit('join-room', {
       roomId: this.roomId,
-      username: this.username
+      username: this.username,
+      password: this.roomPassword
     });
   }
 
@@ -334,6 +350,13 @@ class WebConference {
   }
 
   setupSocketListeners() {
+    // Handle join errors (e.g., wrong room password)
+    this.socket.on('join-error', ({ message }) => {
+      this.showToast(message, 'error');
+      sessionStorage.setItem('joinError', message);
+      window.location.href = `/?room=${encodeURIComponent(this.roomId)}`;
+    });
+
     // Existing users in room
     this.socket.on('existing-users', (users) => {
       users.forEach(user => {

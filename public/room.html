@@ -108,7 +108,10 @@
       </div>
     </div>
     <div class="topology-panel-body" id="topology-panel-body">
-      <canvas id="topology-canvas"></canvas>
+      <svg class="topo-svg" id="topo-svg"></svg>
+      <div class="topo-row topo-row-servers" id="topo-row-servers"></div>
+      <div class="topo-row topo-row-peers" id="topo-row-peers"></div>
+      <div class="topo-legend" id="topo-legend"></div>
     </div>
   </div>
 
@@ -128,7 +131,6 @@
   <div class="toast-container" id="toast-container"></div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/vendor/dagre/dagre.min.js"></script>
   <script type="module" src="js/room.js"></script>
 </body>
 </html>

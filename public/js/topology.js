@@ -142,312 +142,195 @@ export async function gatherTopologyData() {
   return { nodes, edges };
 }
 
-function estimateNodeSize(node) {
-  const lines = node.label.split('\n');
-  // Estimate text width at 11px font (~7.5px per char, conservative)
-  const maxLineWidth = Math.max(...lines.map(l => l.length * 7.5));
-
-  // Shape dimensions
-  const shapeW = node.type === 'self' || node.type === 'peer' ? 44 : 70;
-  const shapeH = node.type === 'self' || node.type === 'peer' ? 44 : 36;
-
-  // Label height: lines * 14px + optional timestamp
-  const labelH = lines.length * 14 + (node.connectedAt ? 14 : 0);
-
-  const totalW = Math.max(shapeW, maxLineWidth) + 30;
-  const totalH = shapeH + labelH + 12;
-
-  return { w: totalW, h: totalH };
-}
-
-export function layoutTopologyNodes(nodes, edges, width, height) {
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({
-    rankdir: 'BT',
-    nodesep: 60,
-    ranksep: 80,
-    marginx: 0,
-    marginy: 0
-  });
-  g.setDefaultEdgeLabel(() => ({}));
-
-  // Add nodes with estimated dimensions
-  for (const node of nodes) {
-    const size = estimateNodeSize(node);
-    g.setNode(node.id, { width: size.w, height: size.h });
-  }
-
-  // Add deduplicated edges
-  const seen = new Set();
-  for (const edge of edges) {
-    const key = `${edge.from}|${edge.to}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      g.setEdge(edge.from, edge.to);
-    }
-  }
-
-  // Run dagre layout
-  dagre.layout(g);
-
-  // Find bounding box of dagre output
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const node of nodes) {
-    const dn = g.node(node.id);
-    minX = Math.min(minX, dn.x - dn.width / 2);
-    maxX = Math.max(maxX, dn.x + dn.width / 2);
-    minY = Math.min(minY, dn.y - dn.height / 2);
-    maxY = Math.max(maxY, dn.y + dn.height / 2);
-  }
-
-  const graphW = maxX - minX || 1;
-  const graphH = maxY - minY || 1;
-  const padding = 50;
-  const legendH = 80;
-  const scaleX = (width - padding * 2) / graphW;
-  const scaleY = (height - padding * 2 - legendH) / graphH;
-  const scale = Math.min(scaleX, scaleY, 1);
-
-  // Center the graph in the canvas
-  const scaledW = graphW * scale;
-  const scaledH = graphH * scale;
-  const offsetX = padding + (width - padding * 2 - scaledW) / 2;
-  const offsetY = padding + (height - padding * 2 - legendH - scaledH) / 2;
-
-  // Apply scaled positions back to our nodes
-  for (const node of nodes) {
-    const dn = g.node(node.id);
-    node.x = offsetX + (dn.x - minX) * scale;
-    node.y = offsetY + (dn.y - minY) * scale;
-  }
-
-  return nodes;
-}
-
 export async function renderTopology() {
-  const canvas = document.getElementById('topology-canvas');
   const body = document.getElementById('topology-panel-body');
-  if (!canvas || !body) return;
-
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = body.getBoundingClientRect();
-  const w = rect.width;
-  const h = rect.height;
-
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-  ctx.scale(dpr, dpr);
-
-  // Background
-  ctx.fillStyle = '#1e293b';
-  ctx.fillRect(0, 0, w, h);
+  if (!body) return;
 
   const data = await this.gatherTopologyData();
-  this.layoutTopologyNodes(data.nodes, data.edges, w, h);
 
-  const nodeMap = new Map();
-  data.nodes.forEach(n => nodeMap.set(n.id, n));
+  const serverRow = document.getElementById('topo-row-servers');
+  const peerRow = document.getElementById('topo-row-peers');
+  const legend = document.getElementById('topo-legend');
+  const svg = document.getElementById('topo-svg');
 
-  // Draw edges first
-  // Deduplicate media edges (avoid drawing duplicate TURN relay edges)
-  const drawnEdges = new Set();
-  for (const edge of data.edges) {
-    const key = [edge.from, edge.to, edge.label].sort().join('|');
-    if (drawnEdges.has(key)) continue;
-    drawnEdges.add(key);
+  // Clear previous content
+  serverRow.innerHTML = '';
+  peerRow.innerHTML = '';
 
-    const fromNode = nodeMap.get(edge.from);
-    const toNode = nodeMap.get(edge.to);
-    if (fromNode && toNode) {
-      this.drawTopologyEdge(ctx, fromNode, toNode, edge.style);
+  const nodeElements = new Map();
+
+  // Build node HTML
+  for (const node of data.nodes) {
+    const el = this.createTopologyNodeElement(node);
+    nodeElements.set(node.id, el);
+
+    if (node.type === 'self' || node.type === 'peer') {
+      peerRow.appendChild(el);
+    } else {
+      serverRow.appendChild(el);
     }
   }
 
-  // Draw nodes on top
-  for (const node of data.nodes) {
-    this.drawTopologyNode(ctx, node);
+  // Render legend (once)
+  if (!legend.hasChildNodes()) {
+    this.renderTopologyLegend(legend);
   }
 
-  // Legend
-  this.drawTopologyLegend(ctx, w, h);
+  // Wait for DOM layout to settle, then draw SVG lines
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      this.drawTopologyEdges(svg, data.edges, nodeElements, body);
+    });
+  });
 }
 
-export function drawTopologyNode(ctx, node) {
-  const colors = {
-    self: '#4f46e5',
-    peer: '#22c55e',
-    infrastructure: '#94a3b8',
-    stun: '#eab308',
-    turn: '#f97316'
-  };
-  const color = colors[node.type] || '#94a3b8';
-  const radius = node.type === 'self' || node.type === 'peer' ? 22 : 18;
+export function createTopologyNodeElement(node) {
+  const el = document.createElement('div');
+  el.className = 'topo-node';
+  el.dataset.nodeId = node.id;
 
-  ctx.save();
-  if (node.type === 'self' || node.type === 'peer') {
-    // Circle
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = '#f8fafc';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+  // Icon
+  const icon = document.createElement('div');
+  const isServer = node.type !== 'self' && node.type !== 'peer';
+  icon.className = `topo-node-icon ${node.type}${isServer ? ' server' : ''}`;
 
-    // Icon inside
-    ctx.fillStyle = '#fff';
-    ctx.font = `${radius}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(node.type === 'self' ? '👤' : '👥', node.x, node.y);
-  } else {
-    // Rounded rect for servers
-    const rw = 70;
-    const rh = 36;
-    const cr = 8;
-    const x = node.x - rw / 2;
-    const y = node.y - rh / 2;
-    ctx.beginPath();
-    ctx.moveTo(x + cr, y);
-    ctx.lineTo(x + rw - cr, y);
-    ctx.quadraticCurveTo(x + rw, y, x + rw, y + cr);
-    ctx.lineTo(x + rw, y + rh - cr);
-    ctx.quadraticCurveTo(x + rw, y + rh, x + rw - cr, y + rh);
-    ctx.lineTo(x + cr, y + rh);
-    ctx.quadraticCurveTo(x, y + rh, x, y + rh - cr);
-    ctx.lineTo(x, y + cr);
-    ctx.quadraticCurveTo(x, y, x + cr, y);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = '#f8fafc';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+  const icons = { self: '👤', peer: '👥', infrastructure: '🖥️', stun: '📡', turn: '🔄' };
+  icon.textContent = icons[node.type] || '❓';
+  el.appendChild(icon);
 
-    // Icon inside rect
-    ctx.fillStyle = '#fff';
-    ctx.font = '14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    if (node.type === 'infrastructure') {
-      ctx.fillText('🖥️', node.x, node.y);
-    } else if (node.type === 'stun') {
-      ctx.fillText('📡', node.x, node.y);
-    } else {
-      ctx.fillText('🔄', node.x, node.y);
-    }
-  }
-
-  // Label below
+  // Label
+  const label = document.createElement('div');
+  label.className = 'topo-node-label';
   const lines = node.label.split('\n');
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  const labelY = node.y + (node.type === 'self' || node.type === 'peer' ? 28 : 24);
   lines.forEach((line, i) => {
-    ctx.fillText(line, node.x, labelY + i * 14);
+    const span = document.createElement('div');
+    span.className = i === 0 ? 'topo-name' : 'topo-detail';
+    span.textContent = line;
+    label.appendChild(span);
   });
 
-  // Connection timestamp
+  // Timestamp
   if (node.connectedAt) {
-    const timeStr = node.connectedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    ctx.fillStyle = '#64748b';
-    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText(timeStr, node.x, labelY + lines.length * 14 + 2);
+    const timeSpan = document.createElement('div');
+    timeSpan.className = 'topo-time';
+    timeSpan.textContent = node.connectedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    label.appendChild(timeSpan);
   }
 
-  ctx.restore();
+  el.appendChild(label);
+  return el;
 }
 
-export function drawTopologyEdge(ctx, from, to, style) {
-  const colors = {
+export function drawTopologyEdges(svg, edges, nodeElements, container) {
+  const ns = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = '';
+
+  const containerRect = container.getBoundingClientRect();
+
+  // Define arrowhead markers for each style
+  const defs = document.createElementNS(ns, 'defs');
+  const styleColors = {
     signaling: '#94a3b8',
     direct: '#22c55e',
     stun: '#eab308',
     turn: '#f97316',
     connecting: '#64748b'
   };
-  const color = colors[style] || '#94a3b8';
-
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = style === 'signaling' ? 1.5 : 2.5;
-
-  if (style === 'signaling') {
-    ctx.setLineDash([6, 4]);
-  } else {
-    ctx.setLineDash([]);
+  for (const [style, color] of Object.entries(styleColors)) {
+    const marker = document.createElementNS(ns, 'marker');
+    marker.setAttribute('id', `arrow-${style}`);
+    marker.setAttribute('viewBox', '0 0 10 6');
+    marker.setAttribute('refX', '10');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('markerWidth', '10');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('orient', 'auto-start-reverse');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M 0 0 L 10 3 L 0 6');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '1');
+    marker.appendChild(path);
+    defs.appendChild(marker);
   }
+  svg.appendChild(defs);
 
-  // Calculate line start/end to stop at node edges
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist === 0) { ctx.restore(); return; }
+  // Deduplicate edges
+  const drawn = new Set();
+  for (const edge of edges) {
+    const key = [edge.from, edge.to, edge.style].sort().join('|');
+    if (drawn.has(key)) continue;
+    drawn.add(key);
 
-  const nx = dx / dist;
-  const ny = dy / dist;
-  const fromRadius = 26;
-  const toRadius = 26;
-  const x1 = from.x + nx * fromRadius;
-  const y1 = from.y + ny * fromRadius;
-  const x2 = to.x - nx * toRadius;
-  const y2 = to.y - ny * toRadius;
+    const fromEl = nodeElements.get(edge.from);
+    const toEl = nodeElements.get(edge.to);
+    if (!fromEl || !toEl) continue;
 
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
+    // Get icon center positions relative to the container
+    const fromIcon = fromEl.querySelector('.topo-node-icon');
+    const toIcon = toEl.querySelector('.topo-node-icon');
+    const fromRect = fromIcon.getBoundingClientRect();
+    const toRect = toIcon.getBoundingClientRect();
 
-  // Arrowhead
-  ctx.setLineDash([]);
-  const arrowLen = 10;
-  const arrowAngle = Math.PI / 7;
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  ctx.beginPath();
-  ctx.moveTo(x2, y2);
-  ctx.lineTo(x2 - arrowLen * Math.cos(angle - arrowAngle), y2 - arrowLen * Math.sin(angle - arrowAngle));
-  ctx.moveTo(x2, y2);
-  ctx.lineTo(x2 - arrowLen * Math.cos(angle + arrowAngle), y2 - arrowLen * Math.sin(angle + arrowAngle));
-  ctx.stroke();
+    const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
+    const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
+    const x2 = toRect.left + toRect.width / 2 - containerRect.left;
+    const y2 = toRect.top + toRect.height / 2 - containerRect.top;
 
-  ctx.restore();
+    // Shorten line to stop at icon edge
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) continue;
+
+    const fromRadius = Math.max(fromRect.width, fromRect.height) / 2 + 2;
+    const toRadius = Math.max(toRect.width, toRect.height) / 2 + 2;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const sx = x1 + nx * fromRadius;
+    const sy = y1 + ny * fromRadius;
+    const ex = x2 - nx * toRadius;
+    const ey = y2 - ny * toRadius;
+
+    const color = styleColors[edge.style] || '#94a3b8';
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', sx);
+    line.setAttribute('y1', sy);
+    line.setAttribute('x2', ex);
+    line.setAttribute('y2', ey);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', edge.style === 'signaling' ? '1.5' : '2.5');
+    if (edge.style === 'signaling') {
+      line.setAttribute('stroke-dasharray', '6 4');
+    }
+    line.setAttribute('marker-end', `url(#arrow-${edge.style})`);
+    svg.appendChild(line);
+  }
 }
 
-export function drawTopologyLegend(ctx, w, h) {
+export function renderTopologyLegend(container) {
   const items = [
-    { color: '#94a3b8', dash: true, label: 'wss:// Socket.IO (Signaling)' },
-    { color: '#22c55e', dash: false, label: 'DTLS-SRTP/UDP (Direct)' },
-    { color: '#eab308', dash: false, label: 'stun: STUN (NAT Discovery)' },
-    { color: '#f97316', dash: false, label: 'turn:/turns: TURN (Relay)' }
+    { color: '#94a3b8', dashed: true, text: 'wss:// Socket.IO (Signaling)' },
+    { color: '#22c55e', dashed: false, text: 'DTLS-SRTP/UDP (Direct)' },
+    { color: '#eab308', dashed: false, text: 'stun: STUN (NAT Discovery)' },
+    { color: '#f97316', dashed: false, text: 'turn:/turns: TURN (Relay)' }
   ];
 
-  const x = 12;
-  const y = h - items.length * 16 - 8;
+  container.innerHTML = '';
+  for (const item of items) {
+    const el = document.createElement('div');
+    el.className = 'topo-legend-item';
 
-  ctx.save();
-  ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
+    const line = document.createElement('span');
+    line.className = `topo-legend-line${item.dashed ? ' dashed' : ''}`;
+    line.style.borderColor = item.color;
+    el.appendChild(line);
 
-  items.forEach((item, i) => {
-    const ly = y + i * 16;
-    ctx.strokeStyle = item.color;
-    ctx.lineWidth = 2;
-    ctx.setLineDash(item.dash ? [4, 3] : []);
-    ctx.beginPath();
-    ctx.moveTo(x, ly);
-    ctx.lineTo(x + 20, ly);
-    ctx.stroke();
+    const label = document.createElement('span');
+    label.style.color = item.color;
+    label.textContent = item.text;
+    el.appendChild(label);
 
-    ctx.setLineDash([]);
-    ctx.fillStyle = item.color;
-    ctx.fillText(item.label, x + 26, ly);
-  });
-
-  ctx.restore();
+    container.appendChild(el);
+  }
 }

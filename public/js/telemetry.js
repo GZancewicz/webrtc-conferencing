@@ -216,7 +216,24 @@ export async function renderTelemetry() {
         html += `<tr><td>${this.escapeHtml(field)}</td><td>${this.escapeHtml(value)}</td></tr>`;
       });
 
-      html += '</table></div>';
+      html += '</table>';
+
+      if (stats.localCandidates && stats.localCandidates.length > 0) {
+        html += '<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--text-secondary);">Local Candidates</div>';
+        stats.localCandidates.forEach(c => {
+          const parsed = this.parseCandidateString(c);
+          html += `<div class="stats-candidate">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+        });
+      }
+      if (stats.remoteCandidates && stats.remoteCandidates.length > 0) {
+        html += '<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--text-secondary);">Remote Candidates</div>';
+        stats.remoteCandidates.forEach(c => {
+          const parsed = this.parseCandidateString(c);
+          html += `<div class="stats-candidate">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+        });
+      }
+
+      html += '</div>';
     }
   }
 
@@ -297,6 +314,16 @@ export async function broadcastTelemetry() {
 
       stats.rows = rows;
       delete stats._hasJitter;
+
+      // Include ICE candidates
+      const candidateEntry = this.iceCandidates.get(userId);
+      if (candidateEntry) {
+        stats.localCandidates = candidateEntry.local.map(c => c.candidate);
+        stats.remoteCandidates = candidateEntry.remote.map(c => {
+          const candStr = c.candidate || c;
+          return typeof candStr === 'string' ? candStr : c.candidate;
+        });
+      }
 
       // Send via DataChannel to all peers with open channels
       const message = JSON.stringify({ username: this.username, stats, timestamp: new Date().toISOString() });

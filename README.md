@@ -12,6 +12,55 @@ A simple, self-hosted video conferencing application built with WebRTC and Socke
 - **Participant List** - See who's in the meeting
 - **Invite Links** - One-click copy invite link to share
 
+## WebRTC Primer
+
+WebRTC (Web Real-Time Communication) enables browsers to exchange audio, video, and data directly without plugins or intermediary servers carrying the media.
+
+### Key Concepts
+
+**Peer-to-peer connections** - Once established, media flows directly between browsers. The server is only needed for the initial handshake (signaling), not for carrying audio/video data.
+
+**Signaling** - Before peers can connect, they must exchange connection metadata via a signaling server (this app uses Socket.IO). This involves:
+- **SDP Offer/Answer** - Each peer describes its media capabilities (codecs, resolutions, etc.) using Session Description Protocol. One peer creates an "offer", the other responds with an "answer".
+- **ICE Candidates** - Each peer discovers its own network addresses (local IP, public IP via STUN, relay address via TURN) and shares them with the other peer.
+
+**NAT Traversal** - Most devices sit behind NATs/firewalls that block unsolicited inbound connections. WebRTC uses two mechanisms to solve this:
+- **STUN** (Session Traversal Utilities for NAT) - A lightweight server that tells your browser its public IP address and port. The browser uses this to create "server-reflexive" candidates that peers can reach. Works when both sides have compatible NAT types (~80-90% of cases).
+- **TURN** (Traversal Using Relays around NAT) - A relay server that forwards media when direct peer-to-peer fails (symmetric NATs, strict firewalls). All traffic routes through the TURN server, adding latency and bandwidth cost. Required for ~10-20% of real-world connections.
+
+**ICE** (Interactive Connectivity Establishment) - The framework that orchestrates NAT traversal. ICE gathers all possible connection paths (candidates), tests them in priority order, and selects the best working path. Candidate types:
+- `host` - Direct local network address
+- `srflx` (server-reflexive) - Public address discovered via STUN
+- `relay` - Address on a TURN server
+
+**Media Security** - All WebRTC media is encrypted:
+- **DTLS** (Datagram TLS) - Establishes an encrypted tunnel for the connection handshake
+- **SRTP** (Secure Real-time Transport Protocol) - Encrypts the actual audio/video packets using keys derived from DTLS
+
+### Connection Flow
+
+```
+Browser A                    Signaling Server                    Browser B
+    |                              |                                |
+    |-- 1. Create Room ---------->|                                |
+    |                              |<--------- 2. Join Room -------|
+    |                              |                                |
+    |<-- 3. "user-joined" --------|                                |
+    |                              |                                |
+    |-- 4. SDP Offer ------------>|--------- 5. SDP Offer ------->|
+    |                              |                                |
+    |                              |<-------- 6. SDP Answer -------|
+    |<-- 7. SDP Answer -----------|                                |
+    |                              |                                |
+    |-- 8. ICE Candidates ------->|--- 9. ICE Candidates -------->|
+    |                              |<-- 10. ICE Candidates --------|
+    |<-- 11. ICE Candidates ------|                                |
+    |                              |                                |
+    |============= 12. Direct P2P Media (SRTP encrypted) =========|
+```
+
+After step 12, the signaling server is no longer in the media path. Audio and video flow directly between browsers (or via TURN relay if direct connection failed).
+
 ## Quick Start
 
 ### Prerequisites

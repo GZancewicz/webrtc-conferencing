@@ -11,7 +11,7 @@ const app = express();
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : (process.env.NODE_ENV === 'production' ? [] : '*');
+  : '*';
 
 const corsConfig = {
   origin: allowedOrigins === '*' ? '*' : (origin, callback) => {

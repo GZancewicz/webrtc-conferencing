@@ -1,0 +1,381 @@
+{
+  "meta": {
+    "standard": {
+      "title": "HTTP Datagrams and the Capsule Protocol (RFC 9297)",
+      "identifier": "RFC 9297",
+      "source_file": "standards/webtransport/rfc9297-webtransport-http3.txt",
+      "line_count": 717
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "not-applicable",
+    "applicability_rationale": "RFC 9297 defines HTTP Datagrams and the Capsule Protocol, which are HTTP extension mechanisms for conveying multiplexed, potentially unreliable datagrams inside HTTP connections. These are infrastructure-level protocol features designed for use by HTTP extensions (not applications directly). The web-conference application uses HTTP/1.1 via Express.js with Socket.io for WebSocket-based signaling. It does not implement any HTTP extensions that use HTTP Datagrams or the Capsule Protocol, nor does it run over HTTP/3 or use QUIC DATAGRAM frames.",
+    "overall_compliance_level": "not-applicable",
+    "total_requirements_assessed": 22,
+    "compliant_count": 0,
+    "partially_compliant_count": 0,
+    "non_compliant_count": 0,
+    "not_applicable_count": 22,
+    "not_assessable_count": 0
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "1. Introduction",
+      "requirement": "HTTP Datagrams provide a convention for conveying bidirectional and potentially unreliable datagrams inside an HTTP connection, intended for use by HTTP extensions, not applications.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-15",
+            "code_snippet": "const express = require('express');\nconst http = require('http');\nconst { Server } = require('socket.io');\nconst server = http.createServer(app);"
+          }
+        ],
+        "observation": "The application uses HTTP/1.1 via Express.js and does not implement or use any HTTP extensions that require HTTP Datagrams or the Capsule Protocol. HTTP Datagrams are explicitly intended for HTTP extensions, not applications.",
+        "gap_description": "HTTP Datagrams are an infrastructure-level protocol feature. The application does not operate at this level of the HTTP stack."
+      },
+      "remediation": "No direct application action. If adopting WebTransport (which uses HTTP Datagrams), the underlying protocol stack would handle this."
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "1.1. Conventions and Definitions",
+      "requirement": "Defines RFC 2119 keyword usage and QUIC terminology conventions.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "Definitional section. No implementation requirements apply to application-level code.",
+        "gap_description": "Not applicable — conventions section."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "2. HTTP Datagrams",
+      "requirement": "HTTP Datagrams MUST only be sent with an association to an HTTP request that explicitly supports them. GET and POST do not define semantics for HTTP Datagrams.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "39-85",
+            "code_snippet": "app.post('/api/ai/chat', async (req, res) => { ... });\napp.post('/api/ai/tts', async (req, res) => { ... });\napp.get('/api/ai/status', (req, res) => { ... });"
+          }
+        ],
+        "observation": "The application uses standard GET and POST HTTP methods via Express.js. These methods do not support HTTP Datagrams per RFC 9297. No CONNECT or extended methods are used.",
+        "gap_description": "The application's HTTP methods (GET, POST) cannot carry HTTP Datagrams. This is by design — HTTP Datagrams are for protocol extensions like CONNECT-UDP, not standard HTTP requests."
+      },
+      "remediation": "No action needed. HTTP Datagrams would only be relevant if implementing HTTP-level tunneling or WebTransport."
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "2. HTTP Datagrams (receive handling)",
+      "requirement": "If an HTTP Datagram is received and is associated with a request that has no known semantics for HTTP Datagrams, the receiver MUST terminate the request. If HTTP/3 is in use, the request stream MUST be aborted with H3_DATAGRAM_ERROR (0x33).",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "9",
+            "code_snippet": "const server = http.createServer(app);"
+          }
+        ],
+        "observation": "The server runs HTTP/1.1, not HTTP/3. HTTP Datagrams cannot be received on HTTP/1.1 connections unless via the Capsule Protocol with an appropriate upgrade token. The server does not implement any upgrade tokens that enable HTTP Datagrams.",
+        "gap_description": "Not applicable — the server cannot receive HTTP Datagrams."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "2.1. HTTP/3 Datagrams",
+      "requirement": "When used with HTTP/3, QUIC DATAGRAM frames carry HTTP/3 Datagrams with a Quarter Stream ID field. Receipt of an HTTP/3 Datagram with an invalid Quarter Stream ID MUST be treated as H3_DATAGRAM_ERROR.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "9",
+            "code_snippet": "const server = http.createServer(app);"
+          }
+        ],
+        "observation": "The server does not use HTTP/3. No QUIC DATAGRAM frames are sent or received. Express.js on Node.js http module only supports HTTP/1.1.",
+        "gap_description": "HTTP/3 Datagrams require HTTP/3 over QUIC. The application uses HTTP/1.1 over TCP."
+      },
+      "remediation": "No action needed. This would only be relevant if migrating to HTTP/3."
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "2.1. HTTP/3 Datagrams (stream open/close rules)",
+      "requirement": "HTTP/3 Datagrams MUST NOT be sent unless the corresponding stream's send side is open. Datagrams received after the stream's receive side is closed MUST be silently dropped.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 streams or datagrams exist in the application.",
+        "gap_description": "Not applicable — no HTTP/3 usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "2.1. HTTP/3 Datagrams (stream creation)",
+      "requirement": "If an HTTP/3 Datagram is received and its Quarter Stream ID maps to a stream not yet created, the receiver SHALL either drop silently or buffer temporarily. If it maps to a stream that cannot be created due to limits, it SHOULD be treated as H3_ID_ERROR.",
+      "rfc_keyword": "SHALL",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No HTTP/3 streams are created by the application.",
+        "gap_description": "Not applicable — no HTTP/3 usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "2.1.1. The SETTINGS_H3_DATAGRAM HTTP/3 Setting",
+      "requirement": "The value of SETTINGS_H3_DATAGRAM (0x33) MUST be either 0 or 1. QUIC DATAGRAM frames MUST NOT be sent until this setting has been both sent and received with a value of 1.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not use HTTP/3 settings. No SETTINGS_H3_DATAGRAM negotiation occurs.",
+        "gap_description": "Not applicable — the application runs on HTTP/1.1 without any HTTP/3 settings exchange."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "2.1.1. SETTINGS_H3_DATAGRAM (0-RTT)",
+      "requirement": "When servers accept 0-RTT data, they MUST send a SETTINGS_H3_DATAGRAM setting >= the value sent in the original connection. Clients MUST validate the new value against stored values.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No QUIC 0-RTT or HTTP/3 settings are used.",
+        "gap_description": "Not applicable — no HTTP/3 or QUIC transport."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "2.1.1. SETTINGS_H3_DATAGRAM (recommendation)",
+      "requirement": "It is RECOMMENDED that implementations that support receiving HTTP/3 Datagrams always send SETTINGS_H3_DATAGRAM with a value of 1 to avoid 'sticking out'.",
+      "rfc_keyword": "RECOMMENDED",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not implement HTTP/3.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "2.2. HTTP Datagrams Using Capsules",
+      "requirement": "When HTTP/3 Datagrams are unavailable or undesirable, HTTP Datagrams can be sent using the Capsule Protocol.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not use the Capsule Protocol. While capsules can work over HTTP/1.1, they require a specific upgrade token mechanism that the application does not implement.",
+        "gap_description": "Not applicable — no Capsule Protocol usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "3.1. HTTP Data Streams",
+      "requirement": "Defines 'data stream' as the bidirectional byte stream following header sections. In HTTP/1.x, only the last request can start the Capsule Protocol.",
+      "rfc_keyword": "N/A (definitional)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not use HTTP data streams in the context of the Capsule Protocol.",
+        "gap_description": "Not applicable — no Capsule Protocol usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "3.2. The Capsule Protocol",
+      "requirement": "Intermediaries SHOULD forward Capsules without modification. Endpoints receiving unknown Capsule Types MUST silently drop them. The Capsule Protocol MUST NOT be used with messages containing Content-Length, Content-Type, or Transfer-Encoding headers.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "108-112",
+            "code_snippet": "res.set({\n  'Content-Type': 'audio/mpeg',\n  'Content-Length': buffer.length\n});\nres.send(buffer);"
+          }
+        ],
+        "observation": "The application uses standard HTTP responses with Content-Type and Content-Length headers. These are incompatible with the Capsule Protocol per this section, but the application does not use the Capsule Protocol.",
+        "gap_description": "Not applicable — the Capsule Protocol is not in use."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-014",
+      "standard_section": "3.3. Error Handling (Capsule Protocol)",
+      "requirement": "When a receiver encounters an error processing the Capsule Protocol, it MUST treat it as a malformed or incomplete HTTP message. Each Capsule's payload MUST contain exactly the fields identified in its description.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No Capsule Protocol processing occurs in the application.",
+        "gap_description": "Not applicable — no Capsule Protocol usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-015",
+      "standard_section": "3.4. The Capsule-Protocol Header Field",
+      "requirement": "The Capsule-Protocol header field value MUST be a Boolean. It MUST NOT be used on HTTP responses with status codes different from 101 and outside the 2xx range. HTTP endpoints SHOULD send this header when using the Capsule Protocol.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not send or process Capsule-Protocol header fields.",
+        "gap_description": "Not applicable — no Capsule Protocol usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-016",
+      "standard_section": "3.5. The DATAGRAM Capsule",
+      "requirement": "DATAGRAM Capsule (type 0x00) allows HTTP Datagrams on streams using the Capsule Protocol. Restrictions from Section 2.1 apply. Intermediaries MUST NOT re-encode unless they have identified Capsule Protocol usage.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No DATAGRAM Capsules are sent, received, or processed by the application.",
+        "gap_description": "Not applicable — no Capsule Protocol or datagram capsule usage."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-017",
+      "standard_section": "3.5. The DATAGRAM Capsule (intermediary behavior)",
+      "requirement": "If an intermediary receives an HTTP Datagram in a QUIC DATAGRAM frame and is forwarding on a connection supporting QUIC DATAGRAM frames, it SHOULD NOT convert to a DATAGRAM Capsule. If too large, it SHOULD drop instead of converting.",
+      "rfc_keyword": "SHOULD NOT",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application is not an HTTP intermediary. It is an origin server and client application.",
+        "gap_description": "Not applicable — the application is not an intermediary."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-018",
+      "standard_section": "3.5. The DATAGRAM Capsule (implementation limits)",
+      "requirement": "Implementations SHOULD take datagram payload size limits into account when parsing DATAGRAM Capsules. Large capsules SHOULD be discarded without buffering. Accumulation of entire capsule before re-encoding SHOULD be avoided.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "No DATAGRAM Capsules are parsed by the application.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-019",
+      "standard_section": "4. Security Considerations",
+      "requirement": "SETTINGS_H3_DATAGRAM allows probing for server capabilities. Capsule Protocol is not directly accessible from Web Platform APIs. New HTTP upgrade tokens using Capsule Protocol need security analysis.",
+      "rfc_keyword": "N/A (informative)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "The application does not expose HTTP Datagrams or Capsule Protocol capabilities. Security considerations for these features are not relevant.",
+        "gap_description": "Not applicable — no HTTP Datagram or Capsule Protocol features exposed."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-020",
+      "standard_section": "5.1. HTTP/3 Setting (IANA)",
+      "requirement": "SETTINGS_H3_DATAGRAM (0x33) is registered as a permanent HTTP/3 setting.",
+      "rfc_keyword": "N/A (IANA registration)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "IANA registration. No implementation action required from the application.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-021",
+      "standard_section": "5.2. HTTP/3 Error Code (IANA)",
+      "requirement": "H3_DATAGRAM_ERROR (0x33) is registered as a permanent HTTP/3 error code.",
+      "rfc_keyword": "N/A (IANA registration)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "IANA registration. No implementation action required.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    },
+    {
+      "finding_id": "F-022",
+      "standard_section": "5.3-5.4. HTTP Header Field Name and Capsule Types (IANA)",
+      "requirement": "Capsule-Protocol header field and DATAGRAM capsule type (0x00) are permanently registered. Capsule Types with value 0x29*N+0x17 are reserved and MUST NOT be assigned by IANA.",
+      "rfc_keyword": "MUST NOT (IANA directive)",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [],
+        "observation": "IANA registration directives. Not applicable to application developers.",
+        "gap_description": "Not applicable."
+      },
+      "remediation": "No action needed."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Understand HTTP Datagrams as enabler for future WebTransport adoption",
+      "description": "RFC 9297 provides the datagram layer that WebTransport uses over HTTP/3. If the application ever adopts WebTransport for signaling, the HTTP Datagram mechanism would provide the underlying unreliable delivery capability. This is handled by the protocol stack, not the application, but understanding the mechanism helps in evaluating latency characteristics.",
+      "affected_findings": ["F-001", "F-003", "F-005"],
+      "effort_estimate": "architectural"
+    },
+    {
+      "priority": "low",
+      "category": "interoperability",
+      "title": "Capsule Protocol as HTTP/1.1 fallback path",
+      "description": "The Capsule Protocol defined in RFC 9297 provides a reliable delivery mechanism for HTTP Datagrams over HTTP/1.1 and HTTP/2 when QUIC DATAGRAM frames are unavailable. If WebTransport were adopted, the Capsule Protocol could serve as a fallback for clients that cannot establish QUIC connections (e.g., behind restrictive firewalls). This parallels Socket.io's HTTP long-polling fallback for WebSocket.",
+      "affected_findings": ["F-011", "F-013", "F-016"],
+      "effort_estimate": "architectural"
+    }
+  ]
+}

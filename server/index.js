@@ -3,16 +3,29 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const crypto = require('crypto');
 const OpenAI = require('openai');
 
 const app = express();
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : '*';
+
+const corsConfig = {
+  origin: allowedOrigins === '*' ? '*' : (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
+  methods: ['GET', 'POST']
+};
+
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
+const io = new Server(server, { cors: corsConfig });
 
 const PORT = process.env.PORT || 3000;
 
@@ -30,7 +43,12 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.json());
 
 // Store rooms and participants
+// Each room: { participants: Map, password: string|null }
 const rooms = new Map();
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
 // Store conversation history per room for context
 const roomConversations = new Map();
@@ -121,19 +139,58 @@ app.get('/api/ai/status', (req, res) => {
   res.json({ available: !!openai });
 });
 
+// ICE servers endpoint (serves TURN credentials without exposing them in client JS)
+app.get('/api/ice-servers', (req, res) => {
+  const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ];
+
+  if (process.env.TURN_URL) {
+    iceServers.push({
+      urls: process.env.TURN_URL,
+      username: process.env.TURN_USERNAME,
+      credential: process.env.TURN_CREDENTIAL
+    });
+  }
+  if (process.env.TURNS_URL) {
+    iceServers.push({
+      urls: process.env.TURNS_URL,
+      username: process.env.TURN_USERNAME,
+      credential: process.env.TURN_CREDENTIAL
+    });
+  }
+
+  res.json({ iceServers });
+});
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   // Join a room
-  socket.on('join-room', ({ roomId, username }) => {
-    socket.join(roomId);
+  socket.on('join-room', ({ roomId, username, password }) => {
+    const room = rooms.get(roomId);
 
-    if (!rooms.has(roomId)) {
-      rooms.set(roomId, new Map());
+    // Validate password if room exists and is password-protected
+    if (room && room.password) {
+      if (!password || hashPassword(password) !== room.password) {
+        socket.emit('join-error', { message: 'Incorrect room password' });
+        return;
+      }
     }
 
-    const room = rooms.get(roomId);
-    room.set(socket.id, { username, id: socket.id });
+    // Create room if it doesn't exist
+    if (!room) {
+      rooms.set(roomId, {
+        participants: new Map(),
+        password: password ? hashPassword(password) : null
+      });
+    }
+
+    socket.join(roomId);
+
+    const currentRoom = rooms.get(roomId);
+    currentRoom.participants.set(socket.id, { username, id: socket.id });
 
     // Notify others in the room
     socket.to(roomId).emit('user-joined', {
@@ -143,7 +200,7 @@ io.on('connection', (socket) => {
 
     // Send list of existing users to the new user
     const existingUsers = [];
-    room.forEach((user, id) => {
+    currentRoom.participants.forEach((user, id) => {
       if (id !== socket.id) {
         existingUsers.push(user);
       }
@@ -190,6 +247,16 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Stats broadcast
+  socket.on('stats-update', ({ roomId, stats }) => {
+    socket.to(roomId).emit('stats-update', {
+      userId: socket.id,
+      username: socket.username,
+      stats,
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Media state changes
   socket.on('toggle-audio', ({ roomId, enabled }) => {
     socket.to(roomId).emit('user-toggle-audio', {
@@ -210,8 +277,8 @@ io.on('connection', (socket) => {
     if (socket.roomId) {
       const room = rooms.get(socket.roomId);
       if (room) {
-        room.delete(socket.id);
-        if (room.size === 0) {
+        room.participants.delete(socket.id);
+        if (room.participants.size === 0) {
           rooms.delete(socket.roomId);
           // Clean up conversation history when room is empty
           roomConversations.delete(socket.roomId);

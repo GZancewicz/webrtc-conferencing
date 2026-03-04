@@ -1,0 +1,956 @@
+{
+  "meta": {
+    "standard": {
+      "title": "QUIC: A UDP-Based Multiplexed and Secure Transport",
+      "identifier": "RFC 9000",
+      "source_file": "standards/quic/rfc9000-quic.txt",
+      "line_count": 8485
+    },
+    "app_name": "web-conference",
+    "generated_at": "2026-03-02T12:00:00Z"
+  },
+  "summary": {
+    "applicability": "not-applicable",
+    "applicability_rationale": "The web-conference application uses an Express.js HTTP/1.1 server (via Node.js http.createServer) for serving static files and API endpoints, and Socket.io over WebSocket for real-time signaling. Media transport uses WebRTC (which uses ICE/DTLS-SRTP over UDP, not QUIC). The application does not implement or use the QUIC transport protocol in any capacity. The server listens on a single TCP port and uses no UDP-based transport. All normative sections of RFC 9000 are therefore not applicable.",
+    "overall_compliance_level": "not-applicable",
+    "total_requirements_assessed": 45,
+    "compliant_count": 0,
+    "partially_compliant_count": 0,
+    "non_compliant_count": 0,
+    "not_applicable_count": 45,
+    "not_assessable_count": 0
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "standard_section": "1. Overview",
+      "requirement": "QUIC is a connection-oriented, secure, multiplexed transport protocol carried in UDP datagrams. Implementations must support the QUIC version 1 protocol as defined in this document.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-15",
+            "code_snippet": "const express = require('express');\nconst http = require('http');\nconst { Server } = require('socket.io');\n\nconst app = express();\nconst server = http.createServer(app);\nconst io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });"
+          },
+          {
+            "path": "package.json",
+            "lines": "17-23",
+            "code_snippet": "\"dependencies\": {\n    \"dotenv\": \"^16.3.1\",\n    \"express\": \"^4.18.2\",\n    \"openai\": \"^4.24.0\",\n    \"socket.io\": \"^4.7.2\",\n    \"uuid\": \"^9.0.1\"\n  }"
+          }
+        ],
+        "observation": "The server uses Node.js http.createServer() with Express.js, creating an HTTP/1.1 TCP server. Socket.io provides WebSocket transport over the same TCP connection. No QUIC protocol implementation or UDP transport is present.",
+        "gap_description": "The application uses HTTP/1.1 over TCP, not QUIC over UDP. No QUIC library or protocol implementation exists in the codebase or dependencies."
+      },
+      "remediation": "No action required. QUIC adoption would require replacing the HTTP/1.1 server with an HTTP/3 (QUIC-based) server."
+    },
+    {
+      "finding_id": "F-002",
+      "standard_section": "2. Streams (2.1-2.4)",
+      "requirement": "QUIC provides lightweight, ordered byte-stream abstractions. Streams can be unidirectional or bidirectional, identified by 62-bit stream IDs. Endpoints MUST NOT reuse a stream ID within a connection. Endpoints MUST be able to deliver stream data as an ordered byte stream. Endpoints MUST NOT send data without ensuring flow control limits.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "124-230",
+            "code_snippet": "io.on('connection', (socket) => {\n  socket.on('join-room', ({ roomId, username }) => { ... });\n  socket.on('offer', ({ to, offer }) => { ... });\n  socket.on('answer', ({ to, answer }) => { ... });\n  socket.on('ice-candidate', ({ to, candidate }) => { ... });\n});"
+          }
+        ],
+        "observation": "The application uses Socket.io (WebSocket over TCP) for all signaling communication. WebSocket provides a single bidirectional message stream, not QUIC's multiplexed stream abstraction. Media data uses WebRTC's own UDP-based transport (ICE/DTLS-SRTP), which is separate from QUIC.",
+        "gap_description": "No QUIC streams are created or managed. Signaling uses Socket.io WebSocket; media uses WebRTC."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-003",
+      "standard_section": "3. Stream States (3.1-3.5)",
+      "requirement": "Defines sending stream states (Ready, Send, Data Sent, Data Recvd, Reset Sent, Reset Recvd) and receiving stream states (Recv, Size Known, Data Recvd, Data Read, Reset Recvd, Reset Read). Senders MUST NOT send STREAM or STREAM_DATA_BLOCKED from terminal states. When receiving STOP_SENDING, endpoint MUST send RESET_STREAM if stream is in Ready or Send state.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC stream state machines are implemented. The application does not manage STREAM, STREAM_DATA_BLOCKED, RESET_STREAM, or STOP_SENDING frames.",
+        "gap_description": "QUIC stream state management is not applicable."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-004",
+      "standard_section": "4. Flow Control (4.1-4.6)",
+      "requirement": "QUIC uses credit-based flow control at both stream and connection levels. Senders MUST NOT send data in excess of either limit. Receivers MUST close connection with FLOW_CONTROL_ERROR if limits are violated. Endpoints MUST NOT exceed stream concurrency limits. Both endpoints MUST maintain flow control state for unterminated stream directions.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC flow control is implemented. TCP handles flow control for the HTTP/1.1 and WebSocket connections. WebRTC has its own congestion control via RTCP feedback.",
+        "gap_description": "QUIC flow control mechanisms are not applicable."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-005",
+      "standard_section": "5. Connections (5.1-5.3)",
+      "requirement": "QUIC connections use connection IDs for routing. Connection IDs MUST NOT contain information allowing external correlation. The same connection ID MUST NOT be issued more than once. Endpoints MUST NOT use same IP/port for multiple concurrent zero-length connection ID connections without ensuring migration features are unused.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "124-126",
+            "code_snippet": "io.on('connection', (socket) => {\n  console.log('User connected:', socket.id);"
+          }
+        ],
+        "observation": "The application uses Socket.io socket IDs for connection identification, not QUIC connection IDs. Socket.io manages connection state over TCP WebSocket.",
+        "gap_description": "QUIC connection ID management is not applicable."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-006",
+      "standard_section": "5.1.1. Issuing Connection IDs",
+      "requirement": "Connection IDs have associated sequence numbers. The sequence number on each newly issued connection ID MUST increase by 1. When issuing a connection ID, endpoint MUST accept packets carrying it for the connection duration. Endpoint MUST NOT provide more connection IDs than the peer's active_connection_id_limit.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC connection IDs are issued or managed.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-007",
+      "standard_section": "5.1.2. Consuming and Retiring Connection IDs",
+      "requirement": "Endpoints SHOULD retire connection IDs when no longer using the associated address. Upon receipt of increased Retire Prior To field, peer MUST stop using corresponding connection IDs. Endpoint MUST NOT forget a connection ID without retiring it.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC connection ID retirement mechanism exists.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-008",
+      "standard_section": "5.2. Matching Packets to Connections (5.2.1-5.2.3)",
+      "requirement": "Incoming QUIC packets must be classified and matched to connections. Endpoint MUST generate a connection error if processing contents of invalid packets before discovering an error. Defines client and server packet handling rules and load balancer considerations.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC packet matching occurs. TCP connection matching is handled by the OS network stack.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-009",
+      "standard_section": "6. Version Negotiation (6.1-6.3)",
+      "requirement": "Defines the version negotiation mechanism. Servers that do not support the client's chosen version SHOULD send a Version Negotiation packet. Endpoints MAY use reserved versions (0x?a?a?a?a) to exercise version negotiation.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC version negotiation occurs. The HTTP/1.1 server does not implement any QUIC version handling.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-010",
+      "standard_section": "7. Cryptographic and Transport Handshake (7.1-7.5)",
+      "requirement": "QUIC integrates TLS 1.3 for cryptographic handshake. Defines handshake flows, connection ID negotiation, connection ID authentication, transport parameter exchange, and cryptographic message buffering. Endpoints MUST NOT send or accept 0-RTT data with transport parameters that the server did not previously send.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "8-15",
+            "code_snippet": "const app = express();\nconst server = http.createServer(app);\nconst io = new Server(server, {\n  cors: { origin: '*', methods: ['GET', 'POST'] }\n});"
+          }
+        ],
+        "observation": "The server uses http.createServer() (unencrypted HTTP/1.1). No TLS or QUIC handshake is implemented at the application level. If TLS were needed, it would be configured at the reverse proxy level (e.g., Render.com handles HTTPS termination).",
+        "gap_description": "No QUIC cryptographic handshake is implemented."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-011",
+      "standard_section": "7.4. Transport Parameters (7.4.1-7.4.2)",
+      "requirement": "Defines transport parameters exchanged during handshake including initial_max_data, initial_max_stream_data, initial_max_streams, max_idle_timeout, max_udp_payload_size, and active_connection_id_limit. Client MUST NOT use remembered transport parameter values for 0-RTT that differ from server's current values.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC transport parameters are negotiated.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-012",
+      "standard_section": "8. Address Validation (8.1-8.2)",
+      "requirement": "Defines address validation during connection establishment and path validation. Servers MUST limit data sent to unvalidated addresses (anti-amplification limit of 3x). Token construction, retry-based validation, and path validation procedures are specified.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC address validation or anti-amplification mechanisms exist. TCP's three-way handshake provides inherent address validation.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-013",
+      "standard_section": "9. Connection Migration (9.1-9.7)",
+      "requirement": "QUIC supports connection migration to new network paths. Defines probing, initiating migration, responding to migration, loss detection/congestion control reset on migration, privacy implications, server preferred address, and IPv6 flow label handling.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "449-454",
+            "code_snippet": "connection.onconnectionstatechange = () => {\n  if (connection.connectionState === 'disconnected' ||\n      connection.connectionState === 'failed') {\n    this.removePeer(userId);\n  }\n};"
+          }
+        ],
+        "observation": "WebRTC provides its own connection migration via ICE restart. When connection state changes to 'disconnected' or 'failed', the application removes the peer. No QUIC connection migration is implemented.",
+        "gap_description": "Connection migration is handled by WebRTC ICE, not QUIC."
+      },
+      "remediation": "No action required. QUIC connection migration could provide more seamless network transitions for the signaling channel, but WebRTC already handles media path migration via ICE."
+    },
+    {
+      "finding_id": "F-014",
+      "standard_section": "10. Connection Termination (10.1-10.3)",
+      "requirement": "Defines idle timeout, immediate close (CONNECTION_CLOSE frame), and stateless reset mechanisms. Endpoints that have not negotiated idle timeout MUST NOT send idle timeout values. An endpoint MUST NOT send packets from a connection after entering the draining state.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "209-229",
+            "code_snippet": "socket.on('disconnect', () => {\n    if (socket.roomId) {\n      const room = rooms.get(socket.roomId);\n      if (room) {\n        room.delete(socket.id);\n        if (room.size === 0) {\n          rooms.delete(socket.roomId);\n          roomConversations.delete(socket.roomId);\n        }\n      }\n      socket.to(socket.roomId).emit('user-left', { userId: socket.id, username: socket.username });\n    }\n  });"
+          }
+        ],
+        "observation": "Connection termination uses Socket.io's disconnect event (TCP FIN/RST) and WebRTC's RTCPeerConnection.close(). No QUIC CONNECTION_CLOSE frames or stateless reset mechanisms are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-015",
+      "standard_section": "10.1. Idle Timeout (10.1.1-10.1.2)",
+      "requirement": "Each endpoint advertises max_idle_timeout transport parameter. Connection is silently closed and state discarded when idle for longer than the minimum of both endpoints' values. Endpoints can defer idle timeout by sending ack-eliciting packets.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC idle timeout is configured. Socket.io has its own ping/pong keepalive mechanism for WebSocket connections.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-016",
+      "standard_section": "10.2. Immediate Close (10.2.1-10.2.3)",
+      "requirement": "Defines CONNECTION_CLOSE frame for immediate connection termination. Specifies closing and draining connection states. Endpoints MUST NOT send packets after entering draining state. Defines special handling during handshake.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC CONNECTION_CLOSE frames or draining state management exists.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-017",
+      "standard_section": "10.3. Stateless Reset (10.3.1-10.3.3)",
+      "requirement": "Defines stateless reset mechanism for endpoints that have lost connection state. Specifies reset token calculation and looping prevention.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC stateless reset mechanism exists.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-018",
+      "standard_section": "11. Error Handling (11.1-11.2)",
+      "requirement": "Defines connection errors and stream errors. Connection errors lead to CONNECTION_CLOSE. Stream errors lead to RESET_STREAM. Endpoints that detect an error MUST signal it as specified.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "public/js/room.js",
+            "lines": "360-401",
+            "code_snippet": "} catch (error) {\n  console.error('Error handling offer:', error);\n}"
+          }
+        ],
+        "observation": "Error handling uses try/catch and console.error for WebRTC signaling errors. No QUIC-specific error codes or CONNECTION_CLOSE/RESET_STREAM frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-019",
+      "standard_section": "12. Packets and Frames (12.1-12.5)",
+      "requirement": "Defines QUIC packet structure including protected packets, packet coalescing, packet numbers, frame types and formats, and the relationship between frames and number spaces. Packet numbers MUST NOT be repeated within the same packet number space for the lifetime of a connection.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC packets or frames are constructed or parsed. All transport is over TCP (HTTP/1.1 + WebSocket).",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-020",
+      "standard_section": "13. Packetization and Reliability (13.1-13.4)",
+      "requirement": "Defines packet processing, ACK generation, retransmission of information, and Explicit Congestion Notification (ECN). Endpoints MUST acknowledge all ack-eliciting packets. An endpoint MUST NOT send a non-ack-eliciting packet in response to a non-ack-eliciting packet.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "TCP handles all reliable delivery and congestion control for the HTTP/WebSocket connections. WebRTC handles its own acknowledgment and retransmission.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-021",
+      "standard_section": "13.2. Generating Acknowledgments (13.2.1-13.2.7)",
+      "requirement": "Specifies ACK frame generation rules. Endpoint SHOULD send ACK frame after receiving at least two ack-eliciting packets. Endpoints MUST NOT generate ACK frames in Initial packet number space for Handshake/1-RTT packets.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC ACK frame generation is implemented.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-022",
+      "standard_section": "14. Datagram Size (14.1-14.4)",
+      "requirement": "Defines initial datagram size requirements (minimum 1200 bytes for IPv4, 1200 bytes for IPv6). Servers MUST NOT expand a datagram beyond the anti-amplification limit. Specifies PMTU discovery mechanisms (PMTUD and DPLPMTUD).",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No UDP datagrams are managed by the application. TCP handles segmentation. WebRTC's ICE/DTLS handles its own MTU considerations.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-023",
+      "standard_section": "15. Versions",
+      "requirement": "Defines the QUIC version field (32-bit). Version 1 uses value 0x00000001. Version 0x00000000 is reserved for version negotiation.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC version handling exists.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-024",
+      "standard_section": "16. Variable-Length Integer Encoding",
+      "requirement": "Defines the variable-length integer encoding used in QUIC. Values are encoded in 1, 2, 4, or 8 bytes depending on magnitude.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC variable-length integer encoding/decoding is implemented.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-025",
+      "standard_section": "17. Packet Formats (17.1-17.4)",
+      "requirement": "Defines long header packets (Initial, 0-RTT, Handshake, Retry, Version Negotiation) and short header packets (1-RTT). Specifies packet number encoding/decoding and the latency spin bit.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC packet format parsing or construction is implemented.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-026",
+      "standard_section": "17.2.2. Initial Packet",
+      "requirement": "Initial packets carry the first CRYPTO frames for TLS handshake. Client MUST expand UDP datagrams carrying Initial packets to at least 1200 bytes.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC Initial packets are constructed or processed.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-027",
+      "standard_section": "17.2.5. Retry Packet",
+      "requirement": "Retry packets carry an address validation token. They do not contain a packet number and cannot be acknowledged. Retry packets include a Retry Integrity Tag for validation.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC Retry packets are handled.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-028",
+      "standard_section": "18. Transport Parameter Encoding (18.1-18.2)",
+      "requirement": "Defines encoding format for transport parameters and their definitions including initial_max_data, initial_max_stream_data_bidi_local/remote, initial_max_stream_data_uni, initial_max_streams_bidi/uni, max_idle_timeout, max_udp_payload_size, active_connection_id_limit, and others.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC transport parameters are encoded, decoded, or negotiated.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-029",
+      "standard_section": "19.1. PADDING Frames",
+      "requirement": "PADDING frames have no semantic value and can be used to increase packet size. A PADDING frame has type 0x00.",
+      "rfc_keyword": "N/A",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC PADDING frames are generated or processed.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-030",
+      "standard_section": "19.2. PING Frames",
+      "requirement": "PING frames (type 0x01) are used to verify peer liveness or to prevent timeout.",
+      "rfc_keyword": "N/A",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "Socket.io handles keepalive via its own ping/pong mechanism over WebSocket. No QUIC PING frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-031",
+      "standard_section": "19.3. ACK Frames (19.3.1-19.3.2)",
+      "requirement": "ACK frames (types 0x02-0x03) acknowledge received packets. Defines ACK ranges and optional ECN counts.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC ACK frames are generated or parsed. TCP handles acknowledgments.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-032",
+      "standard_section": "19.4. RESET_STREAM Frames",
+      "requirement": "RESET_STREAM frames (type 0x04) abruptly terminate the sending part of a stream. Must include stream ID, application error code, and final size.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC RESET_STREAM frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-033",
+      "standard_section": "19.5. STOP_SENDING Frames",
+      "requirement": "STOP_SENDING frames (type 0x05) request that a peer stop sending on a stream.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC STOP_SENDING frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-034",
+      "standard_section": "19.6. CRYPTO Frames",
+      "requirement": "CRYPTO frames (type 0x06) carry cryptographic handshake messages (TLS). Data in CRYPTO frames is not flow controlled but MUST be buffered.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC CRYPTO frames are used. TLS handshake (if any) would be at the reverse proxy layer.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-035",
+      "standard_section": "19.7. NEW_TOKEN Frames",
+      "requirement": "NEW_TOKEN frames (type 0x07) provide tokens for address validation on future connections. Servers send these to clients for 0-RTT support.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC NEW_TOKEN frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-036",
+      "standard_section": "19.8. STREAM Frames",
+      "requirement": "STREAM frames (types 0x08-0x0f) carry application data on streams. Include stream ID, optional offset, optional length, and FIN bit.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC STREAM frames are used. Application data is carried over HTTP/1.1 and WebSocket.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-037",
+      "standard_section": "19.9-19.14. Flow Control Frames (MAX_DATA, MAX_STREAM_DATA, MAX_STREAMS, DATA_BLOCKED, STREAM_DATA_BLOCKED, STREAMS_BLOCKED)",
+      "requirement": "Defines flow control frames for managing data and stream limits. Receivers send MAX_DATA/MAX_STREAM_DATA to increase limits. Senders send BLOCKED frames when constrained.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC flow control frames are used. TCP handles flow control.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-038",
+      "standard_section": "19.15-19.16. NEW_CONNECTION_ID and RETIRE_CONNECTION_ID Frames",
+      "requirement": "NEW_CONNECTION_ID frames provide new connection IDs with sequence numbers and stateless reset tokens. RETIRE_CONNECTION_ID frames indicate that a connection ID is no longer in use.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC connection ID management frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-039",
+      "standard_section": "19.17-19.18. PATH_CHALLENGE and PATH_RESPONSE Frames",
+      "requirement": "PATH_CHALLENGE frames (type 0x1a) carry random data for path validation. PATH_RESPONSE frames (type 0x1b) echo the data. An endpoint that receives a PATH_CHALLENGE MUST respond with a PATH_RESPONSE containing the same data.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC path validation frames are used. WebRTC uses STUN binding requests for path validation (ICE connectivity checks).",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-040",
+      "standard_section": "19.19. CONNECTION_CLOSE Frames",
+      "requirement": "CONNECTION_CLOSE frames (types 0x1c-0x1d) signal connection closure with an error code and optional reason phrase.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC CONNECTION_CLOSE frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-041",
+      "standard_section": "19.20-19.21. HANDSHAKE_DONE and Extension Frames",
+      "requirement": "HANDSHAKE_DONE frame (type 0x1e) signals handshake completion. Only sent by servers. Extension frames may be defined in future specifications.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC HANDSHAKE_DONE or extension frames are used.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-042",
+      "standard_section": "20. Error Codes (20.1-20.2)",
+      "requirement": "Defines transport error codes (NO_ERROR, INTERNAL_ERROR, CONNECTION_REFUSED, FLOW_CONTROL_ERROR, STREAM_LIMIT_ERROR, STREAM_STATE_ERROR, FINAL_SIZE_ERROR, FRAME_ENCODING_ERROR, TRANSPORT_PARAMETER_ERROR, CONNECTION_ID_LIMIT_ERROR, PROTOCOL_VIOLATION, INVALID_TOKEN, APPLICATION_ERROR, CRYPTO_BUFFER_EXCEEDED, KEY_UPDATE_ERROR, AEAD_LIMIT_REACHED, NO_VIABLE_PATH, CRYPTO_ERROR) and application protocol error codes.",
+      "rfc_keyword": "MUST",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC error codes are used or handled. Application errors use HTTP status codes and Socket.io events.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-043",
+      "standard_section": "21. Security Considerations (21.1-21.14)",
+      "requirement": "Addresses security properties (handshake, protected packets, connection migration), denial of service (handshake DoS, amplification attacks), optimistic ACK attacks, request forgery attacks, slowloris attacks, stream fragmentation/reassembly attacks, stream commitment attacks, peer denial of service, ECN attacks, stateless reset oracle, version downgrade, targeted routing attacks, and traffic analysis.",
+      "rfc_keyword": "SHOULD",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "10-15",
+            "code_snippet": "const io = new Server(server, {\n  cors: {\n    origin: '*',\n    methods: ['GET', 'POST']\n  }\n});"
+          }
+        ],
+        "observation": "QUIC-specific security considerations do not apply. The application has its own security considerations: CORS is set to wildcard ('*'), no authentication is implemented, and the server runs on HTTP (not HTTPS). These are HTTP/WebSocket security concerns, not QUIC security concerns.",
+        "gap_description": "QUIC security considerations are not applicable. The application has separate security concerns in its HTTP/WebSocket layer."
+      },
+      "remediation": "No action required for QUIC security. The application should address its own security concerns separately (CORS restriction, authentication, HTTPS)."
+    },
+    {
+      "finding_id": "F-044",
+      "standard_section": "22. IANA Considerations (22.1-22.5)",
+      "requirement": "Establishes IANA registries for QUIC versions, transport parameters, frame types, and transport error codes. Defines registration policies including provisional and permanent registrations.",
+      "rfc_keyword": "N/A",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "IANA registration requirements apply to protocol implementors, not application developers. The application does not implement QUIC.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    },
+    {
+      "finding_id": "F-045",
+      "standard_section": "Appendix A. Pseudocode (A.1-A.4)",
+      "requirement": "Provides sample pseudocode for variable-length integer decoding, packet number encoding/decoding, and ECN validation. These are informative examples for implementors.",
+      "rfc_keyword": "N/A",
+      "compliance_level": "not-applicable",
+      "severity": "informational",
+      "evidence": {
+        "source_files": [
+          {
+            "path": "server/index.js",
+            "lines": "1-234",
+            "code_snippet": "N/A"
+          }
+        ],
+        "observation": "No QUIC encoding/decoding algorithms are implemented.",
+        "gap_description": "Not applicable — no QUIC protocol implementation."
+      },
+      "remediation": "No action required."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Consider HTTP/3 (QUIC) for Signaling Server",
+      "description": "Migrating the Express.js server from HTTP/1.1 to HTTP/3 (which uses QUIC as its transport) could provide benefits including faster connection establishment (0-RTT), improved head-of-line blocking mitigation for multiplexed requests (API calls + signaling), and seamless connection migration when users switch networks (e.g., Wi-Fi to cellular). This would require adopting a QUIC-capable HTTP server library for Node.js.",
+      "affected_findings": ["F-001", "F-010", "F-013"],
+      "effort_estimate": "architectural"
+    },
+    {
+      "priority": "low",
+      "category": "performance",
+      "title": "Consider WebTransport (QUIC) for Real-Time Signaling",
+      "description": "WebTransport is a modern API built on QUIC (RFC 9000) that could replace Socket.io WebSocket for signaling. WebTransport offers multiplexed streams, unreliable datagrams, and connection migration — all beneficial for real-time conferencing signaling. It provides lower latency than WebSocket for the signaling channel and could enable more efficient multi-stream communication patterns.",
+      "affected_findings": ["F-002", "F-004", "F-013", "F-014"],
+      "effort_estimate": "architectural"
+    },
+    {
+      "priority": "medium",
+      "category": "interoperability",
+      "title": "Evaluate QUIC for Media Transport (WebRTC-over-QUIC)",
+      "description": "The IETF is developing specifications for WebRTC media transport over QUIC (Media over QUIC Transport). This could eventually replace the current ICE/DTLS-SRTP media transport with QUIC-based delivery, providing benefits like connection migration, reduced connection establishment time, and better congestion control. This is a forward-looking recommendation as the standards are still maturing.",
+      "affected_findings": ["F-002", "F-004", "F-013"],
+      "effort_estimate": "architectural"
+    }
+  ]
+}

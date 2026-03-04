@@ -327,6 +327,12 @@ class WebConference {
     document.getElementById('toggle-stats').addEventListener('click', () => {
       this.toggleStats();
     });
+    document.getElementById('stats-refresh').addEventListener('click', () => {
+      this.renderStats();
+    });
+    document.getElementById('stats-refresh').addEventListener('click', () => {
+      this.renderStats();
+    });
     document.getElementById('stats-close').addEventListener('click', () => {
       this.toggleStats();
     });
@@ -903,6 +909,37 @@ class WebConference {
     }
   }
 
+  statsTip(label) {
+    const tips = {
+      'Connection': 'Overall peer connection state (new, connecting, connected, disconnected, failed, closed)',
+      'ICE State': 'ICE agent connection state - tracks whether ICE candidates have successfully created a connection',
+      'ICE Gather': 'Whether the browser is still discovering network candidates (new, gathering, complete)',
+      'Signaling': 'SDP offer/answer exchange state (stable = negotiation complete)',
+      'DTLS': 'Datagram TLS state - secures the media transport (connected = encrypted tunnel established)',
+      'DTLS Cipher': 'Encryption cipher used for the DTLS handshake',
+      'SRTP Cipher': 'Encryption cipher protecting the actual audio/video media packets',
+      'TLS Version': 'TLS protocol version used for DTLS (FEFC = DTLS 1.2)',
+      'Audio Codec': 'Codec compressing/decompressing the audio stream',
+      'Video Codec': 'Codec compressing/decompressing the video stream',
+      'Video Res': 'Resolution of the received video stream (width x height)',
+      'Framerate': 'Frames per second of the received video',
+      'RTT': 'Round-trip time - how long a packet takes to reach the peer and return (lower is better)',
+      'Packet Loss': 'Percentage of packets lost in transit (lower is better, >5% degrades quality)',
+      'Jitter': 'Variation in packet arrival times (lower is better, high jitter causes choppy audio/video)',
+      'Bytes Sent': 'Total data sent to this peer since connection started',
+      'Bytes Recv': 'Total data received from this peer since connection started',
+      'STUN': 'Session Traversal Utilities for NAT - helps discover your public IP for peer-to-peer connections',
+      'TURN': 'Traversal Using Relays around NAT - relays media when direct peer-to-peer fails'
+    };
+    return tips[label] || '';
+  }
+
+  statsRow(label, value) {
+    const tip = this.statsTip(label);
+    const titleAttr = tip ? ` title="${tip}" style="cursor:help;text-decoration:underline dotted var(--text-secondary)"` : '';
+    return `<tr><td${titleAttr}>${label}</td><td>${value}</td></tr>`;
+  }
+
   async renderStats() {
     const body = document.getElementById('stats-panel-body');
     let html = '';
@@ -915,7 +952,7 @@ class WebConference {
       const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
       urls.forEach(url => {
         const type = url.startsWith('turn') ? 'TURN' : 'STUN';
-        html += `<tr><td>${type}</td><td>${this.escapeHtml(url)}</td></tr>`;
+        html += this.statsRow(type, this.escapeHtml(url));
       });
     });
     html += '</table></div>';
@@ -934,10 +971,10 @@ class WebConference {
 
       // Connection states
       html += '<table class="stats-table">';
-      html += `<tr><td>Connection</td><td>${pc.connectionState || 'N/A'}</td></tr>`;
-      html += `<tr><td>ICE State</td><td>${pc.iceConnectionState || 'N/A'}</td></tr>`;
-      html += `<tr><td>ICE Gather</td><td>${pc.iceGatheringState || 'N/A'}</td></tr>`;
-      html += `<tr><td>Signaling</td><td>${pc.signalingState || 'N/A'}</td></tr>`;
+      html += this.statsRow('Connection', pc.connectionState || 'N/A');
+      html += this.statsRow('ICE State', pc.iceConnectionState || 'N/A');
+      html += this.statsRow('ICE Gather', pc.iceGatheringState || 'N/A');
+      html += this.statsRow('Signaling', pc.signalingState || 'N/A');
 
       // Get stats snapshot
       try {
@@ -998,26 +1035,26 @@ class WebConference {
         }
 
         // Transport/security
-        if (dtlsState) html += `<tr><td>DTLS</td><td>${dtlsState}</td></tr>`;
-        if (dtlsCipher) html += `<tr><td>DTLS Cipher</td><td>${dtlsCipher}</td></tr>`;
-        if (srtpCipher) html += `<tr><td>SRTP Cipher</td><td>${srtpCipher}</td></tr>`;
-        if (tlsVersion) html += `<tr><td>TLS Version</td><td>${tlsVersion}</td></tr>`;
+        if (dtlsState) html += this.statsRow('DTLS', dtlsState);
+        if (dtlsCipher) html += this.statsRow('DTLS Cipher', dtlsCipher);
+        if (srtpCipher) html += this.statsRow('SRTP Cipher', srtpCipher);
+        if (tlsVersion) html += this.statsRow('TLS Version', tlsVersion);
 
         // Media
-        if (audioCodec && codecMap.has(audioCodec)) html += `<tr><td>Audio Codec</td><td>${codecMap.get(audioCodec)}</td></tr>`;
-        if (videoCodec && codecMap.has(videoCodec)) html += `<tr><td>Video Codec</td><td>${codecMap.get(videoCodec)}</td></tr>`;
-        if (videoWidth && videoHeight) html += `<tr><td>Video Res</td><td>${videoWidth}x${videoHeight}</td></tr>`;
-        if (fps != null) html += `<tr><td>Framerate</td><td>${Math.round(fps)} fps</td></tr>`;
+        if (audioCodec && codecMap.has(audioCodec)) html += this.statsRow('Audio Codec', codecMap.get(audioCodec));
+        if (videoCodec && codecMap.has(videoCodec)) html += this.statsRow('Video Codec', codecMap.get(videoCodec));
+        if (videoWidth && videoHeight) html += this.statsRow('Video Res', `${videoWidth}x${videoHeight}`);
+        if (fps != null) html += this.statsRow('Framerate', `${Math.round(fps)} fps`);
 
         // Network
-        if (rtt != null) html += `<tr><td>RTT</td><td>${(rtt * 1000).toFixed(0)} ms</td></tr>`;
+        if (rtt != null) html += this.statsRow('RTT', `${(rtt * 1000).toFixed(0)} ms`);
         if (packetsRecv != null && packetsLost != null) {
           const lossRate = packetsRecv > 0 ? ((packetsLost / (packetsRecv + packetsLost)) * 100).toFixed(2) : '0.00';
-          html += `<tr><td>Packet Loss</td><td>${lossRate}% (${packetsLost} lost)</td></tr>`;
+          html += this.statsRow('Packet Loss', `${lossRate}% (${packetsLost} lost)`);
         }
-        if (jitter != null) html += `<tr><td>Jitter</td><td>${(jitter * 1000).toFixed(1)} ms</td></tr>`;
-        if (bytesSent != null) html += `<tr><td>Bytes Sent</td><td>${this.formatBytes(bytesSent)}</td></tr>`;
-        if (bytesRecv != null) html += `<tr><td>Bytes Recv</td><td>${this.formatBytes(bytesRecv)}</td></tr>`;
+        if (jitter != null) html += this.statsRow('Jitter', `${(jitter * 1000).toFixed(1)} ms`);
+        if (bytesSent != null) html += this.statsRow('Bytes Sent', this.formatBytes(bytesSent));
+        if (bytesRecv != null) html += this.statsRow('Bytes Recv', this.formatBytes(bytesRecv));
 
         html += '</table>';
 

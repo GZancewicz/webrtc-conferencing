@@ -80,6 +80,10 @@
         <span class="control-icon">📡</span>
         <span class="control-label">Telemetry</span>
       </button>
+      <button class="control-btn" id="toggle-dashboard" title="Analytics Dashboard">
+        <span class="control-icon">📊</span>
+        <span class="control-label">Dashboard</span>
+      </button>
       <button class="control-btn" id="toggle-topology" title="Network Map">
         <span class="control-icon">🗺️</span>
         <span class="control-label">Network</span>
@@ -125,6 +129,18 @@
       </div>
     </div>
     <div class="stats-panel-body" id="telemetry-panel-body"></div>
+  </div>
+
+  <!-- Dashboard panel overlay -->
+  <div class="dashboard-panel" id="dashboard-panel" style="display: none;">
+    <div class="dashboard-header">
+      <span>Analytics Dashboard</span>
+      <div>
+        <button class="stats-close-btn" id="dashboard-refresh" title="Refresh">&#8635;</button>
+        <button class="stats-close-btn" id="dashboard-close" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="dashboard-body" id="dashboard-body"></div>
   </div>
 
   <!-- Toast notifications -->

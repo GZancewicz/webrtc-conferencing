@@ -40,6 +40,7 @@ if (process.env.OPENAI_API_KEY) {
 
 // Serve static files
 app.use(express.static(path.join(__dirname, '../public')));
+app.use('/vendor/dagre', express.static(path.join(__dirname, '../node_modules/dagre/dist')));
 app.use(express.json());
 
 // Store rooms and participants

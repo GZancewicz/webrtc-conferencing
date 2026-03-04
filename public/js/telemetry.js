@@ -1,11 +1,14 @@
 export function toggleTelemetry() {
   const panel = document.getElementById('telemetry-panel');
+  const btn = document.getElementById('toggle-telemetry');
   const isVisible = panel.style.display !== 'none';
 
   if (isVisible) {
     panel.style.display = 'none';
+    btn.classList.remove('on');
   } else {
     panel.style.display = 'flex';
+    btn.classList.add('on');
     // Ensure DataChannels exist for all peers
     for (const [userId, peer] of this.peers) {
       if (!this.telemetryChannels.has(userId)) {

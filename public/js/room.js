@@ -19,7 +19,7 @@ class WebConference {
     this.isAudioEnabled = true;
     this.isVideoEnabled = true;
     this.isScreenSharing = false;
-    this.isChatVisible = true;
+    this.isChatVisible = false;
 
     // AI Assistant state
     this.aiAvailable = false;
@@ -111,7 +111,9 @@ class WebConference {
   }
 
   joinRoom() {
-    this.connectionTimestamps.set('signaling', new Date());
+    const now = new Date();
+    this.connectionTimestamps.set('self', now);
+    this.connectionTimestamps.set('signaling', now);
     this.socket.emit('join-room', {
       roomId: this.roomId,
       username: this.username,
@@ -322,9 +324,11 @@ class WebConference {
 
   toggleChat() {
     const sidebar = document.getElementById('sidebar');
+    const btn = document.getElementById('toggle-chat');
     this.isChatVisible = !this.isChatVisible;
     sidebar.classList.toggle('hidden', !this.isChatVisible);
     sidebar.classList.toggle('visible', this.isChatVisible);
+    btn.classList.toggle('on', this.isChatVisible);
   }
 
   updateParticipantCount() {

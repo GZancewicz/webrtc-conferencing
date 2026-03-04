@@ -30,7 +30,7 @@ export async function gatherTopologyData() {
   } catch (e) { /* ignore */ }
 
   // Self node
-  nodes.push({ id: 'self', label: this.username || 'You', type: 'self', connectedAt: null });
+  nodes.push({ id: 'self', label: this.username || 'You', type: 'self', connectedAt: this.connectionTimestamps.get('self') || null });
 
   // Signaling server
   let signalingLabel = `Signaling Server\n${signalingUri}`;
@@ -142,54 +142,84 @@ export async function gatherTopologyData() {
   return { nodes, edges };
 }
 
-export function layoutTopologyNodes(nodes, width, height) {
+function estimateNodeSize(node) {
+  const lines = node.label.split('\n');
+  // Estimate text width at 11px font (~6.5px per char)
+  const maxLineWidth = Math.max(...lines.map(l => l.length * 6.5));
+
+  // Shape dimensions
+  const shapeW = node.type === 'self' || node.type === 'peer' ? 44 : 70;
+  const shapeH = node.type === 'self' || node.type === 'peer' ? 44 : 36;
+
+  // Label height: lines * 14px + optional timestamp
+  const labelH = lines.length * 14 + (node.connectedAt ? 14 : 0);
+
+  const totalW = Math.max(shapeW, maxLineWidth) + 20;
+  const totalH = shapeH + labelH + 8;
+
+  return { w: totalW, h: totalH };
+}
+
+export function layoutTopologyNodes(nodes, edges, width, height) {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({
+    rankdir: 'BT',
+    nodesep: 60,
+    ranksep: 80,
+    marginx: 0,
+    marginy: 0
+  });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  // Add nodes with estimated dimensions
+  for (const node of nodes) {
+    const size = estimateNodeSize(node);
+    g.setNode(node.id, { width: size.w, height: size.h });
+  }
+
+  // Add deduplicated edges
+  const seen = new Set();
+  for (const edge of edges) {
+    const key = `${edge.from}|${edge.to}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      g.setEdge(edge.from, edge.to);
+    }
+  }
+
+  // Run dagre layout
+  dagre.layout(g);
+
+  // Find bounding box of dagre output
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const node of nodes) {
+    const dn = g.node(node.id);
+    minX = Math.min(minX, dn.x - dn.width / 2);
+    maxX = Math.max(maxX, dn.x + dn.width / 2);
+    minY = Math.min(minY, dn.y - dn.height / 2);
+    maxY = Math.max(maxY, dn.y + dn.height / 2);
+  }
+
+  const graphW = maxX - minX || 1;
+  const graphH = maxY - minY || 1;
   const padding = 50;
-  const usableW = width - padding * 2;
-  const usableH = height - padding * 2;
+  const legendH = 80;
+  const scaleX = (width - padding * 2) / graphW;
+  const scaleY = (height - padding * 2 - legendH) / graphH;
+  const scale = Math.min(scaleX, scaleY, 1);
 
-  const selfNode = nodes.find(n => n.type === 'self');
-  const signalingNode = nodes.find(n => n.type === 'infrastructure');
-  const stunNodes = nodes.filter(n => n.type === 'stun');
-  const turnNodes = nodes.filter(n => n.type === 'turn');
-  const peerNodes = nodes.filter(n => n.type === 'peer');
+  // Center the graph in the canvas
+  const scaledW = graphW * scale;
+  const scaledH = graphH * scale;
+  const offsetX = padding + (width - padding * 2 - scaledW) / 2;
+  const offsetY = padding + (height - padding * 2 - legendH - scaledH) / 2;
 
-  // Signaling: top center
-  if (signalingNode) {
-    signalingNode.x = padding + usableW / 2;
-    signalingNode.y = padding + 30;
+  // Apply scaled positions back to our nodes
+  for (const node of nodes) {
+    const dn = g.node(node.id);
+    node.x = offsetX + (dn.x - minX) * scale;
+    node.y = offsetY + (dn.y - minY) * scale;
   }
-
-  // Self: bottom-left
-  if (selfNode) {
-    selfNode.x = padding + 50;
-    selfNode.y = padding + usableH * 0.85;
-  }
-
-  // Peers: bottom-right, spaced vertically
-  if (peerNodes.length > 0) {
-    const startY = padding + usableH * 0.65;
-    const endY = padding + usableH * 0.95;
-    const spacing = peerNodes.length > 1 ? (endY - startY) / (peerNodes.length - 1) : 0;
-    peerNodes.forEach((n, i) => {
-      n.x = padding + usableW - 50;
-      n.y = peerNodes.length === 1 ? padding + usableH * 0.85 : startY + spacing * i;
-    });
-  }
-
-  // STUN: middle row, spread from 25% to 75% of width
-  stunNodes.forEach((n, i) => {
-    const spread = stunNodes.length > 1
-      ? usableW * 0.25 + (usableW * 0.5) * (i / (stunNodes.length - 1))
-      : usableW * 0.5;
-    n.x = padding + spread;
-    n.y = padding + usableH * 0.45;
-  });
-
-  // TURN: center, below STUN
-  turnNodes.forEach((n, i) => {
-    n.x = padding + usableW / 2;
-    n.y = padding + usableH * 0.65;
-  });
 
   return nodes;
 }
@@ -216,7 +246,7 @@ export async function renderTopology() {
   ctx.fillRect(0, 0, w, h);
 
   const data = await this.gatherTopologyData();
-  this.layoutTopologyNodes(data.nodes, w, h);
+  this.layoutTopologyNodes(data.nodes, data.edges, w, h);
 
   const nodeMap = new Map();
   data.nodes.forEach(n => nodeMap.set(n.id, n));
@@ -232,7 +262,7 @@ export async function renderTopology() {
     const fromNode = nodeMap.get(edge.from);
     const toNode = nodeMap.get(edge.to);
     if (fromNode && toNode) {
-      this.drawTopologyEdge(ctx, fromNode, toNode, edge.label, edge.style);
+      this.drawTopologyEdge(ctx, fromNode, toNode, edge.style);
     }
   }
 
@@ -333,7 +363,7 @@ export function drawTopologyNode(ctx, node) {
   ctx.restore();
 }
 
-export function drawTopologyEdge(ctx, from, to, label, style) {
+export function drawTopologyEdge(ctx, from, to, style) {
   const colors = {
     signaling: '#94a3b8',
     direct: '#22c55e',
@@ -385,48 +415,15 @@ export function drawTopologyEdge(ctx, from, to, label, style) {
   ctx.lineTo(x2 - arrowLen * Math.cos(angle + arrowAngle), y2 - arrowLen * Math.sin(angle + arrowAngle));
   ctx.stroke();
 
-  // Label at midpoint, offset perpendicular to edge to avoid overlap
-  if (label) {
-    const lx = (x1 + x2) / 2 + (-ny * 12);
-    const ly = (y1 + y2) / 2 + (nx * 12);
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const metrics = ctx.measureText(label);
-    const pw = metrics.width + 8;
-    const ph = 14;
-    // Background pill
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.beginPath();
-    const pr = 4;
-    ctx.moveTo(lx - pw / 2 + pr, ly - ph / 2);
-    ctx.lineTo(lx + pw / 2 - pr, ly - ph / 2);
-    ctx.quadraticCurveTo(lx + pw / 2, ly - ph / 2, lx + pw / 2, ly - ph / 2 + pr);
-    ctx.lineTo(lx + pw / 2, ly + ph / 2 - pr);
-    ctx.quadraticCurveTo(lx + pw / 2, ly + ph / 2, lx + pw / 2 - pr, ly + ph / 2);
-    ctx.lineTo(lx - pw / 2 + pr, ly + ph / 2);
-    ctx.quadraticCurveTo(lx - pw / 2, ly + ph / 2, lx - pw / 2, ly + ph / 2 - pr);
-    ctx.lineTo(lx - pw / 2, ly - ph / 2 + pr);
-    ctx.quadraticCurveTo(lx - pw / 2, ly - ph / 2, lx - pw / 2 + pr, ly - ph / 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = color;
-    ctx.fillText(label, lx, ly);
-  }
-
   ctx.restore();
 }
 
 export function drawTopologyLegend(ctx, w, h) {
   const items = [
-    { color: '#94a3b8', dash: true, label: 'wss:// (Signaling)' },
+    { color: '#94a3b8', dash: true, label: 'wss:// Socket.IO (Signaling)' },
     { color: '#22c55e', dash: false, label: 'DTLS-SRTP/UDP (Direct)' },
-    { color: '#eab308', dash: false, label: 'stun: (NAT Discovery)' },
-    { color: '#f97316', dash: false, label: 'turn:/turns: (Relay)' }
+    { color: '#eab308', dash: false, label: 'stun: STUN (NAT Discovery)' },
+    { color: '#f97316', dash: false, label: 'turn:/turns: TURN (Relay)' }
   ];
 
   const x = 12;

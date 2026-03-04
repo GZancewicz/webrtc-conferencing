@@ -38,7 +38,7 @@
       </div>
 
       <!-- Sidebar (chat + participants) -->
-      <aside class="sidebar" id="sidebar">
+      <aside class="sidebar hidden" id="sidebar">
         <div class="sidebar-tabs">
           <button class="tab-btn active" data-tab="chat">Chat</button>
           <button class="tab-btn" data-tab="participants">Participants</button>
@@ -65,7 +65,7 @@
         <span class="control-label">Mute</span>
       </button>
       <button class="control-btn" id="toggle-video" title="Toggle Camera">
-        <span class="control-icon">📷</span>
+        <span class="control-icon">📹</span>
         <span class="control-label">Stop Video</span>
       </button>
       <button class="control-btn" id="toggle-screen" title="Share Screen">
@@ -76,7 +76,7 @@
         <span class="control-icon">💬</span>
         <span class="control-label">Chat</span>
       </button>
-      <button class="control-btn telemetry-active" id="toggle-telemetry" title="Toggle Telemetry Panel">
+      <button class="control-btn on" id="toggle-telemetry" title="Toggle Telemetry Panel">
         <span class="control-icon">📡</span>
         <span class="control-label">Telemetry</span>
       </button>
@@ -142,6 +142,7 @@
   <div class="toast-container" id="toast-container"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/vendor/dagre/dagre.min.js"></script>
   <script type="module" src="js/room.js"></script>
 </body>
 </html>

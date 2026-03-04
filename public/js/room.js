@@ -959,6 +959,7 @@ class WebConference {
       'Recv Res': 'Resolution of the video you are receiving from this peer',
       'Recv FPS': 'Frames per second of the video you are receiving',
       'RTT': 'Round-trip time - how long a packet takes to reach the peer and return (lower is better)',
+      'Latency': 'Estimated one-way latency: RTT/2 (network) + jitter buffer delay. Does not include encode/decode overhead (~5-15ms)',
       'Packet Loss': 'Percentage of packets lost in transit (lower is better, >5% degrades quality)',
       'Jitter': 'Variation in packet arrival times (lower is better, high jitter causes choppy audio/video)',
       'Bytes Sent': 'Total data sent to this peer since connection started',
@@ -1024,6 +1025,7 @@ class WebConference {
         let videoWidth = null, videoHeight = null, fps = null;
         let outVideoWidth = null, outVideoHeight = null, outFps = null;
         let packetsLost = null, packetsRecv = null, jitter = null;
+        let jitterBufferDelay = null, jitterBufferCount = null;
         const codecMap = new Map();
 
         // First pass: collect all stats
@@ -1055,6 +1057,10 @@ class WebConference {
             packetsRecv = report.packetsReceived;
             jitter = report.jitter;
             if (report.codecId) videoCodec = report.codecId;
+            if (report.jitterBufferDelay != null && report.jitterBufferEmittedCount) {
+              jitterBufferDelay = report.jitterBufferDelay;
+              jitterBufferCount = report.jitterBufferEmittedCount;
+            }
           }
           if (report.type === 'inbound-rtp' && report.kind === 'audio') {
             if (report.codecId) audioCodec = report.codecId;
@@ -1093,6 +1099,16 @@ class WebConference {
 
         // Network
         if (rtt != null) html += this.statsRow('RTT', `${(rtt * 1000).toFixed(0)} ms`);
+        if (rtt != null) {
+          const oneWay = (rtt * 1000) / 2;
+          const bufferMs = (jitterBufferDelay != null && jitterBufferCount > 0)
+            ? (jitterBufferDelay / jitterBufferCount) * 1000
+            : 0;
+          const estimated = oneWay + bufferMs;
+          const parts = [`${oneWay.toFixed(0)} network`];
+          if (bufferMs > 0) parts.push(`${bufferMs.toFixed(0)} buffer`);
+          html += this.statsRow('Latency', `~${estimated.toFixed(0)} ms (${parts.join(' + ')})`);
+        }
         if (packetsRecv != null && packetsLost != null) {
           const lossRate = packetsRecv > 0 ? ((packetsLost / (packetsRecv + packetsLost)) * 100).toFixed(2) : '0.00';
           html += this.statsRow('Packet Loss', `${lossRate}% (${packetsLost} lost)`);

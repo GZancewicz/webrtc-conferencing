@@ -144,8 +144,8 @@ export async function gatherTopologyData() {
 
 function estimateNodeSize(node) {
   const lines = node.label.split('\n');
-  // Estimate text width at 11px font (~6.5px per char)
-  const maxLineWidth = Math.max(...lines.map(l => l.length * 6.5));
+  // Estimate text width at 11px font (~7.5px per char, conservative)
+  const maxLineWidth = Math.max(...lines.map(l => l.length * 7.5));
 
   // Shape dimensions
   const shapeW = node.type === 'self' || node.type === 'peer' ? 44 : 70;
@@ -154,8 +154,8 @@ function estimateNodeSize(node) {
   // Label height: lines * 14px + optional timestamp
   const labelH = lines.length * 14 + (node.connectedAt ? 14 : 0);
 
-  const totalW = Math.max(shapeW, maxLineWidth) + 20;
-  const totalH = shapeH + labelH + 8;
+  const totalW = Math.max(shapeW, maxLineWidth) + 30;
+  const totalH = shapeH + labelH + 12;
 
   return { w: totalW, h: totalH };
 }

@@ -142,17 +142,6 @@ class WebConference {
       this.toggleChat();
     });
 
-    // Toggle stats panel
-    document.getElementById('toggle-stats').addEventListener('click', () => {
-      this.toggleStats();
-    });
-    document.getElementById('stats-refresh').addEventListener('click', () => {
-      this.renderStats();
-    });
-    document.getElementById('stats-close').addEventListener('click', () => {
-      this.toggleStats();
-    });
-
     // Toggle telemetry
     document.getElementById('toggle-telemetry').addEventListener('click', () => {
       this.toggleTelemetry();

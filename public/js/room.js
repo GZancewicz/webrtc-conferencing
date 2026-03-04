@@ -954,8 +954,10 @@ class WebConference {
       'TLS Version': 'TLS protocol version used for DTLS (FEFC = DTLS 1.2)',
       'Audio Codec': 'Codec compressing/decompressing the audio stream',
       'Video Codec': 'Codec compressing/decompressing the video stream',
-      'Video Res': 'Resolution of the received video stream (width x height)',
-      'Framerate': 'Frames per second of the received video',
+      'Send Res': 'Resolution of the video you are sending to this peer',
+      'Send FPS': 'Frames per second of the video you are sending',
+      'Recv Res': 'Resolution of the video you are receiving from this peer',
+      'Recv FPS': 'Frames per second of the video you are receiving',
       'RTT': 'Round-trip time - how long a packet takes to reach the peer and return (lower is better)',
       'Packet Loss': 'Percentage of packets lost in transit (lower is better, >5% degrades quality)',
       'Jitter': 'Variation in packet arrival times (lower is better, high jitter causes choppy audio/video)',
@@ -1020,6 +1022,7 @@ class WebConference {
         let rtt = null, bytesSent = null, bytesRecv = null;
         let audioCodec = null, videoCodec = null;
         let videoWidth = null, videoHeight = null, fps = null;
+        let outVideoWidth = null, outVideoHeight = null, outFps = null;
         let packetsLost = null, packetsRecv = null, jitter = null;
         const codecMap = new Map();
 
@@ -1059,6 +1062,11 @@ class WebConference {
             if (packetsRecv == null) packetsRecv = report.packetsReceived;
             if (jitter == null) jitter = report.jitter;
           }
+          if (report.type === 'outbound-rtp' && report.kind === 'video') {
+            outVideoWidth = report.frameWidth;
+            outVideoHeight = report.frameHeight;
+            outFps = report.framesPerSecond;
+          }
         });
 
         // Active candidate pair
@@ -1078,8 +1086,10 @@ class WebConference {
         // Media
         if (audioCodec && codecMap.has(audioCodec)) html += this.statsRow('Audio Codec', codecMap.get(audioCodec));
         if (videoCodec && codecMap.has(videoCodec)) html += this.statsRow('Video Codec', codecMap.get(videoCodec));
-        if (videoWidth && videoHeight) html += this.statsRow('Video Res', `${videoWidth}x${videoHeight}`);
-        if (fps != null) html += this.statsRow('Framerate', `${Math.round(fps)} fps`);
+        if (outVideoWidth && outVideoHeight) html += this.statsRow('Send Res', this.formatRes(outVideoWidth, outVideoHeight));
+        if (outFps != null) html += this.statsRow('Send FPS', `${Math.round(outFps)} fps`);
+        if (videoWidth && videoHeight) html += this.statsRow('Recv Res', this.formatRes(videoWidth, videoHeight));
+        if (fps != null) html += this.statsRow('Recv FPS', `${Math.round(fps)} fps`);
 
         // Network
         if (rtt != null) html += this.statsRow('RTT', `${(rtt * 1000).toFixed(0)} ms`);
@@ -1161,6 +1171,19 @@ class WebConference {
       port: parts[5] || '?',
       type: parts[7] || '?'
     };
+  }
+
+  formatRes(w, h) {
+    const short = Math.min(w, h);
+    const long = Math.max(w, h);
+    if (long >= 3840) return `${w}x${h} (2160p/4K)`;
+    if (long >= 2560) return `${w}x${h} (1440p)`;
+    if (long >= 1920) return `${w}x${h} (1080p)`;
+    if (long >= 1280) return `${w}x${h} (720p)`;
+    if (long >= 854) return `${w}x${h} (480p)`;
+    if (long >= 640) return `${w}x${h} (360p)`;
+    if (long >= 426) return `${w}x${h} (240p)`;
+    return `${w}x${h} (${short}p)`;
   }
 
   formatBytes(bytes) {
@@ -1246,11 +1269,15 @@ class WebConference {
           }
           if (report.type === 'inbound-rtp' && report.kind === 'video') {
             if (report.codecId) videoCodecId = report.codecId;
-            if (report.frameWidth && report.frameHeight) rows.push(['Video Res', `${report.frameWidth}x${report.frameHeight}`]);
-            if (report.framesPerSecond != null) rows.push(['Framerate', `${Math.round(report.framesPerSecond)} fps`]);
+            if (report.frameWidth && report.frameHeight) rows.push(['Recv Res', this.formatRes(report.frameWidth, report.frameHeight)]);
+            if (report.framesPerSecond != null) rows.push(['Recv FPS', `${Math.round(report.framesPerSecond)} fps`]);
             packetsLost = report.packetsLost;
             packetsRecv = report.packetsReceived;
             if (report.jitter != null) { rows.push(['Jitter', `${(report.jitter * 1000).toFixed(1)} ms`]); stats._hasJitter = true; }
+          }
+          if (report.type === 'outbound-rtp' && report.kind === 'video') {
+            if (report.frameWidth && report.frameHeight) rows.push(['Send Res', this.formatRes(report.frameWidth, report.frameHeight)]);
+            if (report.framesPerSecond != null) rows.push(['Send FPS', `${Math.round(report.framesPerSecond)} fps`]);
           }
         });
 

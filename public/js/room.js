@@ -303,6 +303,7 @@ class WebConference {
       username: this.username,
       password: this.roomPassword
     });
+    this.broadcastOwnConfig();
   }
 
   setupEventListeners() {
@@ -1129,6 +1130,19 @@ class WebConference {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  broadcastOwnConfig() {
+    const rows = [];
+    // ICE servers
+    this.iceServers.iceServers.forEach(server => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      urls.forEach(url => {
+        const type = url.startsWith('turn') ? 'TURN' : 'STUN';
+        rows.push([type, url]);
+      });
+    });
+    this.addStatsMessage(this.username, { peer: 'self', rows }, new Date().toISOString());
   }
 
   startStatsBroadcast() {

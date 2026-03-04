@@ -32,6 +32,9 @@ class WebConference {
     // Per-peer ICE candidate tracking: Map<userId, {local: [], remote: []}>
     this.iceCandidates = new Map();
 
+    // Stats broadcast interval
+    this.statsBroadcastInterval = null;
+
     this.init();
   }
 
@@ -330,9 +333,6 @@ class WebConference {
     document.getElementById('stats-refresh').addEventListener('click', () => {
       this.renderStats();
     });
-    document.getElementById('stats-refresh').addEventListener('click', () => {
-      this.renderStats();
-    });
     document.getElementById('stats-close').addEventListener('click', () => {
       this.toggleStats();
     });
@@ -380,20 +380,25 @@ class WebConference {
         this.createPeerConnection(user.id, user.username, true);
       });
       this.updateParticipantCount();
+      if (users.length > 0) this.startStatsBroadcast();
     });
 
     // New user joined
     this.socket.on('user-joined', ({ userId, username }) => {
       this.showToast(`${username} joined the meeting`);
+      this.addSystemMessage(`${username} joined the meeting`);
       this.createPeerConnection(userId, username, false);
       this.updateParticipantCount();
+      this.startStatsBroadcast();
     });
 
     // User left
     this.socket.on('user-left', ({ userId, username }) => {
       this.showToast(`${username} left the meeting`);
+      this.addSystemMessage(`${username} left the meeting`);
       this.removePeer(userId);
       this.updateParticipantCount();
+      if (this.peers.size === 0) this.stopStatsBroadcast();
     });
 
     // WebRTC signaling
@@ -452,13 +457,22 @@ class WebConference {
       }
     });
 
+    // Stats broadcast from other participants
+    this.socket.on('stats-update', ({ username, stats, timestamp }) => {
+      this.addStatsMessage(username, stats, timestamp);
+    });
+
     // Media state changes
     this.socket.on('user-toggle-audio', ({ userId, enabled }) => {
       this.updatePeerAudioStatus(userId, enabled);
+      const peer = this.peers.get(userId);
+      if (peer) this.addSystemMessage(`${peer.username} ${enabled ? 'unmuted' : 'muted'} their mic`);
     });
 
     this.socket.on('user-toggle-video', ({ userId, enabled }) => {
       this.updatePeerVideoStatus(userId, enabled);
+      const peer = this.peers.get(userId);
+      if (peer) this.addSystemMessage(`${peer.username} ${enabled ? 'started' : 'stopped'} their camera`);
     });
   }
 
@@ -1117,7 +1131,141 @@ class WebConference {
     return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
+  startStatsBroadcast() {
+    if (this.statsBroadcastInterval) return;
+    // Send initial broadcast after 5s (let connection stabilize), then every 30s
+    this.statsBroadcastInterval = setTimeout(() => {
+      this.broadcastStats();
+      this.statsBroadcastInterval = setInterval(() => this.broadcastStats(), 30000);
+    }, 5000);
+  }
+
+  stopStatsBroadcast() {
+    if (this.statsBroadcastInterval) {
+      clearInterval(this.statsBroadcastInterval);
+      clearTimeout(this.statsBroadcastInterval);
+      this.statsBroadcastInterval = null;
+    }
+  }
+
+  async broadcastStats() {
+    if (this.peers.size === 0) return;
+
+    for (const [userId, peer] of this.peers) {
+      const pc = peer.connection;
+      try {
+        const rawStats = await pc.getStats();
+        const stats = { peer: peer.username };
+        const rows = [];
+        let activePairId = null;
+        const candidateMap = new Map();
+        const codecMap = new Map();
+        let audioCodecId = null, videoCodecId = null;
+        let packetsLost = null, packetsRecv = null;
+
+        rows.push(['Connection', pc.connectionState || 'N/A']);
+        rows.push(['ICE State', pc.iceConnectionState || 'N/A']);
+        rows.push(['ICE Gather', pc.iceGatheringState || 'N/A']);
+        rows.push(['Signaling', pc.signalingState || 'N/A']);
+
+        rawStats.forEach(report => {
+          if (report.type === 'transport') {
+            if (report.dtlsState) rows.push(['DTLS', report.dtlsState]);
+            if (report.dtlsCipher) rows.push(['DTLS Cipher', report.dtlsCipher]);
+            if (report.srtpCipher) rows.push(['SRTP Cipher', report.srtpCipher]);
+            if (report.tlsVersion) rows.push(['TLS Version', report.tlsVersion]);
+            activePairId = report.selectedCandidatePairId;
+          }
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            if (!activePairId) activePairId = report.id;
+            if (report.currentRoundTripTime != null) rows.push(['RTT', `${(report.currentRoundTripTime * 1000).toFixed(0)} ms`]);
+            if (report.bytesSent != null) rows.push(['Bytes Sent', this.formatBytes(report.bytesSent)]);
+            if (report.bytesReceived != null) rows.push(['Bytes Recv', this.formatBytes(report.bytesReceived)]);
+          }
+          if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+            candidateMap.set(report.id, report);
+          }
+          if (report.type === 'codec') {
+            codecMap.set(report.id, report.mimeType);
+          }
+          if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+            if (report.codecId) audioCodecId = report.codecId;
+            if (packetsLost == null) { packetsLost = report.packetsLost; packetsRecv = report.packetsReceived; }
+            if (report.jitter != null && !stats._hasJitter) { rows.push(['Jitter', `${(report.jitter * 1000).toFixed(1)} ms`]); stats._hasJitter = true; }
+          }
+          if (report.type === 'inbound-rtp' && report.kind === 'video') {
+            if (report.codecId) videoCodecId = report.codecId;
+            if (report.frameWidth && report.frameHeight) rows.push(['Video Res', `${report.frameWidth}x${report.frameHeight}`]);
+            if (report.framesPerSecond != null) rows.push(['Framerate', `${Math.round(report.framesPerSecond)} fps`]);
+            packetsLost = report.packetsLost;
+            packetsRecv = report.packetsReceived;
+            if (report.jitter != null) { rows.push(['Jitter', `${(report.jitter * 1000).toFixed(1)} ms`]); stats._hasJitter = true; }
+          }
+        });
+
+        if (audioCodecId && codecMap.has(audioCodecId)) rows.push(['Audio Codec', codecMap.get(audioCodecId)]);
+        if (videoCodecId && codecMap.has(videoCodecId)) rows.push(['Video Codec', codecMap.get(videoCodecId)]);
+        if (packetsRecv != null && packetsLost != null) {
+          const lossRate = packetsRecv > 0 ? ((packetsLost / (packetsRecv + packetsLost)) * 100).toFixed(2) : '0.00';
+          rows.push(['Packet Loss', `${lossRate}% (${packetsLost} lost)`]);
+        }
+
+        // Active candidate pair
+        if (activePairId) {
+          rawStats.forEach(report => {
+            if (report.id === activePairId) {
+              const local = candidateMap.get(report.localCandidateId);
+              const remote = candidateMap.get(report.remoteCandidateId);
+              if (local) rows.push(['Active Local', `${local.candidateType} ${local.protocol || ''} ${local.address || local.ip || ''}:${local.port || ''}`]);
+              if (remote) rows.push(['Active Remote', `${remote.candidateType} ${remote.protocol || ''} ${remote.address || remote.ip || ''}:${remote.port || ''}`]);
+            }
+          });
+        }
+
+        // Local candidates
+        const candidateEntry = this.iceCandidates.get(userId);
+        if (candidateEntry) {
+          candidateEntry.local.forEach(c => {
+            const p = this.parseCandidateString(c.candidate);
+            rows.push(['Local Candidate', `${p.type} ${p.protocol} ${p.address}:${p.port}`]);
+          });
+          candidateEntry.remote.forEach(c => {
+            const candStr = c.candidate || c;
+            const p = this.parseCandidateString(typeof candStr === 'string' ? candStr : c.candidate);
+            rows.push(['Remote Candidate', `${p.type} ${p.protocol} ${p.address}:${p.port}`]);
+          });
+        }
+
+        stats.rows = rows;
+        delete stats._hasJitter;
+        this.socket.emit('stats-update', { roomId: this.roomId, stats });
+        this.addStatsMessage(this.username, stats, new Date().toISOString());
+      } catch (e) {
+        // Stats unavailable, skip
+      }
+    }
+  }
+
+  addStatsMessage(username, stats, timestamp) {
+    const container = document.getElementById('chat-messages');
+    const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    let tableRows = '';
+    if (stats.rows) {
+      stats.rows.forEach(([label, value]) => {
+        tableRows += `<tr><td>${this.escapeHtml(label)}</td><td>${this.escapeHtml(value)}</td></tr>`;
+      });
+    }
+
+    const el = document.createElement('div');
+    el.className = 'chat-stats-message';
+    el.innerHTML = `<div class="chat-stats-header"><span class="chat-time">${time}</span> <strong>${this.escapeHtml(username)}</strong> → ${this.escapeHtml(stats.peer)}</div><table class="stats-table">${tableRows}</table>`;
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+  }
+
   leaveRoom() {
+    this.stopStatsBroadcast();
     // Stop all streams
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
@@ -1184,6 +1332,16 @@ class WebConference {
     `;
 
     container.appendChild(messageEl);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  addSystemMessage(text) {
+    const container = document.getElementById('chat-messages');
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const el = document.createElement('div');
+    el.className = 'chat-system-message';
+    el.innerHTML = `<span class="chat-time">${time}</span> ${this.escapeHtml(text)}`;
+    container.appendChild(el);
     container.scrollTop = container.scrollHeight;
   }
 

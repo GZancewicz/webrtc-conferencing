@@ -76,6 +76,10 @@
         <span class="control-icon">💬</span>
         <span class="control-label">Chat</span>
       </button>
+      <button class="control-btn" id="toggle-topology" title="Network Map">
+        <span class="control-icon">🗺️</span>
+        <span class="control-label">Network</span>
+      </button>
       <button class="control-btn" id="toggle-stats" title="Connection Stats">
         <span class="control-icon">📊</span>
         <span class="control-label">Stats</span>
@@ -101,6 +105,20 @@
       </div>
     </div>
     <div class="stats-panel-body" id="stats-panel-body"></div>
+  </div>
+
+  <!-- Topology panel overlay -->
+  <div class="topology-panel" id="topology-panel" style="display: none;">
+    <div class="topology-panel-header">
+      <span>Network Topology</span>
+      <div>
+        <button class="stats-close-btn" id="topology-refresh" title="Refresh">&#8635;</button>
+        <button class="stats-close-btn" id="topology-close" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="topology-panel-body" id="topology-panel-body">
+      <canvas id="topology-canvas"></canvas>
+    </div>
   </div>
 
   <!-- Toast notifications -->

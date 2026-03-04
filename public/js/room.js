@@ -341,6 +341,17 @@ class WebConference {
       this.toggleStats();
     });
 
+    // Toggle topology panel
+    document.getElementById('toggle-topology').addEventListener('click', () => {
+      this.toggleTopology();
+    });
+    document.getElementById('topology-refresh').addEventListener('click', () => {
+      this.renderTopology();
+    });
+    document.getElementById('topology-close').addEventListener('click', () => {
+      this.toggleTopology();
+    });
+
     // Tooltip click/tap handling
     document.addEventListener('click', (e) => {
       const tip = e.target.closest('.has-tip');
@@ -942,6 +953,21 @@ class WebConference {
     }
   }
 
+  async toggleTopology() {
+    const panel = document.getElementById('topology-panel');
+    const btn = document.getElementById('toggle-topology');
+    const isVisible = panel.style.display !== 'none';
+
+    if (isVisible) {
+      panel.style.display = 'none';
+      btn.classList.remove('active');
+    } else {
+      panel.style.display = 'flex';
+      btn.classList.add('active');
+      await this.renderTopology();
+    }
+  }
+
   statsTip(label) {
     const tips = {
       'Connection': 'Overall peer connection state (new, connecting, connected, disconnected, failed, closed)',
@@ -1530,6 +1556,420 @@ class WebConference {
     setTimeout(() => {
       toast.remove();
     }, 3000);
+  }
+
+  // --- Network Topology Map ---
+
+  async gatherTopologyData() {
+    const nodes = [];
+    const edges = [];
+
+    // Self node
+    nodes.push({ id: 'self', label: this.username || 'You', type: 'self' });
+
+    // Signaling server
+    nodes.push({ id: 'signaling', label: 'Signaling Server', type: 'infrastructure' });
+    edges.push({ from: 'self', to: 'signaling', label: 'Socket.IO / WS', style: 'signaling' });
+
+    // STUN/TURN servers from ICE config
+    const stunIds = [];
+    const turnId = [];
+    if (this.iceServers && this.iceServers.iceServers) {
+      let stunIndex = 0;
+      for (const server of this.iceServers.iceServers) {
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+        for (const url of urls) {
+          if (url.startsWith('stun:')) {
+            const host = url.replace('stun:', '').split(':')[0];
+            const id = `stun-${stunIndex++}`;
+            nodes.push({ id, label: `STUN\n${host}`, type: 'stun' });
+            stunIds.push(id);
+            edges.push({ from: 'self', to: id, label: 'STUN / UDP', style: 'stun' });
+          } else if (url.startsWith('turn:') || url.startsWith('turns:')) {
+            const host = url.replace(/turns?:/, '').split(':')[0].split('?')[0];
+            const id = 'turn';
+            if (!nodes.find(n => n.id === 'turn')) {
+              nodes.push({ id, label: `TURN\n${host}`, type: 'turn' });
+              turnId.push(id);
+              edges.push({ from: 'self', to: id, label: 'TURN / UDP', style: 'turn' });
+            }
+          }
+        }
+      }
+    }
+
+    // Peers and their connections
+    for (const [userId, peer] of this.peers) {
+      const peerId = `peer-${userId}`;
+      nodes.push({ id: peerId, label: peer.username || 'Peer', type: 'peer' });
+
+      // Signaling edge for each peer
+      edges.push({ from: peerId, to: 'signaling', label: 'Socket.IO / WS', style: 'signaling' });
+
+      // Determine connection type from active candidate pair
+      try {
+        const pc = peer.connection;
+        const stats = await pc.getStats();
+        let activePairId = null;
+        const candidateMap = new Map();
+
+        stats.forEach(report => {
+          if (report.type === 'transport') {
+            activePairId = report.selectedCandidatePairId;
+          }
+          if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+            candidateMap.set(report.id, report);
+          }
+        });
+
+        let activePair = null;
+        if (activePairId) {
+          stats.forEach(report => {
+            if (report.id === activePairId) activePair = report;
+          });
+        }
+        if (!activePair) {
+          stats.forEach(report => {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+              activePair = report;
+            }
+          });
+        }
+
+        if (activePair) {
+          const localCand = candidateMap.get(activePair.localCandidateId);
+          const remoteCand = candidateMap.get(activePair.remoteCandidateId);
+          const localType = localCand ? localCand.candidateType : 'unknown';
+          const remoteType = remoteCand ? remoteCand.candidateType : 'unknown';
+
+          if (localType === 'relay' || remoteType === 'relay') {
+            // TURN relay path
+            if (turnId.length > 0) {
+              edges.push({ from: 'self', to: turnId[0], label: 'TURN Relay', style: 'turn', isMedia: true });
+              edges.push({ from: turnId[0], to: peerId, label: 'TURN Relay', style: 'turn', isMedia: true });
+            } else {
+              edges.push({ from: 'self', to: peerId, label: 'TURN Relay / UDP', style: 'turn', isMedia: true });
+            }
+          } else if (localType === 'srflx' || remoteType === 'srflx') {
+            // STUN-assisted
+            edges.push({ from: 'self', to: peerId, label: 'WebRTC / UDP (STUN)', style: 'stun', isMedia: true });
+          } else {
+            // Direct (host)
+            edges.push({ from: 'self', to: peerId, label: 'WebRTC / UDP (direct)', style: 'direct', isMedia: true });
+          }
+        } else {
+          // Connection in progress or failed
+          edges.push({ from: 'self', to: peerId, label: 'WebRTC (connecting...)', style: 'connecting', isMedia: true });
+        }
+      } catch (e) {
+        edges.push({ from: 'self', to: peerId, label: 'WebRTC', style: 'direct', isMedia: true });
+      }
+    }
+
+    return { nodes, edges };
+  }
+
+  layoutTopologyNodes(nodes, width, height) {
+    const padding = 60;
+    const usableW = width - padding * 2;
+    const usableH = height - padding * 2;
+
+    const selfNode = nodes.find(n => n.type === 'self');
+    const signalingNode = nodes.find(n => n.type === 'infrastructure');
+    const stunNodes = nodes.filter(n => n.type === 'stun');
+    const turnNodes = nodes.filter(n => n.type === 'turn');
+    const peerNodes = nodes.filter(n => n.type === 'peer');
+
+    // Self: left-center
+    if (selfNode) {
+      selfNode.x = padding + 40;
+      selfNode.y = padding + usableH / 2;
+    }
+
+    // Signaling: top center
+    if (signalingNode) {
+      signalingNode.x = padding + usableW / 2;
+      signalingNode.y = padding + 20;
+    }
+
+    // STUN: center area, below signaling
+    stunNodes.forEach((n, i) => {
+      const spacing = usableW / (stunNodes.length + 1);
+      n.x = padding + spacing * (i + 1);
+      n.y = padding + usableH * 0.4;
+    });
+
+    // TURN: center, below STUN
+    turnNodes.forEach((n, i) => {
+      n.x = padding + usableW / 2;
+      n.y = padding + usableH * 0.6;
+    });
+
+    // Peers: right side, spaced vertically
+    if (peerNodes.length > 0) {
+      const startY = padding + usableH * 0.2;
+      const endY = padding + usableH * 0.8;
+      const spacing = peerNodes.length > 1 ? (endY - startY) / (peerNodes.length - 1) : 0;
+      peerNodes.forEach((n, i) => {
+        n.x = padding + usableW - 40;
+        n.y = peerNodes.length === 1 ? padding + usableH / 2 : startY + spacing * i;
+      });
+    }
+
+    return nodes;
+  }
+
+  async renderTopology() {
+    const canvas = document.getElementById('topology-canvas');
+    const body = document.getElementById('topology-panel-body');
+    if (!canvas || !body) return;
+
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = body.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.scale(dpr, dpr);
+
+    // Background
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, w, h);
+
+    const data = await this.gatherTopologyData();
+    this.layoutTopologyNodes(data.nodes, w, h);
+
+    const nodeMap = new Map();
+    data.nodes.forEach(n => nodeMap.set(n.id, n));
+
+    // Draw edges first
+    // Deduplicate media edges (avoid drawing duplicate TURN relay edges)
+    const drawnEdges = new Set();
+    for (const edge of data.edges) {
+      const key = [edge.from, edge.to, edge.label].sort().join('|');
+      if (drawnEdges.has(key)) continue;
+      drawnEdges.add(key);
+
+      const fromNode = nodeMap.get(edge.from);
+      const toNode = nodeMap.get(edge.to);
+      if (fromNode && toNode) {
+        this.drawTopologyEdge(ctx, fromNode, toNode, edge.label, edge.style);
+      }
+    }
+
+    // Draw nodes on top
+    for (const node of data.nodes) {
+      this.drawTopologyNode(ctx, node);
+    }
+
+    // Legend
+    this.drawTopologyLegend(ctx, w, h);
+  }
+
+  drawTopologyNode(ctx, node) {
+    const colors = {
+      self: '#4f46e5',
+      peer: '#22c55e',
+      infrastructure: '#94a3b8',
+      stun: '#eab308',
+      turn: '#f97316'
+    };
+    const color = colors[node.type] || '#94a3b8';
+    const radius = node.type === 'self' || node.type === 'peer' ? 22 : 18;
+
+    ctx.save();
+    if (node.type === 'self' || node.type === 'peer') {
+      // Circle
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Icon inside
+      ctx.fillStyle = '#fff';
+      ctx.font = `${radius}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.type === 'self' ? '👤' : '👥', node.x, node.y);
+    } else {
+      // Rounded rect for servers
+      const rw = 70;
+      const rh = 36;
+      const cr = 8;
+      const x = node.x - rw / 2;
+      const y = node.y - rh / 2;
+      ctx.beginPath();
+      ctx.moveTo(x + cr, y);
+      ctx.lineTo(x + rw - cr, y);
+      ctx.quadraticCurveTo(x + rw, y, x + rw, y + cr);
+      ctx.lineTo(x + rw, y + rh - cr);
+      ctx.quadraticCurveTo(x + rw, y + rh, x + rw - cr, y + rh);
+      ctx.lineTo(x + cr, y + rh);
+      ctx.quadraticCurveTo(x, y + rh, x, y + rh - cr);
+      ctx.lineTo(x, y + cr);
+      ctx.quadraticCurveTo(x, y, x + cr, y);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Icon inside rect
+      ctx.fillStyle = '#fff';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      if (node.type === 'infrastructure') {
+        ctx.fillText('🖥️', node.x, node.y);
+      } else if (node.type === 'stun') {
+        ctx.fillText('📡', node.x, node.y);
+      } else {
+        ctx.fillText('🔄', node.x, node.y);
+      }
+    }
+
+    // Label below
+    const lines = node.label.split('\n');
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const labelY = node.y + (node.type === 'self' || node.type === 'peer' ? 28 : 24);
+    lines.forEach((line, i) => {
+      ctx.fillText(line, node.x, labelY + i * 14);
+    });
+
+    ctx.restore();
+  }
+
+  drawTopologyEdge(ctx, from, to, label, style) {
+    const colors = {
+      signaling: '#94a3b8',
+      direct: '#22c55e',
+      stun: '#eab308',
+      turn: '#f97316',
+      connecting: '#64748b'
+    };
+    const color = colors[style] || '#94a3b8';
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = style === 'signaling' ? 1.5 : 2.5;
+
+    if (style === 'signaling') {
+      ctx.setLineDash([6, 4]);
+    } else {
+      ctx.setLineDash([]);
+    }
+
+    // Calculate line start/end to stop at node edges
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) { ctx.restore(); return; }
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const fromRadius = 26;
+    const toRadius = 26;
+    const x1 = from.x + nx * fromRadius;
+    const y1 = from.y + ny * fromRadius;
+    const x2 = to.x - nx * toRadius;
+    const y2 = to.y - ny * toRadius;
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // Arrowhead
+    ctx.setLineDash([]);
+    const arrowLen = 10;
+    const arrowAngle = Math.PI / 7;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - arrowLen * Math.cos(angle - arrowAngle), y2 - arrowLen * Math.sin(angle - arrowAngle));
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - arrowLen * Math.cos(angle + arrowAngle), y2 - arrowLen * Math.sin(angle + arrowAngle));
+    ctx.stroke();
+
+    // Label at midpoint
+    if (label) {
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const metrics = ctx.measureText(label);
+      const pw = metrics.width + 8;
+      const ph = 14;
+      // Background pill
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.beginPath();
+      const pr = 4;
+      ctx.moveTo(mx - pw / 2 + pr, my - ph / 2);
+      ctx.lineTo(mx + pw / 2 - pr, my - ph / 2);
+      ctx.quadraticCurveTo(mx + pw / 2, my - ph / 2, mx + pw / 2, my - ph / 2 + pr);
+      ctx.lineTo(mx + pw / 2, my + ph / 2 - pr);
+      ctx.quadraticCurveTo(mx + pw / 2, my + ph / 2, mx + pw / 2 - pr, my + ph / 2);
+      ctx.lineTo(mx - pw / 2 + pr, my + ph / 2);
+      ctx.quadraticCurveTo(mx - pw / 2, my + ph / 2, mx - pw / 2, my + ph / 2 - pr);
+      ctx.lineTo(mx - pw / 2, my - ph / 2 + pr);
+      ctx.quadraticCurveTo(mx - pw / 2, my - ph / 2, mx - pw / 2 + pr, my - ph / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.fillText(label, mx, my);
+    }
+
+    ctx.restore();
+  }
+
+  drawTopologyLegend(ctx, w, h) {
+    const items = [
+      { color: '#94a3b8', dash: true, label: 'Socket.IO / WS' },
+      { color: '#22c55e', dash: false, label: 'WebRTC Direct' },
+      { color: '#eab308', dash: false, label: 'STUN' },
+      { color: '#f97316', dash: false, label: 'TURN Relay' }
+    ];
+
+    const x = 12;
+    const y = h - items.length * 16 - 8;
+
+    ctx.save();
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    items.forEach((item, i) => {
+      const ly = y + i * 16;
+      ctx.strokeStyle = item.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash(item.dash ? [4, 3] : []);
+      ctx.beginPath();
+      ctx.moveTo(x, ly);
+      ctx.lineTo(x + 20, ly);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = item.color;
+      ctx.fillText(item.label, x + 26, ly);
+    });
+
+    ctx.restore();
   }
 
   escapeHtml(text) {

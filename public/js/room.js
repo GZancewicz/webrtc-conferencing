@@ -5,6 +5,7 @@ import * as webrtc from './webrtc.js';
 import * as stats from './stats.js';
 import * as telemetry from './telemetry.js';
 import * as topology from './topology.js';
+import * as dashboard from './dashboard.js';
 import * as ai from './ai.js';
 
 class WebConference {
@@ -50,6 +51,10 @@ class WebConference {
 
     // Connection timestamps: Map<nodeId, Date>
     this.connectionTimestamps = new Map();
+
+    // Dashboard analytics
+    this.dashboardHistory = new Map();
+    this.dashboardInterval = null;
 
     this.init();
   }
@@ -153,6 +158,17 @@ class WebConference {
     });
     document.getElementById('telemetry-close').addEventListener('click', () => {
       this.toggleTelemetry();
+    });
+
+    // Toggle dashboard
+    document.getElementById('toggle-dashboard').addEventListener('click', () => {
+      this.toggleDashboard();
+    });
+    document.getElementById('dashboard-refresh').addEventListener('click', () => {
+      this.collectDashboardSnapshot().then(() => this.renderDashboard());
+    });
+    document.getElementById('dashboard-close').addEventListener('click', () => {
+      this.toggleDashboard();
     });
 
     // Toggle topology panel
@@ -327,6 +343,7 @@ class WebConference {
   }
 
   leaveRoom() {
+    this.stopDashboardCollection();
     this.stopTelemetryBroadcast();
     // Close all telemetry channels
     for (const [, channel] of this.telemetryChannels) {
@@ -363,6 +380,7 @@ Object.assign(WebConference.prototype, webrtc);
 Object.assign(WebConference.prototype, stats);
 Object.assign(WebConference.prototype, telemetry);
 Object.assign(WebConference.prototype, topology);
+Object.assign(WebConference.prototype, dashboard);
 Object.assign(WebConference.prototype, ai);
 
 // Initialize when DOM is ready

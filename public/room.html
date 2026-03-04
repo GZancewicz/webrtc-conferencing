@@ -76,7 +76,7 @@
         <span class="control-icon">💬</span>
         <span class="control-label">Chat</span>
       </button>
-      <button class="control-btn" id="toggle-telemetry" title="Toggle Telemetry Exchange">
+      <button class="control-btn telemetry-active" id="toggle-telemetry" title="Toggle Telemetry Panel">
         <span class="control-icon">📡</span>
         <span class="control-label">Telemetry</span>
       </button>
@@ -89,8 +89,9 @@
         <span class="control-label">Stats</span>
       </button>
       <button class="control-btn" id="toggle-ai" title="Toggle AI Assistant" style="display: none;">
-        <span class="control-icon">🤖</span>
+        <span class="control-icon">✨</span>
         <span class="control-label">AI Assistant</span>
+        <span class="badge-beta">BETA</span>
       </button>
       <button class="control-btn control-btn-danger" id="leave-room" title="Leave Meeting">
         <span class="control-icon">📞</span>
@@ -125,10 +126,22 @@
     </div>
   </div>
 
+  <!-- Telemetry panel overlay -->
+  <div class="stats-panel" id="telemetry-panel" style="display: none;">
+    <div class="stats-panel-header">
+      <span>Telemetry</span>
+      <div>
+        <button class="stats-close-btn" id="telemetry-refresh" title="Refresh">&#8635;</button>
+        <button class="stats-close-btn" id="telemetry-close" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="stats-panel-body" id="telemetry-panel-body"></div>
+  </div>
+
   <!-- Toast notifications -->
   <div class="toast-container" id="toast-container"></div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="js/room.js"></script>
+  <script type="module" src="js/room.js"></script>
 </body>
 </html>

@@ -434,11 +434,11 @@ body {
   background-color: var(--danger-hover);
 }
 
-.control-btn.telemetry-active {
+.control-btn.on {
   background-color: var(--success-color);
 }
 
-.control-btn.telemetry-active:hover {
+.control-btn.on:hover {
   background-color: #16a34a;
 }
 

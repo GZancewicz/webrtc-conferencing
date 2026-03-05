@@ -193,6 +193,9 @@ class WebConference {
     document.getElementById('toggle-topology').addEventListener('click', () => {
       this.toggleTopology();
     });
+    document.getElementById('topology-configs').addEventListener('click', () => {
+      this.showConfigurationsPopup();
+    });
     document.getElementById('topology-refresh').addEventListener('click', () => {
       this.renderTopology();
     });

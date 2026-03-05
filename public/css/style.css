@@ -1177,6 +1177,85 @@ body {
   animation: topo-edge-flow-reverse 0.8s linear infinite;
 }
 
+/* Configurations popup — ad-hoc SFU topology grid */
+.config-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.config-popup {
+  background: #0a0e1a;
+  border: 1px solid #3b4d7a;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 640px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  color: #e2e8f0;
+}
+
+.config-popup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2a3354;
+}
+
+.config-popup-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.config-popup-subtitle {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+}
+
+.config-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #141926;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 10px 6px 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.config-card:hover {
+  border-color: #3b4d7a;
+  background: #1a2035;
+}
+
+.config-card svg {
+  display: block;
+}
+
+.config-card-label {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 6px;
+  text-align: center;
+  line-height: 1.3;
+}
+
 /* Dashboard panel — Mercury NOC aesthetic */
 .dashboard-panel {
   --dash-bg: #0a0e1a;

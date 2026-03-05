@@ -68,8 +68,11 @@ export async function collectDashboardSnapshot() {
         videoCodec: '',
         connectionState: '',
         iceState: '',
+        dtlsState: '',
         localCandidate: '',
-        remoteCandidate: ''
+        remoteCandidate: '',
+        localCandidates: [],
+        remoteCandidates: []
       });
     }
 
@@ -93,6 +96,7 @@ export async function collectDashboardSnapshot() {
       stats.forEach(report => {
         if (report.type === 'transport') {
           activePairId = report.selectedCandidatePairId;
+          if (report.dtlsState) history.dtlsState = report.dtlsState;
         }
         if (report.type === 'candidate-pair' && report.state === 'succeeded') {
           if (!activePairId) activePairId = report.id;
@@ -166,6 +170,20 @@ export async function collectDashboardSnapshot() {
             if (local) history.localCandidate = `${local.candidateType} ${local.protocol || ''} ${local.address || local.ip || ''}:${local.port || ''}`;
             if (remote) history.remoteCandidate = `${remote.candidateType} ${remote.protocol || ''} ${remote.address || remote.ip || ''}:${remote.port || ''}`;
           }
+        });
+      }
+
+      // Collect full candidate lists from iceCandidates map
+      const candidateEntry = this.iceCandidates.get(userId);
+      if (candidateEntry) {
+        history.localCandidates = candidateEntry.local.map(c => {
+          const parsed = this.parseCandidateString(c.candidate);
+          return `${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}`;
+        });
+        history.remoteCandidates = candidateEntry.remote.map(c => {
+          const candStr = c.candidate || c;
+          const parsed = this.parseCandidateString(typeof candStr === 'string' ? candStr : c.candidate);
+          return `${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}`;
         });
       }
 
@@ -407,6 +425,24 @@ export function renderDashboard() {
   `;
   body.appendChild(kpiBar);
 
+  // --- ICE Servers Section ---
+  if (this.iceServers && this.iceServers.iceServers) {
+    const iceSection = document.createElement('div');
+    iceSection.className = 'dash-ice-section';
+    let iceHtml = '<div class="dash-ice-title">Configured ICE Servers</div><div class="dash-ice-list">';
+    this.iceServers.iceServers.forEach(server => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      urls.forEach(url => {
+        const type = url.startsWith('turn') ? 'TURN' : 'STUN';
+        const dotClass = type === 'TURN' ? 'cyan' : 'blue';
+        iceHtml += `<div class="dash-ice-item"><span class="dash-health-dot ${dotClass}"></span><span class="dash-ice-type">${type}</span><span class="dash-ice-url">${this.escapeHtml(url)}</span></div>`;
+      });
+    });
+    iceHtml += '</div>';
+    iceSection.innerHTML = iceHtml;
+    body.appendChild(iceSection);
+  }
+
   // --- Group Analytics Section ---
   const group = this.dashboardHistory.get('__group__');
   if (group && group.timestamps.length > 0) {
@@ -525,6 +561,7 @@ export function renderDashboard() {
     info.innerHTML = `
       <span class="dash-info-pill">Audio: ${this.escapeHtml(history.audioCodec || '–')}</span>
       <span class="dash-info-pill">Video: ${this.escapeHtml(history.videoCodec || '–')}</span>
+      <span class="dash-info-pill">DTLS: ${this.escapeHtml(history.dtlsState || '–')}</span>
       <span class="dash-info-pill">Local: ${this.escapeHtml(history.localCandidate || '–')}</span>
       <span class="dash-info-pill">Remote: ${this.escapeHtml(history.remoteCandidate || '–')}</span>
     `;
@@ -595,7 +632,100 @@ export function renderDashboard() {
     grid.appendChild(dataCard);
 
     section.appendChild(grid);
+
+    // Local candidates list
+    if (history.localCandidates && history.localCandidates.length > 0) {
+      const localCandSection = document.createElement('div');
+      localCandSection.className = 'dash-candidates-section';
+      localCandSection.innerHTML = `
+        <div class="dash-candidates-title">Local Candidates (${history.localCandidates.length})</div>
+        <div class="dash-candidates-list">
+          ${history.localCandidates.map(c => `<div class="dash-candidate-item">${this.escapeHtml(c)}</div>`).join('')}
+        </div>
+      `;
+      section.appendChild(localCandSection);
+    }
+
+    // Remote candidates list
+    if (history.remoteCandidates && history.remoteCandidates.length > 0) {
+      const remoteCandSection = document.createElement('div');
+      remoteCandSection.className = 'dash-candidates-section';
+      remoteCandSection.innerHTML = `
+        <div class="dash-candidates-title">Remote Candidates (${history.remoteCandidates.length})</div>
+        <div class="dash-candidates-list">
+          ${history.remoteCandidates.map(c => `<div class="dash-candidate-item">${this.escapeHtml(c)}</div>`).join('')}
+        </div>
+      `;
+      section.appendChild(remoteCandSection);
+    }
+
     body.appendChild(section);
+  }
+
+  // --- Received Peer Telemetry (via DataChannel) ---
+  if (this.receivedPeerStats && this.receivedPeerStats.size > 0) {
+    const peerTelSection = document.createElement('div');
+    peerTelSection.className = 'dash-peer-telemetry-section';
+
+    for (const [username, { stats, timestamp }] of this.receivedPeerStats) {
+      const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const block = document.createElement('div');
+      block.className = 'dash-peer-section';
+
+      const header = document.createElement('div');
+      header.className = 'dash-peer-header';
+      header.innerHTML = `
+        <span class="dash-health-dot cyan"></span>
+        <span class="dash-peer-name">${this.escapeHtml(username)}'s view &rarr; ${this.escapeHtml(stats.peer || '?')}</span>
+        <span class="dash-peer-state">via DataChannel</span>
+        <span class="dash-peer-telemetry-time">${time}</span>
+      `;
+      block.appendChild(header);
+
+      // Render received stats as info pills
+      if (stats.rows && stats.rows.length > 0) {
+        const infoRow = document.createElement('div');
+        infoRow.className = 'dash-info-row';
+        infoRow.innerHTML = stats.rows.map(([label, value]) =>
+          `<span class="dash-info-pill">${this.escapeHtml(label)}: ${this.escapeHtml(value)}</span>`
+        ).join('');
+        block.appendChild(infoRow);
+      }
+
+      // Remote peer's candidate lists
+      if (stats.localCandidates && stats.localCandidates.length > 0) {
+        const lc = document.createElement('div');
+        lc.className = 'dash-candidates-section';
+        lc.innerHTML = `
+          <div class="dash-candidates-title">Their Local Candidates (${stats.localCandidates.length})</div>
+          <div class="dash-candidates-list">
+            ${stats.localCandidates.map(c => {
+              const parsed = this.parseCandidateString(c);
+              return `<div class="dash-candidate-item">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+            }).join('')}
+          </div>
+        `;
+        block.appendChild(lc);
+      }
+      if (stats.remoteCandidates && stats.remoteCandidates.length > 0) {
+        const rc = document.createElement('div');
+        rc.className = 'dash-candidates-section';
+        rc.innerHTML = `
+          <div class="dash-candidates-title">Their Remote Candidates (${stats.remoteCandidates.length})</div>
+          <div class="dash-candidates-list">
+            ${stats.remoteCandidates.map(c => {
+              const parsed = this.parseCandidateString(c);
+              return `<div class="dash-candidate-item">${parsed.type} ${parsed.protocol} ${parsed.address}:${parsed.port}</div>`;
+            }).join('')}
+          </div>
+        `;
+        block.appendChild(rc);
+      }
+
+      peerTelSection.appendChild(block);
+    }
+
+    body.appendChild(peerTelSection);
   }
 }
 

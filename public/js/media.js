@@ -1,7 +1,11 @@
 export async function getLocalMedia() {
   try {
+    const videoConstraints = this.preferredResolution
+      ? { width: { ideal: this.preferredResolution.width }, height: { ideal: this.preferredResolution.height } }
+      : true;
+
     this.localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
+      video: videoConstraints,
       audio: true
     });
 

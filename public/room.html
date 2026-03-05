@@ -88,6 +88,10 @@
         <span class="control-icon">🗺️</span>
         <span class="control-label">Network</span>
       </button>
+      <button class="control-btn" id="toggle-settings" title="Media Settings">
+        <span class="control-icon">&#9881;</span>
+        <span class="control-label">Settings</span>
+      </button>
       <button class="control-btn" id="toggle-ai" title="Toggle AI Assistant" style="display: none;">
         <span class="control-icon">🗣️</span>
         <span class="control-label">AI Assistant</span>
@@ -113,8 +117,7 @@
     </div>
     <div class="topology-panel-body" id="topology-panel-body">
       <svg class="topo-svg" id="topo-svg"></svg>
-      <div class="topo-row topo-row-servers" id="topo-row-servers"></div>
-      <div class="topo-row topo-row-peers" id="topo-row-peers"></div>
+      <div class="topo-canvas" id="topo-canvas"></div>
       <div class="topo-legend" id="topo-legend"></div>
     </div>
   </div>
@@ -147,6 +150,38 @@
       </div>
     </div>
     <div class="dashboard-body" id="dashboard-body"></div>
+  </div>
+
+  <!-- Settings panel overlay -->
+  <div class="settings-panel" id="settings-panel" style="display: none;">
+    <div class="settings-panel-header">
+      <span>Media Settings</span>
+      <button class="stats-close-btn" id="settings-close" title="Close">&times;</button>
+    </div>
+    <div class="settings-panel-body">
+      <div class="settings-group">
+        <label class="settings-label" for="setting-resolution">Video Resolution</label>
+        <select class="settings-select" id="setting-resolution">
+          <option value="">Default</option>
+          <option value="640x360">360p (640x360)</option>
+          <option value="854x480">480p (854x480)</option>
+          <option value="1280x720">720p (1280x720)</option>
+          <option value="1920x1080">1080p (1920x1080)</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label" for="setting-audio-codec">Audio Codec</label>
+        <select class="settings-select" id="setting-audio-codec">
+          <option value="">Default</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label" for="setting-video-codec">Video Codec</label>
+        <select class="settings-select" id="setting-video-codec">
+          <option value="">Default</option>
+        </select>
+      </div>
+    </div>
   </div>
 
   <!-- Toast notifications -->

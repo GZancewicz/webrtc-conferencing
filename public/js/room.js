@@ -6,6 +6,7 @@ import * as stats from './stats.js';
 import * as telemetry from './telemetry.js';
 import * as topology from './topology.js';
 import * as dashboard from './dashboard.js';
+import * as settings from './settings.js';
 import * as ai from './ai.js';
 
 class WebConference {
@@ -55,6 +56,11 @@ class WebConference {
     // Dashboard analytics
     this.dashboardHistory = new Map();
     this.dashboardInterval = null;
+
+    // Media preferences
+    this.preferredResolution = null;
+    this.preferredAudioCodec = null;
+    this.preferredVideoCodec = null;
 
     this.init();
   }
@@ -182,6 +188,14 @@ class WebConference {
       this.toggleTopology();
     });
 
+    // Re-render topology on window resize
+    window.addEventListener('resize', () => {
+      const panel = document.getElementById('topology-panel');
+      if (panel && panel.style.display !== 'none') {
+        this.renderTopology();
+      }
+    });
+
     // Tooltip click/tap handling
     document.addEventListener('click', (e) => {
       const tip = e.target.closest('.has-tip');
@@ -194,6 +208,23 @@ class WebConference {
         e.stopPropagation();
         tip.classList.toggle('tip-open');
       }
+    });
+
+    // Toggle settings
+    document.getElementById('toggle-settings').addEventListener('click', () => {
+      this.toggleSettings();
+    });
+    document.getElementById('settings-close').addEventListener('click', () => {
+      this.toggleSettings();
+    });
+    document.getElementById('setting-resolution').addEventListener('change', (e) => {
+      this.applyResolution(e.target.value);
+    });
+    document.getElementById('setting-audio-codec').addEventListener('change', (e) => {
+      this.applyAudioCodec(e.target.value);
+    });
+    document.getElementById('setting-video-codec').addEventListener('change', (e) => {
+      this.applyVideoCodec(e.target.value);
     });
 
     // Toggle AI
@@ -263,6 +294,7 @@ class WebConference {
         const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);
         await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));
         this.flushPendingCandidates(from);
+        this.applyCodecPreferences(peer.connection);
         const answer = await peer.connection.createAnswer();
         await peer.connection.setLocalDescription(answer);
         this.socket.emit('answer', { to: from, answer });
@@ -381,6 +413,7 @@ Object.assign(WebConference.prototype, stats);
 Object.assign(WebConference.prototype, telemetry);
 Object.assign(WebConference.prototype, topology);
 Object.assign(WebConference.prototype, dashboard);
+Object.assign(WebConference.prototype, settings);
 Object.assign(WebConference.prototype, ai);
 
 // Initialize when DOM is ready

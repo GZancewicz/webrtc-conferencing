@@ -89,7 +89,7 @@
         <span class="control-label">Network</span>
       </button>
       <button class="control-btn" id="toggle-ai" title="Toggle AI Assistant" style="display: none;">
-        <span class="control-icon">✨</span>
+        <span class="control-icon">🗣️</span>
         <span class="control-label">AI Assistant</span>
         <span class="badge-beta">BETA</span>
       </button>
@@ -134,7 +134,13 @@
   <!-- Dashboard panel overlay -->
   <div class="dashboard-panel" id="dashboard-panel" style="display: none;">
     <div class="dashboard-header">
-      <span>Analytics Dashboard</span>
+      <div class="dashboard-header-left">
+        <span>Analytics Dashboard</span>
+        <div class="dash-live-indicator">
+          <span class="dash-live-dot"></span>
+          LIVE
+        </div>
+      </div>
       <div>
         <button class="stats-close-btn" id="dashboard-refresh" title="Refresh">&#8635;</button>
         <button class="stats-close-btn" id="dashboard-close" title="Close">&times;</button>

@@ -223,7 +223,7 @@ export function addAIParticipant() {
   item.innerHTML = `
     <span class="participant-name">AI Assistant</span>
     <div class="participant-status">
-      <span class="status-icon">✨</span>
+      <span class="status-icon">🗣️</span>
     </div>
   `;
   list.appendChild(item);

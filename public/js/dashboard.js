@@ -58,9 +58,12 @@ export async function collectDashboardSnapshot() {
         recvBitrate: [],
         sendRes: [],
         recvRes: [],
+        mos: [],
         prevBytesSent: null,
         prevBytesRecv: null,
         prevTimestamp: null,
+        totalBytesSent: 0,
+        totalBytesRecv: 0,
         audioCodec: '',
         videoCodec: '',
         connectionState: '',
@@ -144,6 +147,16 @@ export async function collectDashboardSnapshot() {
       history.prevBytesRecv = bytesRecv;
       history.prevTimestamp = now;
 
+      // Track total data
+      if (bytesSent != null) history.totalBytesSent = bytesSent;
+      if (bytesRecv != null) history.totalBytesRecv = bytesRecv;
+
+      // MOS score (E-model simplified)
+      let mos = null;
+      if (rtt != null || jitter != null || packetLoss != null) {
+        mos = calcMOS(rtt, jitter, packetLoss);
+      }
+
       // Active candidate info
       if (activePairId) {
         stats.forEach(report => {
@@ -167,11 +180,12 @@ export async function collectDashboardSnapshot() {
       history.recvBitrate.push(recvBitrate);
       history.sendRes.push(sendResW && sendResH ? `${sendResW}x${sendResH}` : null);
       history.recvRes.push(recvResW && recvResH ? `${recvResW}x${recvResH}` : null);
+      history.mos.push(mos);
 
       // Trim to MAX_SAMPLES
       if (history.timestamps.length > MAX_SAMPLES) {
         const excess = history.timestamps.length - MAX_SAMPLES;
-        for (const key of ['timestamps', 'rtt', 'jitter', 'packetLoss', 'sendFps', 'recvFps', 'sendBitrate', 'recvBitrate', 'sendRes', 'recvRes']) {
+        for (const key of ['timestamps', 'rtt', 'jitter', 'packetLoss', 'sendFps', 'recvFps', 'sendBitrate', 'recvBitrate', 'sendRes', 'recvRes', 'mos']) {
           history[key].splice(0, excess);
         }
       }
@@ -179,6 +193,32 @@ export async function collectDashboardSnapshot() {
       // Stats unavailable
     }
   }
+}
+
+// E-model simplified MOS calculation
+function calcMOS(rtt, jitter, packetLoss) {
+  const d = (rtt != null ? rtt : 0) / 2; // one-way delay
+  const j = jitter != null ? jitter : 0;
+  const pl = packetLoss != null ? packetLoss : 0;
+
+  // Effective latency
+  const effectiveLatency = d + j * 2 + 10;
+
+  // R-factor
+  let R;
+  if (effectiveLatency < 160) {
+    R = 93.2 - (effectiveLatency / 40);
+  } else {
+    R = 93.2 - ((effectiveLatency - 120) / 10);
+  }
+  R = R - (pl * 2.5);
+  R = Math.max(0, Math.min(100, R));
+
+  // Convert R to MOS
+  if (R < 0) return 1.0;
+  if (R > 100) return 4.5;
+  const mos = 1 + 0.035 * R + R * (R - 60) * (100 - R) * 7e-6;
+  return Math.max(1.0, Math.min(5.0, mos));
 }
 
 export function calcQualityScore(rttArr, jitterArr, lossArr) {
@@ -222,50 +262,77 @@ export function renderDashboard() {
 
   body.innerHTML = '';
 
-  // --- Summary row ---
-  const summary = document.createElement('div');
-  summary.className = 'dash-summary';
+  // --- KPI Bar ---
+  const kpiBar = document.createElement('div');
+  kpiBar.className = 'dash-kpi-bar';
 
   const totalPeers = this.peers.size;
   const selfTs = this.connectionTimestamps.get('self');
   const uptime = selfTs ? Math.floor((Date.now() - selfTs.getTime()) / 1000) : 0;
 
   let qualityScores = [];
+  let mosScores = [];
+  let totalSent = 0, totalRecv = 0;
   for (const [, history] of this.dashboardHistory) {
     const s = this.calcQualityScore(history.rtt, history.jitter, history.packetLoss);
     if (s != null) qualityScores.push(s);
+    const m = lastValid(history.mos);
+    if (m != null) mosScores.push(m);
+    totalSent += history.totalBytesSent || 0;
+    totalRecv += history.totalBytesRecv || 0;
   }
+
   const avgQuality = qualityScores.length > 0
     ? Math.round(qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length)
+    : null;
+  const avgMOS = mosScores.length > 0
+    ? (mosScores.reduce((a, b) => a + b, 0) / mosScores.length)
     : null;
 
   const samples = this.dashboardHistory.size > 0
     ? this.dashboardHistory.values().next().value.timestamps.length
     : 0;
 
-  summary.innerHTML = `
-    <div class="dash-summary-card">
-      <div class="dash-summary-icon">${qualityIcon(avgQuality)}</div>
-      <div class="dash-summary-value ${qualityClass(avgQuality)}">${avgQuality != null ? avgQuality : '–'}</div>
-      <div class="dash-summary-label">Quality Score</div>
+  kpiBar.innerHTML = `
+    <div class="dash-kpi-card accent">
+      <div class="dash-kpi-header">
+        <span class="dash-kpi-label">Quality Score</span>
+        <span class="dash-health-dot ${qualityHealthDot(avgQuality)}"></span>
+      </div>
+      <div class="dash-kpi-value">${avgQuality != null ? avgQuality : '–'}</div>
+      <div class="dash-kpi-sub">${avgQuality != null ? qualityLabel(avgQuality) : 'Waiting...'}</div>
     </div>
-    <div class="dash-summary-card">
-      <div class="dash-summary-icon">👥</div>
-      <div class="dash-summary-value">${totalPeers}</div>
-      <div class="dash-summary-label">Connected Peers</div>
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-header">
+        <span class="dash-kpi-label">MOS Score</span>
+        <span class="dash-health-dot ${mosHealthDot(avgMOS)}"></span>
+      </div>
+      <div class="dash-kpi-value">${avgMOS != null ? avgMOS.toFixed(2) : '–'}</div>
+      <div class="dash-kpi-sub">${avgMOS != null ? mosLabel(avgMOS) : 'Waiting...'}</div>
     </div>
-    <div class="dash-summary-card">
-      <div class="dash-summary-icon">⏱️</div>
-      <div class="dash-summary-value">${formatUptime(uptime)}</div>
-      <div class="dash-summary-label">Session Duration</div>
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-header">
+        <span class="dash-kpi-label">Connected Peers</span>
+      </div>
+      <div class="dash-kpi-value">${totalPeers}</div>
+      <div class="dash-kpi-sub">${samples} samples</div>
     </div>
-    <div class="dash-summary-card">
-      <div class="dash-summary-icon">📈</div>
-      <div class="dash-summary-value">${samples}</div>
-      <div class="dash-summary-label">Data Points</div>
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-header">
+        <span class="dash-kpi-label">Session Duration</span>
+      </div>
+      <div class="dash-kpi-value">${formatUptime(uptime)}</div>
+      <div class="dash-kpi-sub">since join</div>
+    </div>
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-header">
+        <span class="dash-kpi-label">Data Transferred</span>
+      </div>
+      <div class="dash-kpi-value">${formatDataSize(totalSent + totalRecv)}</div>
+      <div class="dash-kpi-sub">${formatDataSize(totalSent)} sent / ${formatDataSize(totalRecv)} recv</div>
     </div>
   `;
-  body.appendChild(summary);
+  body.appendChild(kpiBar);
 
   // --- Per-peer sections ---
   for (const [, history] of this.dashboardHistory) {
@@ -273,25 +340,28 @@ export function renderDashboard() {
     section.className = 'dash-peer-section';
 
     const score = this.calcQualityScore(history.rtt, history.jitter, history.packetLoss);
+    const currentMOS = lastValid(history.mos);
+    const owLatency = lastValid(history.rtt) != null ? (lastValid(history.rtt) / 2).toFixed(0) : null;
 
     // Header
     const header = document.createElement('div');
     header.className = 'dash-peer-header';
     header.innerHTML = `
+      <span class="dash-health-dot ${qualityHealthDot(score)}"></span>
       <span class="dash-peer-name">${this.escapeHtml(history.username)}</span>
       <span class="dash-peer-state">${history.connectionState} / ${history.iceState}</span>
-      ${score != null ? `<span class="dash-quality-badge ${qualityClass(score)}">${qualityLabel(score)}</span>` : ''}
+      ${score != null ? `<span class="dash-quality-badge ${qualityClass(score)}">${qualityLabel(score)} (${score})</span>` : ''}
     `;
     section.appendChild(header);
 
-    // Info row
+    // Info row with pills
     const info = document.createElement('div');
     info.className = 'dash-info-row';
     info.innerHTML = `
-      <span>Audio: ${this.escapeHtml(history.audioCodec || '–')}</span>
-      <span>Video: ${this.escapeHtml(history.videoCodec || '–')}</span>
-      <span>Local: ${this.escapeHtml(history.localCandidate || '–')}</span>
-      <span>Remote: ${this.escapeHtml(history.remoteCandidate || '–')}</span>
+      <span class="dash-info-pill">Audio: ${this.escapeHtml(history.audioCodec || '–')}</span>
+      <span class="dash-info-pill">Video: ${this.escapeHtml(history.videoCodec || '–')}</span>
+      <span class="dash-info-pill">Local: ${this.escapeHtml(history.localCandidate || '–')}</span>
+      <span class="dash-info-pill">Remote: ${this.escapeHtml(history.remoteCandidate || '–')}</span>
     `;
     section.appendChild(info);
 
@@ -300,13 +370,24 @@ export function renderDashboard() {
     grid.className = 'dash-card-grid';
 
     grid.appendChild(this.createDashboardCard('RTT', history.rtt, 'ms', {
-      color: '#3b82f6', warnThreshold: 200, critThreshold: 300
+      color: '#3b82f6', warnThreshold: 200, critThreshold: 300,
+      infraBar: true, infraMax: 500
+    }));
+    grid.appendChild(this.createDashboardCard('One-Way Latency', history.rtt.map(v => v != null ? v / 2 : null), 'ms', {
+      color: '#6366f1', warnThreshold: 100, critThreshold: 150,
+      infraBar: true, infraMax: 250
     }));
     grid.appendChild(this.createDashboardCard('Jitter', history.jitter, 'ms', {
-      color: '#8b5cf6', warnThreshold: 50, critThreshold: 80, decimals: 1
+      color: '#8b5cf6', warnThreshold: 50, critThreshold: 80, decimals: 1,
+      infraBar: true, infraMax: 120
     }));
     grid.appendChild(this.createDashboardCard('Packet Loss', history.packetLoss, '%', {
-      color: '#ef4444', warnThreshold: 3, critThreshold: 5, decimals: 2
+      color: '#ef4444', warnThreshold: 3, critThreshold: 5, decimals: 2,
+      infraBar: true, infraMax: 10
+    }));
+    grid.appendChild(this.createDashboardCard('MOS Score', history.mos, '', {
+      color: '#06b6d4', decimals: 2, invert: true,
+      warnThreshold: null, critThreshold: null
     }));
     grid.appendChild(this.createDashboardCard('Send FPS', history.sendFps, 'fps', {
       color: '#22c55e'
@@ -321,7 +402,7 @@ export function renderDashboard() {
       color: '#06b6d4', decimals: 0
     }));
 
-    // Resolution card (no sparkline)
+    // Resolution card
     const resCard = document.createElement('div');
     resCard.className = 'dash-card';
     const lastSendRes = lastValid(history.sendRes) || '–';
@@ -329,11 +410,24 @@ export function renderDashboard() {
     resCard.innerHTML = `
       <div class="dash-card-title">Resolution</div>
       <div class="dash-card-res">
-        <div><span class="dash-res-label">Send</span><span class="dash-res-value">${this.escapeHtml(lastSendRes)}</span></div>
-        <div><span class="dash-res-label">Recv</span><span class="dash-res-value">${this.escapeHtml(lastRecvRes)}</span></div>
+        <div class="dash-res-row"><span class="dash-res-label">Send</span><span class="dash-res-value">${this.escapeHtml(lastSendRes)}</span></div>
+        <div class="dash-res-row"><span class="dash-res-label">Recv</span><span class="dash-res-value">${this.escapeHtml(lastRecvRes)}</span></div>
       </div>
     `;
     grid.appendChild(resCard);
+
+    // Data transfer card
+    const dataCard = document.createElement('div');
+    dataCard.className = 'dash-card';
+    dataCard.innerHTML = `
+      <div class="dash-card-title">Data Transfer</div>
+      <div style="margin-top:8px">
+        <div class="dash-data-row"><span class="dash-data-label">Total Sent</span><span class="dash-data-value">${formatDataSize(history.totalBytesSent)}</span></div>
+        <div class="dash-data-row"><span class="dash-data-label">Total Recv</span><span class="dash-data-value">${formatDataSize(history.totalBytesRecv)}</span></div>
+        <div class="dash-data-row"><span class="dash-data-label">Combined</span><span class="dash-data-value">${formatDataSize(history.totalBytesSent + history.totalBytesRecv)}</span></div>
+      </div>
+    `;
+    grid.appendChild(dataCard);
 
     section.appendChild(grid);
     body.appendChild(section);
@@ -341,7 +435,10 @@ export function renderDashboard() {
 }
 
 export function createDashboardCard(title, data, unit, opts = {}) {
-  const { color = '#3b82f6', warnThreshold = null, critThreshold = null, decimals = 0 } = opts;
+  const {
+    color = '#3b82f6', warnThreshold = null, critThreshold = null,
+    decimals = 0, infraBar = false, infraMax = 100
+  } = opts;
 
   const card = document.createElement('div');
   card.className = 'dash-card';
@@ -376,6 +473,24 @@ export function createDashboardCard(title, data, unit, opts = {}) {
   canvas.className = 'dash-sparkline';
   card.appendChild(canvas);
   this.drawSparkline(canvas, data, { color, warnThreshold, critThreshold });
+
+  // Infrastructure-style progress bar
+  if (infraBar && current != null) {
+    const barContainer = document.createElement('div');
+    barContainer.className = 'dash-infra-bar';
+    const barFill = document.createElement('div');
+    barFill.className = 'dash-infra-bar-fill';
+    const pct = Math.min(100, (current / infraMax) * 100);
+    barFill.style.width = pct + '%';
+
+    let barColor = '#10b981'; // green
+    if (critThreshold != null && current >= critThreshold) barColor = '#ef4444';
+    else if (warnThreshold != null && current >= warnThreshold) barColor = '#f59e0b';
+    barFill.style.background = barColor;
+
+    barContainer.appendChild(barFill);
+    card.appendChild(barContainer);
+  }
 
   // Min / Avg / Max
   const statsEl = document.createElement('div');
@@ -448,7 +563,7 @@ export function drawSparkline(canvas, data, opts = {}) {
       ctx.setLineDash([]);
     }
   };
-  drawThreshold(warnThreshold, 'rgba(234, 179, 8, 0.35)');
+  drawThreshold(warnThreshold, 'rgba(245, 158, 11, 0.35)');
   drawThreshold(critThreshold, 'rgba(239, 68, 68, 0.35)');
 
   // Filled area
@@ -475,14 +590,17 @@ export function drawSparkline(canvas, data, opts = {}) {
   ctx.lineJoin = 'round';
   ctx.stroke();
 
-  // Current value dot
+  // Current value dot with glow
   const last = points[points.length - 1];
   ctx.beginPath();
-  ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
+  ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
   ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 6;
   ctx.fill();
-  ctx.strokeStyle = '#0f172a';
-  ctx.lineWidth = 1;
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#0a0e1a';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 }
 
@@ -510,11 +628,26 @@ function qualityLabel(score) {
   return 'Poor';
 }
 
-function qualityIcon(score) {
-  if (score == null) return '⚪';
-  if (score >= 80) return '🟢';
-  if (score >= 50) return '🟡';
-  return '🔴';
+function qualityHealthDot(score) {
+  if (score == null) return '';
+  if (score >= 80) return 'green';
+  if (score >= 50) return 'yellow';
+  return 'red';
+}
+
+function mosHealthDot(mos) {
+  if (mos == null) return '';
+  if (mos >= 4.0) return 'green';
+  if (mos >= 3.0) return 'yellow';
+  return 'red';
+}
+
+function mosLabel(mos) {
+  if (mos >= 4.3) return 'Excellent';
+  if (mos >= 4.0) return 'Good';
+  if (mos >= 3.6) return 'Fair';
+  if (mos >= 3.0) return 'Acceptable';
+  return 'Poor';
 }
 
 function formatUptime(seconds) {
@@ -524,4 +657,16 @@ function formatUptime(seconds) {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+function formatDataSize(bytes) {
+  if (bytes == null || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let size = bytes;
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024;
+    i++;
+  }
+  return size.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
 }

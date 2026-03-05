@@ -11,6 +11,9 @@ export function createPeerConnection(userId, username, initiator) {
     });
   }
 
+  // Apply codec preferences before offer/answer
+  this.applyCodecPreferences(connection);
+
   // Handle ICE candidates
   connection.onicecandidate = (event) => {
     if (event.candidate) {

@@ -148,27 +148,24 @@ export async function renderTopology() {
 
   const data = await this.gatherTopologyData();
 
-  const serverRow = document.getElementById('topo-row-servers');
-  const peerRow = document.getElementById('topo-row-peers');
+  const canvas = document.getElementById('topo-canvas');
   const legend = document.getElementById('topo-legend');
   const svg = document.getElementById('topo-svg');
 
-  // Clear previous content
-  serverRow.innerHTML = '';
-  peerRow.innerHTML = '';
+  canvas.innerHTML = '';
 
   const nodeElements = new Map();
 
-  // Build node HTML
+  // Categorize nodes
+  const selfNode = data.nodes.find(n => n.type === 'self');
+  const infraNodes = data.nodes.filter(n => n.type !== 'self' && n.type !== 'peer');
+  const peerNodes = data.nodes.filter(n => n.type === 'peer');
+
+  // Create and append all node elements
   for (const node of data.nodes) {
     const el = this.createTopologyNodeElement(node);
     nodeElements.set(node.id, el);
-
-    if (node.type === 'self' || node.type === 'peer') {
-      peerRow.appendChild(el);
-    } else {
-      serverRow.appendChild(el);
-    }
+    canvas.appendChild(el);
   }
 
   // Render legend (once)
@@ -176,8 +173,54 @@ export async function renderTopology() {
     this.renderTopologyLegend(legend);
   }
 
-  // Wait for DOM layout to settle, then draw SVG lines
+  // Position nodes radially after DOM layout
   requestAnimationFrame(() => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const radius = Math.min(cx, cy) * 0.7;
+
+    // Self at center
+    if (selfNode) {
+      const el = nodeElements.get(selfNode.id);
+      el.style.left = cx + 'px';
+      el.style.top = cy + 'px';
+    }
+
+    // Infrastructure in upper arc (-150° to -30°)
+    const infraStart = -150 * (Math.PI / 180);
+    const infraEnd = -30 * (Math.PI / 180);
+    infraNodes.forEach((node, i) => {
+      const count = infraNodes.length;
+      const angle = count === 1
+        ? -Math.PI / 2
+        : infraStart + (infraEnd - infraStart) * (i / (count - 1));
+      const el = nodeElements.get(node.id);
+      el.style.left = (cx + radius * Math.cos(angle)) + 'px';
+      el.style.top = (cy + radius * Math.sin(angle)) + 'px';
+    });
+
+    // Peers in lower arc (30° to 150°), wider for 5+ peers
+    peerNodes.forEach((node, i) => {
+      const count = peerNodes.length;
+      let angle;
+      if (count === 1) {
+        angle = Math.PI / 2;
+      } else if (count <= 4) {
+        const start = 30 * (Math.PI / 180);
+        const end = 150 * (Math.PI / 180);
+        angle = start + (end - start) * (i / (count - 1));
+      } else {
+        const start = -10 * (Math.PI / 180);
+        const end = 190 * (Math.PI / 180);
+        angle = start + (end - start) * (i / (count - 1));
+      }
+      const el = nodeElements.get(node.id);
+      el.style.left = (cx + radius * Math.cos(angle)) + 'px';
+      el.style.top = (cy + radius * Math.sin(angle)) + 'px';
+    });
+
+    // Draw edges after positions settle
     requestAnimationFrame(() => {
       this.drawTopologyEdges(svg, data.edges, nodeElements, body);
     });

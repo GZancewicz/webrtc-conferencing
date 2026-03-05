@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meeting Room - Web Conference</title>
+  <title>Meeting Room - Peer-to-Peer WebRTC Conference</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <!-- Header -->
     <header class="room-header">
       <div class="room-info">
-        <h1>Web Conference</h1>
+        <h1>Peer-to-Peer WebRTC Conference</h1>
         <span class="room-id" id="room-id-display"></span>
         <button class="btn btn-small" id="copy-link-btn" title="Copy invite link">Copy Link</button>
       </div>
@@ -38,7 +38,7 @@
       </div>
 
       <!-- Sidebar (chat + participants) -->
-      <aside class="sidebar" id="sidebar">
+      <aside class="sidebar hidden" id="sidebar">
         <div class="sidebar-tabs">
           <button class="tab-btn active" data-tab="chat">Chat</button>
           <button class="tab-btn" data-tab="participants">Participants</button>
@@ -60,64 +60,141 @@
 
     <!-- Controls -->
     <footer class="room-controls">
-      <button class="control-btn" id="toggle-audio" title="Toggle Microphone">
-        <span class="control-icon">🎤</span>
-        <span class="control-label">Mute</span>
-      </button>
-      <button class="control-btn" id="toggle-video" title="Toggle Camera">
-        <span class="control-icon">📷</span>
-        <span class="control-label">Stop Video</span>
-      </button>
-      <button class="control-btn" id="toggle-screen" title="Share Screen">
-        <span class="control-icon">🖥️</span>
-        <span class="control-label">Share Screen</span>
-      </button>
-      <button class="control-btn" id="toggle-chat" title="Toggle Chat">
-        <span class="control-icon">💬</span>
-        <span class="control-label">Chat</span>
-      </button>
-      <button class="control-btn" id="toggle-topology" title="Network Map">
-        <span class="control-icon">🗺️</span>
-        <span class="control-label">Network</span>
-      </button>
-      <button class="control-btn" id="toggle-stats" title="Connection Stats">
-        <span class="control-icon">📊</span>
-        <span class="control-label">Stats</span>
-      </button>
-      <button class="control-btn" id="toggle-ai" title="Toggle AI Assistant" style="display: none;">
-        <span class="control-icon">🤖</span>
-        <span class="control-label">AI Assistant</span>
-      </button>
-      <button class="control-btn control-btn-danger" id="leave-room" title="Leave Meeting">
-        <span class="control-icon">📞</span>
-        <span class="control-label">Leave</span>
-      </button>
+      <div class="controls-row">
+        <button class="control-btn" id="toggle-audio" title="Toggle Microphone">
+          <span class="control-icon">🎤</span>
+          <span class="control-label">Mute</span>
+        </button>
+        <button class="control-btn" id="toggle-video" title="Toggle Camera">
+          <span class="control-icon">📹</span>
+          <span class="control-label">Stop Video</span>
+        </button>
+        <button class="control-btn" id="toggle-screen" title="Share Screen">
+          <span class="control-icon">🖥️</span>
+          <span class="control-label">Share Screen</span>
+        </button>
+        <button class="control-btn" id="toggle-chat" title="Toggle Chat">
+          <span class="control-icon">💬</span>
+          <span class="control-label">Chat</span>
+        </button>
+        <button class="control-btn" id="toggle-more" title="More options">
+          <span class="control-icon">&#8943;</span>
+          <span class="control-label">More</span>
+        </button>
+        <button class="control-btn control-btn-danger" id="leave-room" title="Leave Meeting">
+          <span class="control-icon">📞</span>
+          <span class="control-label">Leave</span>
+        </button>
+      </div>
+      <div class="controls-row controls-more" id="controls-more" style="display: none;">
+        <button class="control-btn" id="toggle-telemetry" title="Toggle Telemetry Panel">
+          <span class="control-icon">📡</span>
+          <span class="control-label">Telemetry</span>
+        </button>
+        <button class="control-btn" id="toggle-dashboard" title="Analytics Dashboard">
+          <span class="control-icon">📊</span>
+          <span class="control-label">Dashboard</span>
+        </button>
+        <button class="control-btn" id="toggle-topology" title="Network Map">
+          <span class="control-icon">🗺️</span>
+          <span class="control-label">Network</span>
+        </button>
+        <button class="control-btn" id="toggle-ai" title="Toggle AI Assistant" style="display: none;">
+          <span class="control-icon">🗣️</span>
+          <span class="control-label">AI Assistant</span>
+          <span class="badge-beta">BETA</span>
+        </button>
+        <button class="control-btn" id="toggle-settings" title="Media Settings">
+          <span class="control-icon">&#9881;</span>
+          <span class="control-label">Settings</span>
+        </button>
+      </div>
     </footer>
   </div>
 
-  <!-- Analytics panel overlay -->
-  <div class="stats-panel" id="stats-panel" style="display: none;">
-    <div class="stats-panel-header">
-      <span>Connection Stats</span>
-      <div>
-        <button class="stats-close-btn" id="stats-refresh" title="Refresh">&#8635;</button>
-        <button class="stats-close-btn" id="stats-close" title="Close">&times;</button>
-      </div>
-    </div>
-    <div class="stats-panel-body" id="stats-panel-body"></div>
-  </div>
+
 
   <!-- Topology panel overlay -->
   <div class="topology-panel" id="topology-panel" style="display: none;">
     <div class="topology-panel-header">
       <span>Network Topology</span>
       <div>
+        <button class="stats-close-btn" id="topology-configs" title="Configurations">&#11043;</button>
         <button class="stats-close-btn" id="topology-refresh" title="Refresh">&#8635;</button>
         <button class="stats-close-btn" id="topology-close" title="Close">&times;</button>
       </div>
     </div>
     <div class="topology-panel-body" id="topology-panel-body">
-      <canvas id="topology-canvas"></canvas>
+      <svg class="topo-svg" id="topo-svg"></svg>
+      <div class="topo-canvas" id="topo-canvas"></div>
+      <div class="topo-legend" id="topo-legend"></div>
+    </div>
+  </div>
+
+  <!-- Telemetry panel overlay -->
+  <div class="stats-panel" id="telemetry-panel" style="display: none;">
+    <div class="stats-panel-header">
+      <span>Telemetry <span style="font-weight:400;font-size:11px;color:var(--text-secondary);">(Updated every 2s)</span></span>
+      <div>
+        <button class="stats-close-btn" id="telemetry-refresh" title="Refresh">&#8635;</button>
+        <button class="stats-close-btn" id="telemetry-close" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="stats-panel-body" id="telemetry-panel-body"></div>
+  </div>
+
+  <!-- Dashboard panel overlay -->
+  <div class="dashboard-panel" id="dashboard-panel" style="display: none;">
+    <div class="dashboard-header">
+      <div class="dashboard-header-left">
+        <span>Analytics Dashboard <span style="font-weight:400;font-size:11px;color:var(--dash-text-muted,#64748b);">(Updated every 2s)</span></span>
+        <div class="dash-live-indicator">
+          <span class="dash-live-dot"></span>
+          LIVE
+        </div>
+      </div>
+      <div>
+        <button class="stats-close-btn" id="dashboard-refresh" title="Refresh">&#8635;</button>
+        <button class="stats-close-btn" id="dashboard-close" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="dashboard-body" id="dashboard-body"></div>
+  </div>
+
+  <!-- Settings panel overlay -->
+  <div class="settings-panel" id="settings-panel" style="display: none;">
+    <div class="settings-panel-header">
+      <span>Media Settings</span>
+      <button class="stats-close-btn" id="settings-close" title="Close">&times;</button>
+    </div>
+    <div class="settings-panel-body">
+      <div class="settings-group">
+        <label class="settings-label" for="setting-resolution">Preferred Video Resolution</label>
+        <select class="settings-select" id="setting-resolution">
+          <option value="">No Preference</option>
+          <option value="640x360">360p (640x360)</option>
+          <option value="640x480">480p (640x480)</option>
+          <option value="854x480">480p (854x480)</option>
+          <option value="1280x720">720p (1280x720)</option>
+          <option value="1920x1080">1080p (1920x1080)</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label" for="setting-audio-codec">Preferred Audio Codec</label>
+        <div class="settings-codec-row">
+          <select class="settings-select" id="setting-audio-codec">
+          </select>
+          <span class="settings-codec-desc" id="audio-codec-desc"></span>
+        </div>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label" for="setting-video-codec">Preferred Video Codec</label>
+        <div class="settings-codec-row">
+          <select class="settings-select" id="setting-video-codec">
+          </select>
+          <span class="settings-codec-desc" id="video-codec-desc"></span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -125,6 +202,6 @@
   <div class="toast-container" id="toast-container"></div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="js/room.js"></script>
+  <script type="module" src="js/room.js"></script>
 </body>
 </html>

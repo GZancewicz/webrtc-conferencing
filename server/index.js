@@ -139,6 +139,21 @@ app.get('/api/ai/status', (req, res) => {
   res.json({ available: !!openai });
 });
 
+// Server info endpoint (exposes server IP for topology diagram)
+const os = require('os');
+app.get('/api/server-info', (req, res) => {
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+  for (const iface of Object.values(interfaces)) {
+    for (const addr of iface) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        addresses.push(addr.address);
+      }
+    }
+  }
+  res.json({ ip: addresses[0] || null });
+});
+
 // ICE servers endpoint (serves TURN credentials without exposing them in client JS)
 app.get('/api/ice-servers', (req, res) => {
   const iceServers = [
@@ -243,16 +258,6 @@ io.on('connection', (socket) => {
       userId: socket.id,
       username: socket.username,
       message,
-      timestamp: new Date().toISOString()
-    });
-  });
-
-  // Stats broadcast
-  socket.on('stats-update', ({ roomId, stats }) => {
-    socket.to(roomId).emit('stats-update', {
-      userId: socket.id,
-      username: socket.username,
-      stats,
       timestamp: new Date().toISOString()
     });
   });

@@ -722,6 +722,126 @@ export async function showEdgePopup(event, edge) {
   positionAndShowPopup(popup, clickRect, 8);
 }
 
+export function showConfigurationsPopup() {
+  // Remove any existing configurations popup
+  document.querySelectorAll('.config-popup-overlay').forEach(p => p.remove());
+
+  const n = this.peers.size + 1; // peers + self
+  // Dynamic import to keep configurations.js standalone
+  import('./configurations.js').then(({ enumerateConfigurations }) => {
+    const result = enumerateConfigurations(n);
+    const { totalRaw, configurations } = result;
+
+    // Overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'config-popup-overlay';
+
+    // Modal
+    const modal = document.createElement('div');
+    modal.className = 'config-popup';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'config-popup-header';
+    header.innerHTML =
+      `<div>
+        <div class="config-popup-title">${n} nodes &mdash; ${configurations.length} potential topologies</div>
+        <div class="config-popup-subtitle">Possibilities if Selective Forwarding Units (SFUs) were to be employed</div>
+        <div class="config-popup-subtitle">${totalRaw} total configurations before isomorphism collapse</div>
+      </div>`;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'stats-close-btn';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    // Grid of mini-diagrams
+    const grid = document.createElement('div');
+    grid.className = 'config-grid';
+
+    for (const cfg of configurations) {
+      const card = document.createElement('div');
+      card.className = 'config-card';
+
+      // SVG mini-diagram
+      const size = 90;
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('width', size);
+      svg.setAttribute('height', size);
+      svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+
+      const cx = size / 2;
+      const cy = size / 2;
+      const radius = size * 0.35;
+      const nodeRadius = n <= 4 ? 6 : 5;
+
+      // Position nodes on a circle
+      const positions = cfg.nodes.map((_, i) => {
+        if (cfg.nodes.length === 1) return { x: cx, y: cy };
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / cfg.nodes.length;
+        return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
+      });
+
+      // Draw edges
+      for (const [i, j] of cfg.edges) {
+        const line = document.createElementNS(ns, 'line');
+        line.setAttribute('x1', positions[i].x);
+        line.setAttribute('y1', positions[i].y);
+        line.setAttribute('x2', positions[j].x);
+        line.setAttribute('y2', positions[j].y);
+        // SFU-SFU edges are dashed orange; SFU-peer edges are solid
+        const isSfuEdge = cfg.nodes[i].type === 'sfu' && cfg.nodes[j].type === 'sfu';
+        line.setAttribute('stroke', isSfuEdge ? '#f97316' : '#64748b');
+        line.setAttribute('stroke-width', '1.5');
+        if (isSfuEdge) line.setAttribute('stroke-dasharray', '3 2');
+        line.setAttribute('stroke-opacity', '0.7');
+        svg.appendChild(line);
+      }
+
+      // Draw nodes
+      for (let i = 0; i < cfg.nodes.length; i++) {
+        const circle = document.createElementNS(ns, 'circle');
+        circle.setAttribute('cx', positions[i].x);
+        circle.setAttribute('cy', positions[i].y);
+        circle.setAttribute('r', nodeRadius);
+        circle.setAttribute('fill', cfg.nodes[i].type === 'sfu' ? '#f97316' : '#3b82f6');
+        circle.setAttribute('stroke', cfg.nodes[i].type === 'sfu' ? '#ea580c' : '#2563eb');
+        circle.setAttribute('stroke-width', '1.5');
+        svg.appendChild(circle);
+      }
+
+      card.appendChild(svg);
+
+      // Label
+      const label = document.createElement('div');
+      label.className = 'config-card-label';
+      if (cfg.k === 0) {
+        label.textContent = 'full mesh';
+      } else if (cfg.k === n) {
+        label.textContent = 'all SFU';
+      } else {
+        const dist = cfg.distribution.filter(d => d > 0);
+        label.textContent = cfg.k + ' SFU' + (cfg.k > 1 ? 's' : '') +
+          (dist.length ? ' [' + cfg.distribution.join(',') + ']' : '');
+      }
+      card.appendChild(label);
+
+      grid.appendChild(card);
+    }
+
+    modal.appendChild(grid);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Click overlay background to dismiss
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  });
+}
+
 export function showTopologyStatsPopup(anchorEl, node) {
   // Remove any existing popup
   document.querySelectorAll('.topo-stats-popup').forEach(p => p.remove());

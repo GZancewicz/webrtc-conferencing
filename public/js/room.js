@@ -109,6 +109,9 @@ class WebConference {
     if (this.telemetryEnabled) {
       this.startTelemetryBroadcast();
     }
+
+    // Start dashboard data collection immediately so history is available when panel opens
+    this.startDashboardCollection();
   }
 
   async fetchIceServers() {
@@ -151,6 +154,15 @@ class WebConference {
     // Toggle chat
     document.getElementById('toggle-chat').addEventListener('click', () => {
       this.toggleChat();
+    });
+
+    // Toggle more controls
+    document.getElementById('toggle-more').addEventListener('click', () => {
+      const moreRow = document.getElementById('controls-more');
+      const btn = document.getElementById('toggle-more');
+      const visible = moreRow.style.display !== 'none';
+      moreRow.style.display = visible ? 'none' : 'flex';
+      btn.classList.toggle('on', !visible);
     });
 
     // Toggle telemetry
@@ -294,7 +306,19 @@ class WebConference {
         const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);
         await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));
         this.flushPendingCandidates(from);
-        this.applyCodecPreferences(peer.connection);
+
+        // Look up remote peer's codec preferences (received via telemetry DataChannel)
+        let remotePrefs = null;
+        if (this.dashboardHistory) {
+          const remoteEntry = this.dashboardHistory.get(`remote-${username}`);
+          if (remoteEntry && (remoteEntry.preferredAudioCodec || remoteEntry.preferredVideoCodec)) {
+            remotePrefs = {
+              audioCodec: remoteEntry.preferredAudioCodec,
+              videoCodec: remoteEntry.preferredVideoCodec
+            };
+          }
+        }
+        this.applyCodecPreferences(peer.connection, remotePrefs);
         const answer = await peer.connection.createAnswer();
         await peer.connection.setLocalDescription(answer);
         this.socket.emit('answer', { to: from, answer });

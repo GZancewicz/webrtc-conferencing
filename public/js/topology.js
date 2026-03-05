@@ -72,6 +72,11 @@ export async function gatherTopologyData() {
     // Signaling edge for each peer
     edges.push({ from: peerId, to: 'signaling', label: wsProtocol, style: 'signaling' });
 
+    // STUN edges for each peer (all peers discover their public IP via STUN)
+    for (const stunId of stunIds) {
+      edges.push({ from: peerId, to: stunId, label: 'stun:', style: 'stun' });
+    }
+
     // Determine connection type from active candidate pair
     try {
       const pc = peer.connection;
@@ -139,6 +144,14 @@ export async function gatherTopologyData() {
     nodes.push({ id: peerId, label: peerLabel, type: 'peer', connectedAt: this.connectionTimestamps.get(peerId) || null });
   }
 
+  // Add peer-to-peer mesh connections (every peer connects to every other peer)
+  const peerIds = [...this.peers.keys()].map(id => `peer-${id}`);
+  for (let i = 0; i < peerIds.length; i++) {
+    for (let j = i + 1; j < peerIds.length; j++) {
+      edges.push({ from: peerIds[i], to: peerIds[j], label: 'DTLS-SRTP/UDP', style: 'direct', isMedia: true });
+    }
+  }
+
   return { nodes, edges };
 }
 
@@ -173,12 +186,14 @@ export async function renderTopology() {
     this.renderTopologyLegend(legend);
   }
 
-  // Position nodes radially after DOM layout
+  // Position nodes elliptically to fill available space
   requestAnimationFrame(() => {
     const rect = canvas.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
-    const radius = Math.min(cx, cy) * 0.7;
+    // Elliptical radii — use most of the available space (leave margin for labels)
+    const rx = cx * 0.82;
+    const ry = cy * 0.78;
 
     // Self at center
     if (selfNode) {
@@ -187,17 +202,17 @@ export async function renderTopology() {
       el.style.top = cy + 'px';
     }
 
-    // Infrastructure in upper arc (-150° to -30°)
-    const infraStart = -150 * (Math.PI / 180);
-    const infraEnd = -30 * (Math.PI / 180);
+    // Infrastructure in narrow upper arc (-130° to -50°), pushed higher
+    const infraStart = -130 * (Math.PI / 180);
+    const infraEnd = -50 * (Math.PI / 180);
     infraNodes.forEach((node, i) => {
       const count = infraNodes.length;
       const angle = count === 1
         ? -Math.PI / 2
         : infraStart + (infraEnd - infraStart) * (i / (count - 1));
       const el = nodeElements.get(node.id);
-      el.style.left = (cx + radius * Math.cos(angle)) + 'px';
-      el.style.top = (cy + radius * Math.sin(angle)) + 'px';
+      el.style.left = (cx + rx * Math.cos(angle)) + 'px';
+      el.style.top = (cy + ry * 0.9 * Math.sin(angle)) + 'px';
     });
 
     // Peers in lower arc (30° to 150°), wider for 5+ peers
@@ -216,8 +231,8 @@ export async function renderTopology() {
         angle = start + (end - start) * (i / (count - 1));
       }
       const el = nodeElements.get(node.id);
-      el.style.left = (cx + radius * Math.cos(angle)) + 'px';
-      el.style.top = (cy + radius * Math.sin(angle)) + 'px';
+      el.style.left = (cx + rx * Math.cos(angle)) + 'px';
+      el.style.top = (cy + ry * Math.sin(angle)) + 'px';
     });
 
     // Draw edges after positions settle
@@ -231,6 +246,7 @@ export function createTopologyNodeElement(node) {
   const el = document.createElement('div');
   el.className = 'topo-node';
   el.dataset.nodeId = node.id;
+  el.dataset.nodeType = node.type;
 
   // Icon
   const icon = document.createElement('div');
@@ -261,6 +277,13 @@ export function createTopologyNodeElement(node) {
   }
 
   el.appendChild(label);
+
+  // Click handler for stats popup
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    this.showTopologyStatsPopup(el, node);
+  });
+
   return el;
 }
 
@@ -270,8 +293,6 @@ export function drawTopologyEdges(svg, edges, nodeElements, container) {
 
   const containerRect = container.getBoundingClientRect();
 
-  // Define arrowhead markers for each style
-  const defs = document.createElementNS(ns, 'defs');
   const styleColors = {
     signaling: '#94a3b8',
     direct: '#22c55e',
@@ -279,24 +300,6 @@ export function drawTopologyEdges(svg, edges, nodeElements, container) {
     turn: '#f97316',
     connecting: '#64748b'
   };
-  for (const [style, color] of Object.entries(styleColors)) {
-    const marker = document.createElementNS(ns, 'marker');
-    marker.setAttribute('id', `arrow-${style}`);
-    marker.setAttribute('viewBox', '0 0 10 6');
-    marker.setAttribute('refX', '10');
-    marker.setAttribute('refY', '3');
-    marker.setAttribute('markerWidth', '10');
-    marker.setAttribute('markerHeight', '6');
-    marker.setAttribute('orient', 'auto-start-reverse');
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', 'M 0 0 L 10 3 L 0 6');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', '1');
-    marker.appendChild(path);
-    defs.appendChild(marker);
-  }
-  svg.appendChild(defs);
 
   // Deduplicate edges
   const drawn = new Set();
@@ -342,11 +345,11 @@ export function drawTopologyEdges(svg, edges, nodeElements, container) {
     line.setAttribute('x2', ex);
     line.setAttribute('y2', ey);
     line.setAttribute('stroke', color);
-    line.setAttribute('stroke-width', edge.style === 'signaling' ? '1.5' : '2.5');
-    if (edge.style === 'signaling') {
+    line.setAttribute('stroke-width', (edge.style === 'signaling' || edge.style === 'stun') ? '1.5' : '2.5');
+    if (edge.style === 'signaling' || edge.style === 'stun') {
       line.setAttribute('stroke-dasharray', '6 4');
+      line.setAttribute('stroke-opacity', '0.3');
     }
-    line.setAttribute('marker-end', `url(#arrow-${edge.style})`);
     svg.appendChild(line);
   }
 }
@@ -355,7 +358,7 @@ export function renderTopologyLegend(container) {
   const items = [
     { color: '#94a3b8', dashed: true, text: 'wss:// Socket.IO (Signaling)' },
     { color: '#22c55e', dashed: false, text: 'DTLS-SRTP/UDP (Direct)' },
-    { color: '#eab308', dashed: false, text: 'stun: STUN (NAT Discovery)' },
+    { color: '#eab308', dashed: true, text: 'stun: STUN (NAT Discovery)' },
     { color: '#f97316', dashed: false, text: 'turn:/turns: TURN (Relay)' }
   ];
 
@@ -376,4 +379,172 @@ export function renderTopologyLegend(container) {
 
     container.appendChild(el);
   }
+}
+
+// Infrastructure explanations for topology popup
+const TOPO_EXPLANATIONS = {
+  infrastructure: 'WebSocket connection used for session signaling — joining rooms, exchanging SDP offers/answers, and relaying ICE candidates between peers.',
+  stun: 'Session Traversal Utilities for NAT. A lightweight server that tells your browser its public IP address so peers can connect directly. Free and fast, but fails if both peers are behind strict firewalls.',
+  turn: 'Traversal Using Relays around NAT. A relay server that forwards all media traffic when direct connection fails. Always works but adds latency and costs bandwidth. Used as a last resort.'
+};
+
+function lastValid(arr) {
+  if (!arr) return null;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (arr[i] != null) return arr[i];
+  }
+  return null;
+}
+
+function mosLabel(mos) {
+  if (mos >= 4.3) return 'Excellent';
+  if (mos >= 4.0) return 'Good';
+  if (mos >= 3.6) return 'Fair';
+  if (mos >= 3.0) return 'Acceptable';
+  return 'Poor';
+}
+
+function mosDotClass(mos) {
+  if (mos == null) return '';
+  if (mos >= 4.0) return 'green';
+  if (mos >= 3.0) return 'yellow';
+  return 'red';
+}
+
+function mosBadgeClass(mos) {
+  if (mos == null) return '';
+  if (mos >= 4.0) return 'good';
+  if (mos >= 3.0) return 'warn';
+  return 'crit';
+}
+
+function stripCodecPrefix(codec) {
+  return (codec || '–').replace(/^(audio|video)\//, '');
+}
+
+function formatUptime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+export function showTopologyStatsPopup(anchorEl, node) {
+  // Remove any existing popup
+  document.querySelectorAll('.topo-stats-popup').forEach(p => p.remove());
+
+  const popup = document.createElement('div');
+  popup.className = 'topo-stats-popup';
+
+  if (node.type === 'peer') {
+    // Peer node — show dashboard stats
+    const userId = node.id.replace(/^peer-/, '');
+    const history = this.dashboardHistory ? this.dashboardHistory.get(userId) : null;
+
+    if (!history) {
+      popup.innerHTML = `<div class="topo-stats-header"><span class="topo-stats-name">${node.label.split('\n')[0]}</span></div><div style="color:#64748b;">No stats available yet</div>`;
+    } else {
+      const mos = lastValid(history.mos);
+      const rtt = lastValid(history.rtt);
+      const jitter = lastValid(history.jitter);
+      const packetLoss = lastValid(history.packetLoss);
+      const sendRes = lastValid(history.sendRes);
+      const recvRes = lastValid(history.recvRes);
+      const connTs = this.connectionTimestamps.get(`peer-${userId}`);
+      const connTime = connTs ? connTs.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+
+      let html = `<div class="topo-stats-header">`;
+      if (mos != null) html += `<span class="topo-stats-dot ${mosDotClass(mos)}"></span>`;
+      html += `<span class="topo-stats-name">${this.escapeHtml(history.username || node.label.split('\n')[0])}</span>`;
+      if (mos != null) html += `<span class="topo-stats-badge ${mosBadgeClass(mos)}">${mosLabel(mos)} (${mos.toFixed(2)}/5)</span>`;
+      html += `</div>`;
+
+      const rows = [];
+      if (rtt != null) rows.push(['RTT', `${rtt.toFixed(0)} ms`]);
+      if (jitter != null) rows.push(['Jitter', `${jitter.toFixed(1)} ms`]);
+      if (packetLoss != null) rows.push(['Packet Loss', `${packetLoss.toFixed(2)}%`]);
+      if (history.audioCodec) rows.push(['Audio', stripCodecPrefix(history.audioCodec)]);
+      if (history.videoCodec) rows.push(['Video', stripCodecPrefix(history.videoCodec)]);
+      if (sendRes) rows.push(['Send Res', sendRes]);
+      if (recvRes) rows.push(['Recv Res', recvRes]);
+      if (history.dtlsState) rows.push(['DTLS', history.dtlsState]);
+      if (history.localCandidate) rows.push(['Local', history.localCandidate, true]);
+      if (history.remoteCandidate) rows.push(['Remote', history.remoteCandidate, true]);
+      if (connTime) rows.push(['Connected', connTime]);
+
+      for (const row of rows) {
+        const [label, value, wrap] = row;
+        html += `<div class="topo-stats-row${wrap ? ' wrap' : ''}"><span class="topo-stats-label">${label}</span><span class="topo-stats-value">${this.escapeHtml(value)}</span></div>`;
+      }
+
+      popup.innerHTML = html;
+    }
+  } else if (node.type === 'self') {
+    // Self node — show own info
+    const selfTs = this.connectionTimestamps.get('self');
+    const uptime = selfTs ? Math.floor((Date.now() - selfTs.getTime()) / 1000) : 0;
+    const peerCount = this.peers.size;
+
+    // Aggregate MOS from all peer entries
+    let mosScores = [];
+    if (this.dashboardHistory) {
+      for (const [k, h] of this.dashboardHistory) {
+        if (k === '__group__' || k.startsWith('remote-')) continue;
+        const m = lastValid(h.mos);
+        if (m != null) mosScores.push(m);
+      }
+    }
+    const avgMOS = mosScores.length > 0 ? mosScores.reduce((a, b) => a + b, 0) / mosScores.length : null;
+
+    let html = `<div class="topo-stats-header">`;
+    if (avgMOS != null) html += `<span class="topo-stats-dot ${mosDotClass(avgMOS)}"></span>`;
+    html += `<span class="topo-stats-name">${this.escapeHtml(this.username || 'You')} (You)</span>`;
+    if (avgMOS != null) html += `<span class="topo-stats-badge ${mosBadgeClass(avgMOS)}">${mosLabel(avgMOS)} (${avgMOS.toFixed(2)}/5)</span>`;
+    html += `</div>`;
+
+    const rows = [];
+    rows.push(['Peers', `${peerCount}`]);
+    rows.push(['Session', formatUptime(uptime)]);
+    if (this.preferredResolution) rows.push(['Pref. Res', `${this.preferredResolution.width}x${this.preferredResolution.height}`]);
+    if (this.preferredAudioCodec) rows.push(['Pref. Audio', this.preferredAudioCodec]);
+    if (this.preferredVideoCodec) rows.push(['Pref. Video', this.preferredVideoCodec]);
+    if (selfTs) rows.push(['Connected', selfTs.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })]);
+
+    for (const [label, value] of rows) {
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">${label}</span><span class="topo-stats-value">${this.escapeHtml(value)}</span></div>`;
+    }
+
+    popup.innerHTML = html;
+  } else {
+    // Infrastructure node — show explanation
+    const explanation = TOPO_EXPLANATIONS[node.type] || 'Network infrastructure node.';
+    popup.innerHTML = `<div class="topo-stats-header"><span class="topo-stats-name">${node.label.split('\n')[0]}</span></div><div class="topo-stats-explain">${explanation}</div>`;
+  }
+
+  document.body.appendChild(popup);
+
+  // Position relative to anchor
+  const rect = anchorEl.getBoundingClientRect();
+  const popRect = popup.getBoundingClientRect();
+  const pad = 8;
+
+  // Try above first, fall back to below
+  let top = rect.top - popRect.height - pad;
+  if (top < pad) top = rect.bottom + pad;
+
+  // Horizontal: center on the node, keep within viewport
+  let left = rect.left + rect.width / 2 - popRect.width / 2;
+  if (left + popRect.width > window.innerWidth - pad) {
+    left = window.innerWidth - popRect.width - pad;
+  }
+  if (left < pad) left = pad;
+
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+
+  // Dismiss on click-away
+  const dismiss = () => { popup.remove(); document.removeEventListener('click', dismiss); };
+  setTimeout(() => document.addEventListener('click', dismiss), 0);
 }

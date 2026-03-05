@@ -400,11 +400,19 @@ body {
 /* Room controls */
 .room-controls {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 16px;
-  padding: 16px;
+  gap: 8px 16px;
+  padding: 12px 16px;
   background-color: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
+}
+
+.controls-row {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
 }
 
 .control-btn {
@@ -412,14 +420,15 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 12px 24px;
+  gap: 2px;
+  padding: 8px 16px;
   background-color: var(--bg-tertiary);
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   color: var(--text-color);
   cursor: pointer;
   transition: all 0.2s ease;
+  font-size: 11px;
 }
 
 .control-btn:hover {
@@ -743,7 +752,7 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 380px;
+  width: 600px;
   max-width: calc(100vw - 32px);
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -770,11 +779,30 @@ body {
 }
 
 .settings-group {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .settings-group:last-child {
   margin-bottom: 0;
+}
+
+.settings-codec-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-codec-row .settings-select {
+  flex-shrink: 0;
+  width: auto;
+}
+
+.settings-codec-desc {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+  flex: 1;
+  min-width: 0;
 }
 
 .settings-label {
@@ -805,10 +833,9 @@ body {
 .topology-panel {
   position: fixed;
   top: 60px;
+  left: 16px;
   right: 16px;
   bottom: 90px;
-  width: 520px;
-  max-width: calc(100vw - 32px);
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -865,6 +892,7 @@ body {
   position: absolute;
   transform: translate(-50%, -50%);
   z-index: 1;
+  cursor: pointer;
 }
 
 .topo-node-icon {
@@ -945,6 +973,100 @@ body {
 
 .topo-legend-line.dashed {
   border-top-style: dashed;
+}
+
+/* Topology stats popup */
+.topo-stats-popup {
+  position: fixed;
+  background: #0a0e1a;
+  border: 1px solid #3b4d7a;
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  color: #e2e8f0;
+  z-index: 400;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  min-width: 360px;
+  max-width: 480px;
+  line-height: 1.6;
+  pointer-events: auto;
+}
+
+.topo-stats-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a3354;
+}
+
+.topo-stats-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.topo-stats-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.topo-stats-badge.good { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.topo-stats-badge.warn { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.topo-stats-badge.crit { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.topo-stats-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  gap: 12px;
+}
+
+.topo-stats-row.wrap {
+  flex-direction: column;
+  gap: 0;
+}
+
+.topo-stats-label {
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.topo-stats-value {
+  color: #e2e8f0;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+}
+
+.topo-stats-row.wrap .topo-stats-value {
+  text-align: left;
+  padding-left: 12px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.topo-stats-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.topo-stats-dot.green { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
+.topo-stats-dot.yellow { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.topo-stats-dot.red { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+
+.topo-stats-explain {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color: #94a3b8;
 }
 
 /* Dashboard panel — Mercury NOC aesthetic */
@@ -1493,6 +1615,11 @@ body {
   border-radius: 3px;
   border-left: 2px solid var(--dash-border-accent);
 }
+.dash-candidate-item.active {
+  border-left: 3px solid var(--success-color);
+  color: var(--text-primary);
+  background: rgba(34, 197, 94, 0.08);
+}
 
 /* Received peer telemetry section */
 .dash-peer-telemetry-section {
@@ -1516,6 +1643,61 @@ body {
   font-size: 11px;
   color: var(--dash-text-muted);
   font-family: var(--dash-mono);
+}
+
+/* Dashboard explanation tooltip popup */
+.dash-explain-popup {
+  position: fixed;
+  background: var(--dash-bg, #0a0e1a);
+  color: var(--dash-text, #e2e8f0);
+  border: 1px solid var(--dash-border-accent, #3b4d7a);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  white-space: normal;
+  width: max-content;
+  max-width: 300px;
+  z-index: 400;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  line-height: 1.5;
+  pointer-events: auto;
+}
+
+/* Peer media summary table */
+.dash-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 11px;
+  font-family: var(--dash-mono, monospace);
+}
+
+.dash-summary-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--dash-text-secondary, #94a3b8);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--dash-border, #2a3354);
+}
+
+.dash-summary-table td {
+  padding: 5px 8px;
+  color: var(--dash-text, #e2e8f0);
+  border-bottom: 1px solid rgba(42, 51, 84, 0.5);
+}
+
+.dash-summary-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dash-summary-table td.dash-res-bold {
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.3px;
 }
 
 .stats-no-peers {
@@ -1587,6 +1769,10 @@ body {
     justify-content: center;
   }
 
+  .controls-row {
+    gap: 6px;
+  }
+
   .control-btn {
     padding: 8px 12px;
     border-radius: 8px;
@@ -1612,10 +1798,9 @@ body {
 
   .topology-panel {
     top: 50px;
+    left: 0;
     right: 0;
     bottom: 0;
-    width: 100%;
-    max-width: 100%;
     border-radius: 0;
   }
 

@@ -1056,6 +1056,72 @@ body {
 .dash-quality-warn { color: var(--dash-yellow); }
 .dash-quality-crit { color: var(--dash-red); }
 
+/* Group analytics section */
+.dash-group-section {
+  margin-bottom: 20px;
+  background: var(--dash-card);
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dash-group-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--dash-purple), var(--dash-cyan));
+}
+
+.dash-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--dash-border);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dash-group-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dash-group-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dash-text);
+  letter-spacing: 0.5px;
+}
+
+.dash-group-subtitle {
+  font-size: 12px;
+  color: var(--dash-text-muted);
+  font-family: var(--dash-mono);
+}
+
+.dash-health-summary {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dash-health-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--dash-text-secondary);
+  font-weight: 500;
+}
+
 /* Peer sections */
 .dash-peer-section {
   margin-bottom: 16px;

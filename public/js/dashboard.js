@@ -193,6 +193,75 @@ export async function collectDashboardSnapshot() {
       // Stats unavailable
     }
   }
+
+  // --- Compute group aggregates ---
+  this.computeGroupAggregates(now);
+}
+
+export function computeGroupAggregates(now) {
+  const GROUP_KEY = '__group__';
+  if (!this.dashboardHistory.has(GROUP_KEY)) {
+    this.dashboardHistory.set(GROUP_KEY, {
+      username: '__group__',
+      timestamps: [],
+      avgRtt: [],
+      avgJitter: [],
+      avgPacketLoss: [],
+      avgMos: [],
+      totalSendBitrate: [],
+      totalRecvBitrate: [],
+      avgSendFps: [],
+      avgRecvFps: [],
+      peersConnected: [],
+      qualityScores: []
+    });
+  }
+
+  const group = this.dashboardHistory.get(GROUP_KEY);
+  const peerHistories = [];
+  for (const [key, h] of this.dashboardHistory) {
+    if (key === GROUP_KEY) continue;
+    peerHistories.push(h);
+  }
+
+  if (peerHistories.length === 0) return;
+
+  // Average/sum the latest value from each peer
+  const avgOf = (arr) => {
+    const valid = arr.filter(v => v != null);
+    return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+  };
+  const sumOf = (arr) => {
+    const valid = arr.filter(v => v != null);
+    return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) : null;
+  };
+
+  const latestVals = (key) => peerHistories.map(h => lastValid(h[key]));
+
+  group.timestamps.push(now);
+  group.avgRtt.push(avgOf(latestVals('rtt')));
+  group.avgJitter.push(avgOf(latestVals('jitter')));
+  group.avgPacketLoss.push(avgOf(latestVals('packetLoss')));
+  group.avgMos.push(avgOf(latestVals('mos')));
+  group.totalSendBitrate.push(sumOf(latestVals('sendBitrate')));
+  group.totalRecvBitrate.push(sumOf(latestVals('recvBitrate')));
+  group.avgSendFps.push(avgOf(latestVals('sendFps')));
+  group.avgRecvFps.push(avgOf(latestVals('recvFps')));
+  group.peersConnected.push(peerHistories.length);
+
+  // Per-peer quality scores for health breakdown
+  const scores = peerHistories.map(h =>
+    this.calcQualityScore(h.rtt, h.jitter, h.packetLoss)
+  ).filter(s => s != null);
+  group.qualityScores.push(scores);
+
+  // Trim
+  if (group.timestamps.length > MAX_SAMPLES) {
+    const excess = group.timestamps.length - MAX_SAMPLES;
+    for (const key of ['timestamps', 'avgRtt', 'avgJitter', 'avgPacketLoss', 'avgMos', 'totalSendBitrate', 'totalRecvBitrate', 'avgSendFps', 'avgRecvFps', 'peersConnected', 'qualityScores']) {
+      group[key].splice(0, excess);
+    }
+  }
 }
 
 // E-model simplified MOS calculation
@@ -253,7 +322,10 @@ export function renderDashboard() {
   const body = document.getElementById('dashboard-body');
   if (!body) return;
 
-  if (!this.dashboardHistory || this.dashboardHistory.size === 0) {
+  // Only count real peer entries (not __group__)
+  const peerEntryCount = [...this.dashboardHistory.keys()].filter(k => k !== '__group__').length;
+
+  if (!this.dashboardHistory || peerEntryCount === 0) {
     body.innerHTML = this.peers.size === 0
       ? '<div class="dash-empty">No peers connected</div>'
       : '<div class="dash-empty">Collecting data...</div>';
@@ -273,7 +345,8 @@ export function renderDashboard() {
   let qualityScores = [];
   let mosScores = [];
   let totalSent = 0, totalRecv = 0;
-  for (const [, history] of this.dashboardHistory) {
+  for (const [key, history] of this.dashboardHistory) {
+    if (key === '__group__') continue;
     const s = this.calcQualityScore(history.rtt, history.jitter, history.packetLoss);
     if (s != null) qualityScores.push(s);
     const m = lastValid(history.mos);
@@ -334,8 +407,100 @@ export function renderDashboard() {
   `;
   body.appendChild(kpiBar);
 
+  // --- Group Analytics Section ---
+  const group = this.dashboardHistory.get('__group__');
+  if (group && group.timestamps.length > 0) {
+    const groupSection = document.createElement('div');
+    groupSection.className = 'dash-group-section';
+
+    // Group header
+    const groupHeader = document.createElement('div');
+    groupHeader.className = 'dash-group-header';
+
+    // Connection health breakdown from latest quality scores
+    const latestScores = group.qualityScores.length > 0
+      ? group.qualityScores[group.qualityScores.length - 1]
+      : [];
+    const healthCounts = { excellent: 0, good: 0, fair: 0, poor: 0 };
+    for (const s of latestScores) {
+      if (s >= 80) healthCounts.excellent++;
+      else if (s >= 60) healthCounts.good++;
+      else if (s >= 40) healthCounts.fair++;
+      else healthCounts.poor++;
+    }
+
+    groupHeader.innerHTML = `
+      <div class="dash-group-title-row">
+        <span class="dash-group-title">Group Analytics</span>
+        <span class="dash-group-subtitle">${totalPeers} peer${totalPeers !== 1 ? 's' : ''} aggregated</span>
+      </div>
+      <div class="dash-health-summary">
+        ${healthCounts.excellent > 0 ? `<div class="dash-health-item"><span class="dash-health-dot green"></span><span>${healthCounts.excellent} Excellent</span></div>` : ''}
+        ${healthCounts.good > 0 ? `<div class="dash-health-item"><span class="dash-health-dot green"></span><span>${healthCounts.good} Good</span></div>` : ''}
+        ${healthCounts.fair > 0 ? `<div class="dash-health-item"><span class="dash-health-dot yellow"></span><span>${healthCounts.fair} Fair</span></div>` : ''}
+        ${healthCounts.poor > 0 ? `<div class="dash-health-item"><span class="dash-health-dot red"></span><span>${healthCounts.poor} Poor</span></div>` : ''}
+        ${latestScores.length === 0 ? '<div class="dash-health-item"><span>Collecting...</span></div>' : ''}
+      </div>
+    `;
+    groupSection.appendChild(groupHeader);
+
+    // Group metric cards
+    const groupGrid = document.createElement('div');
+    groupGrid.className = 'dash-card-grid';
+
+    groupGrid.appendChild(this.createDashboardCard('Avg RTT', group.avgRtt, 'ms', {
+      color: '#3b82f6', warnThreshold: 200, critThreshold: 300,
+      infraBar: true, infraMax: 500
+    }));
+    groupGrid.appendChild(this.createDashboardCard('Avg Jitter', group.avgJitter, 'ms', {
+      color: '#8b5cf6', warnThreshold: 50, critThreshold: 80, decimals: 1,
+      infraBar: true, infraMax: 120
+    }));
+    groupGrid.appendChild(this.createDashboardCard('Avg Packet Loss', group.avgPacketLoss, '%', {
+      color: '#ef4444', warnThreshold: 3, critThreshold: 5, decimals: 2,
+      infraBar: true, infraMax: 10
+    }));
+    groupGrid.appendChild(this.createDashboardCard('Avg MOS', group.avgMos, '', {
+      color: '#06b6d4', decimals: 2
+    }));
+    groupGrid.appendChild(this.createDashboardCard('Total Send Rate', group.totalSendBitrate, 'kbps', {
+      color: '#f59e0b', decimals: 0
+    }));
+    groupGrid.appendChild(this.createDashboardCard('Total Recv Rate', group.totalRecvBitrate, 'kbps', {
+      color: '#06b6d4', decimals: 0
+    }));
+    groupGrid.appendChild(this.createDashboardCard('Avg Send FPS', group.avgSendFps, 'fps', {
+      color: '#22c55e'
+    }));
+    groupGrid.appendChild(this.createDashboardCard('Avg Recv FPS', group.avgRecvFps, 'fps', {
+      color: '#14b8a6'
+    }));
+
+    // Peers connected over time card
+    groupGrid.appendChild(this.createDashboardCard('Peers Connected', group.peersConnected, '', {
+      color: '#8b5cf6'
+    }));
+
+    // Total data transfer summary
+    const groupDataCard = document.createElement('div');
+    groupDataCard.className = 'dash-card';
+    groupDataCard.innerHTML = `
+      <div class="dash-card-title">Total Data Transfer</div>
+      <div style="margin-top:8px">
+        <div class="dash-data-row"><span class="dash-data-label">All Peers Sent</span><span class="dash-data-value">${formatDataSize(totalSent)}</span></div>
+        <div class="dash-data-row"><span class="dash-data-label">All Peers Recv</span><span class="dash-data-value">${formatDataSize(totalRecv)}</span></div>
+        <div class="dash-data-row"><span class="dash-data-label">Grand Total</span><span class="dash-data-value">${formatDataSize(totalSent + totalRecv)}</span></div>
+      </div>
+    `;
+    groupGrid.appendChild(groupDataCard);
+
+    groupSection.appendChild(groupGrid);
+    body.appendChild(groupSection);
+  }
+
   // --- Per-peer sections ---
-  for (const [, history] of this.dashboardHistory) {
+  for (const [key, history] of this.dashboardHistory) {
+    if (key === '__group__') continue;
     const section = document.createElement('div');
     section.className = 'dash-peer-section';
 

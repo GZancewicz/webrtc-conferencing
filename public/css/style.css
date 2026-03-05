@@ -1000,6 +1000,8 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   min-width: 360px;
   max-width: 480px;
+  max-height: 70vh;
+  overflow-y: auto;
   line-height: 1.6;
   pointer-events: auto;
 }
@@ -1745,6 +1747,7 @@ body {
   padding: 4px 8px;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 4px;
+  transition: background 0.15s, filter 0.15s;
 }
 
 .dash-ice-type {
@@ -1801,11 +1804,49 @@ body {
   background: rgba(255, 255, 255, 0.02);
   border-radius: 3px;
   border-left: 2px solid var(--dash-border-accent);
+  cursor: pointer;
+  transition: background 0.15s, filter 0.15s;
 }
 .dash-candidate-item.active {
   border-left: 3px solid var(--success-color);
   color: var(--text-primary);
   background: rgba(34, 197, 94, 0.08);
+}
+
+/* Hover highlights for all clickable dashboard elements */
+[data-explain] {
+  cursor: pointer;
+  transition: color 0.15s, filter 0.15s;
+}
+
+[data-explain]:hover {
+  filter: brightness(1.3);
+}
+
+.dash-candidate-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  filter: brightness(1.2);
+}
+
+.dash-ice-count-item {
+  transition: background 0.15s, filter 0.15s;
+}
+
+.dash-ice-count-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  filter: brightness(1.2);
+}
+
+.dash-ice-item[data-explain]:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dash-summary-table th[data-explain]:hover {
+  color: var(--dash-text, #e2e8f0);
+}
+
+.dash-summary-table tr:hover td {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* Received peer telemetry section */
@@ -1875,10 +1916,6 @@ body {
   padding: 5px 8px;
   color: var(--dash-text, #e2e8f0);
   border-bottom: 1px solid rgba(42, 51, 84, 0.5);
-}
-
-.dash-summary-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
 }
 
 .dash-summary-table td.dash-res-bold {

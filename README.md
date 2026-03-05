@@ -2,6 +2,12 @@
 
 A self-hosted, peer-to-peer video conferencing application built with WebRTC and Socket.IO. Media flows directly between browsers after signaling — the server never touches your audio or video.
 
+![Network Topology](public/images/network-topology.png)
+*Network topology diagram showing peer connections, STUN/TURN servers, and ICE candidate paths*
+
+![Analytics Dashboard](public/images/analytics-dashboard.png)
+*Analytics dashboard with real-time connection quality metrics and sparkline graphs*
+
 ## Features
 
 ### Core

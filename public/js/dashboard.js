@@ -577,16 +577,20 @@ export function renderDashboard() {
     summaryHtml += '</tr></thead><tbody>';
 
     // "You" row — local user's own settings
-    const myPrefRes = this.preferredResolution ? `${this.preferredResolution.width}x${this.preferredResolution.height}` : '–';
-    const myPrefAudio = this.preferredAudioCodec || '–';
-    const myPrefVideo = this.preferredVideoCodec || '–';
-    // Get local send res from any peer connection (same to all peers)
+    // Get local send res and in-use codecs from any peer connection (same to all peers)
     let mySendRes = '–';
+    let myInUseAudio = '–';
+    let myInUseVideo = '–';
     for (const [k, h] of this.dashboardHistory) {
       if (k === '__group__' || k.startsWith('remote-')) continue;
       const sr = lastValid(h.sendRes);
-      if (sr) { mySendRes = sr; break; }
+      if (sr && mySendRes === '–') mySendRes = sr;
+      if (h.audioCodec && myInUseAudio === '–') myInUseAudio = stripCodecPrefix(h.audioCodec);
+      if (h.videoCodec && myInUseVideo === '–') myInUseVideo = stripCodecPrefix(h.videoCodec);
     }
+    const myPrefRes = this.preferredResolution ? `${this.preferredResolution.width}x${this.preferredResolution.height}` : mySendRes;
+    const myPrefAudio = this.preferredAudioCodec || myInUseAudio;
+    const myPrefVideo = this.preferredVideoCodec || myInUseVideo;
     summaryHtml += `<tr style="border-bottom:2px solid var(--dash-border-accent,#3b4d7a);">
       <td><strong>${this.escapeHtml(this.username || 'You')} (You)</strong></td>
       <td>–</td>
@@ -604,9 +608,9 @@ export function renderDashboard() {
       const sendRes = lastValid(h.sendRes) || '–';
       const recvRes = lastValid(h.recvRes) || '–';
       const remoteEntry = this.dashboardHistory.get(`remote-${h.username}`);
-      const prefRes = remoteEntry?.preferredResolution ? `${remoteEntry.preferredResolution.width}x${remoteEntry.preferredResolution.height}` : '–';
-      const prefAudio = remoteEntry?.preferredAudioCodec || '–';
-      const prefVideo = remoteEntry?.preferredVideoCodec || '–';
+      const prefRes = remoteEntry?.preferredResolution ? `${remoteEntry.preferredResolution.width}x${remoteEntry.preferredResolution.height}` : (recvRes !== '–' ? recvRes : '–');
+      const prefAudio = remoteEntry?.preferredAudioCodec || (h.audioCodec ? stripCodecPrefix(h.audioCodec) : '–');
+      const prefVideo = remoteEntry?.preferredVideoCodec || (h.videoCodec ? stripCodecPrefix(h.videoCodec) : '–');
       summaryHtml += `<tr>
         <td>${this.escapeHtml(h.username)}</td>
         <td>${this.escapeHtml(stripCodecPrefix(h.audioCodec))}</td>
@@ -865,15 +869,17 @@ export function renderDashboard() {
     `;
     section.appendChild(info);
 
-    // Preferred settings pills (received from remote peer)
-    if (history.preferredResolution || history.preferredAudioCodec || history.preferredVideoCodec) {
+    // Preferred settings pills — show explicit preference or fall back to in-use values
+    {
       const prefsRow = document.createElement('div');
       prefsRow.className = 'dash-info-row';
-      const prefRes = history.preferredResolution ? `${history.preferredResolution.width}x${history.preferredResolution.height}` : '–';
+      const prefRes = history.preferredResolution ? `${history.preferredResolution.width}x${history.preferredResolution.height}` : (lastValid(history.sendRes) || '–');
+      const prefAudio = history.preferredAudioCodec || (history.audioCodec ? stripCodecPrefix(history.audioCodec) : '–');
+      const prefVideo = history.preferredVideoCodec || (history.videoCodec ? stripCodecPrefix(history.videoCodec) : '–');
       prefsRow.innerHTML = `
         <span class="dash-info-pill" style="border-color:var(--dash-cyan);color:var(--dash-cyan);">Preferred Res: ${this.escapeHtml(prefRes)}</span>
-        <span class="dash-info-pill" style="border-color:var(--dash-cyan);color:var(--dash-cyan);">Preferred Audio: ${this.escapeHtml(history.preferredAudioCodec || '–')}</span>
-        <span class="dash-info-pill" style="border-color:var(--dash-cyan);color:var(--dash-cyan);">Preferred Video: ${this.escapeHtml(history.preferredVideoCodec || '–')}</span>
+        <span class="dash-info-pill" style="border-color:var(--dash-cyan);color:var(--dash-cyan);">Preferred Audio: ${this.escapeHtml(prefAudio)}</span>
+        <span class="dash-info-pill" style="border-color:var(--dash-cyan);color:var(--dash-cyan);">Preferred Video: ${this.escapeHtml(prefVideo)}</span>
       `;
       section.appendChild(prefsRow);
     }

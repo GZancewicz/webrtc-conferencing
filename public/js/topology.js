@@ -6,10 +6,24 @@ export async function toggleTopology() {
   if (isVisible) {
     panel.style.display = 'none';
     btn.classList.remove('active');
+    // Stop auto-refresh
+    if (this._topoInterval) {
+      clearInterval(this._topoInterval);
+      this._topoInterval = null;
+    }
   } else {
     panel.style.display = 'flex';
     btn.classList.add('active');
     await this.renderTopology();
+    // Start auto-refresh every 2 seconds
+    this._topoInterval = setInterval(() => {
+      if (panel.style.display === 'none') {
+        clearInterval(this._topoInterval);
+        this._topoInterval = null;
+        return;
+      }
+      this.renderTopology();
+    }, 2000);
   }
 }
 
@@ -186,6 +200,40 @@ export async function renderTopology() {
     this.renderTopologyLegend(legend);
   }
 
+  // Add hint (once)
+  if (!canvas.querySelector('.topo-hint')) {
+    const hint = document.createElement('div');
+    hint.className = 'topo-hint';
+    hint.textContent = 'Click on nodes and connections for more detail';
+    canvas.appendChild(hint);
+  }
+
+  // TURN placeholder in upper left (always visible, semi-transparent, no connections)
+  const hasTurnNode = data.nodes.some(n => n.type === 'turn');
+  if (!hasTurnNode) {
+    const turnPlaceholder = document.createElement('div');
+    turnPlaceholder.className = 'topo-node topo-node-placeholder';
+    const turnIcon = document.createElement('div');
+    turnIcon.className = 'topo-node-icon turn server';
+    turnIcon.textContent = '🔄';
+    turnPlaceholder.appendChild(turnIcon);
+    const turnLabel = document.createElement('div');
+    turnLabel.className = 'topo-node-label';
+    const turnName = document.createElement('div');
+    turnName.className = 'topo-name';
+    turnName.textContent = 'TURN';
+    turnLabel.appendChild(turnName);
+    turnPlaceholder.appendChild(turnLabel);
+    turnPlaceholder.style.left = '40px';
+    turnPlaceholder.style.top = '40px';
+    turnPlaceholder.style.transform = 'translate(0, 0)';
+    turnPlaceholder.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.showTopologyStatsPopup(turnPlaceholder, { id: 'turn-placeholder', type: 'turn', label: 'TURN\n(not configured)' });
+    });
+    canvas.appendChild(turnPlaceholder);
+  }
+
   // Position nodes elliptically to fill available space
   requestAnimationFrame(() => {
     const rect = canvas.getBoundingClientRect();
@@ -291,6 +339,10 @@ export function drawTopologyEdges(svg, edges, nodeElements, container) {
   const ns = 'http://www.w3.org/2000/svg';
   svg.innerHTML = '';
 
+  // Add animation defs
+  const defs = document.createElementNS(ns, 'defs');
+  svg.appendChild(defs);
+
   const containerRect = container.getBoundingClientRect();
 
   const styleColors = {
@@ -339,18 +391,111 @@ export function drawTopologyEdges(svg, edges, nodeElements, container) {
     const ey = y2 - ny * toRadius;
 
     const color = styleColors[edge.style] || '#94a3b8';
-    const line = document.createElementNS(ns, 'line');
-    line.setAttribute('x1', sx);
-    line.setAttribute('y1', sy);
-    line.setAttribute('x2', ex);
-    line.setAttribute('y2', ey);
-    line.setAttribute('stroke', color);
-    line.setAttribute('stroke-width', (edge.style === 'signaling' || edge.style === 'stun') ? '1.5' : '2.5');
-    if (edge.style === 'signaling' || edge.style === 'stun') {
-      line.setAttribute('stroke-dasharray', '6 4');
-      line.setAttribute('stroke-opacity', '0.3');
+    const isLight = edge.style === 'signaling' || edge.style === 'stun';
+    const strokeWidth = isLight ? '1.5' : '2';
+    const isMedia = edge.isMedia && edge.style !== 'connecting';
+
+    if (isMedia) {
+      // Draw two parallel lines offset slightly, flowing in opposite directions
+      const perpX = -ny;  // perpendicular to line direction
+      const perpY = nx;
+      const offset = 1.5;  // pixel offset from center
+
+      // Forward line (from → to)
+      const fwd = document.createElementNS(ns, 'line');
+      fwd.setAttribute('x1', sx + perpX * offset);
+      fwd.setAttribute('y1', sy + perpY * offset);
+      fwd.setAttribute('x2', ex + perpX * offset);
+      fwd.setAttribute('y2', ey + perpY * offset);
+      fwd.setAttribute('stroke', color);
+      fwd.setAttribute('stroke-width', strokeWidth);
+      fwd.setAttribute('stroke-dasharray', '8 4');
+      fwd.setAttribute('stroke-opacity', '0.8');
+      fwd.classList.add('topo-edge-animated');
+      svg.appendChild(fwd);
+
+      // Reverse line (to → from) — opposite animation direction
+      const rev = document.createElementNS(ns, 'line');
+      rev.setAttribute('x1', sx - perpX * offset);
+      rev.setAttribute('y1', sy - perpY * offset);
+      rev.setAttribute('x2', ex - perpX * offset);
+      rev.setAttribute('y2', ey - perpY * offset);
+      rev.setAttribute('stroke', color);
+      rev.setAttribute('stroke-width', strokeWidth);
+      rev.setAttribute('stroke-dasharray', '8 4');
+      rev.setAttribute('stroke-opacity', '0.8');
+      rev.classList.add('topo-edge-animated-reverse');
+      svg.appendChild(rev);
+
+      // Invisible wider hit-area line for click detection (centered)
+      const hitLine = document.createElementNS(ns, 'line');
+      hitLine.setAttribute('x1', sx);
+      hitLine.setAttribute('y1', sy);
+      hitLine.setAttribute('x2', ex);
+      hitLine.setAttribute('y2', ey);
+      hitLine.setAttribute('stroke', 'transparent');
+      hitLine.setAttribute('stroke-width', '18');
+      hitLine.setAttribute('pointer-events', 'stroke');
+      hitLine.style.cursor = 'pointer';
+      hitLine.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.showEdgePopup(e, edge);
+      });
+      // Hover highlight
+      hitLine.addEventListener('mouseenter', () => {
+        fwd.setAttribute('stroke-opacity', '1');
+        fwd.setAttribute('stroke-width', parseFloat(strokeWidth) + 1);
+        rev.setAttribute('stroke-opacity', '1');
+        rev.setAttribute('stroke-width', parseFloat(strokeWidth) + 1);
+      });
+      hitLine.addEventListener('mouseleave', () => {
+        fwd.setAttribute('stroke-opacity', '0.8');
+        fwd.setAttribute('stroke-width', strokeWidth);
+        rev.setAttribute('stroke-opacity', '0.8');
+        rev.setAttribute('stroke-width', strokeWidth);
+      });
+      svg.appendChild(hitLine);
+    } else {
+      // Single line for non-media edges
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', sx);
+      line.setAttribute('y1', sy);
+      line.setAttribute('x2', ex);
+      line.setAttribute('y2', ey);
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', strokeWidth);
+      if (isLight) {
+        line.setAttribute('stroke-dasharray', '6 4');
+        line.setAttribute('stroke-opacity', '0.3');
+      }
+
+      svg.appendChild(line);
+
+      // Invisible wider hit-area line for click detection
+      const hitLine = document.createElementNS(ns, 'line');
+      hitLine.setAttribute('x1', sx);
+      hitLine.setAttribute('y1', sy);
+      hitLine.setAttribute('x2', ex);
+      hitLine.setAttribute('y2', ey);
+      hitLine.setAttribute('stroke', 'transparent');
+      hitLine.setAttribute('stroke-width', '14');
+      hitLine.setAttribute('pointer-events', 'stroke');
+      hitLine.style.cursor = 'pointer';
+      hitLine.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.showEdgePopup(e, edge);
+      });
+      // Hover highlight
+      hitLine.addEventListener('mouseenter', () => {
+        line.setAttribute('stroke-opacity', '1');
+        line.setAttribute('stroke-width', parseFloat(strokeWidth) + 1.5);
+      });
+      hitLine.addEventListener('mouseleave', () => {
+        line.setAttribute('stroke-opacity', isLight ? '0.3' : '1');
+        line.setAttribute('stroke-width', strokeWidth);
+      });
+      svg.appendChild(hitLine);
     }
-    svg.appendChild(line);
   }
 }
 
@@ -431,6 +576,152 @@ function formatUptime(seconds) {
   return `${s}s`;
 }
 
+function addPopupCloseBtn(popup) {
+  const btn = document.createElement('button');
+  btn.className = 'topo-popup-close';
+  btn.innerHTML = '&times;';
+  btn.addEventListener('click', (e) => { e.stopPropagation(); popup.remove(); });
+  popup.appendChild(btn);
+}
+
+function positionAndShowPopup(popup, anchorRect, pad) {
+  document.body.appendChild(popup);
+  const popRect = popup.getBoundingClientRect();
+  let top = anchorRect.top - popRect.height - pad;
+  if (top < pad) top = anchorRect.bottom + pad;
+  let left = anchorRect.left + anchorRect.width / 2 - popRect.width / 2;
+  if (left + popRect.width > window.innerWidth - pad) left = window.innerWidth - popRect.width - pad;
+  if (left < pad) left = pad;
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+  const dismiss = (e) => {
+    if (popup.contains(e.target)) return;
+    popup.remove();
+    document.removeEventListener('click', dismiss);
+  };
+  setTimeout(() => document.addEventListener('click', dismiss), 0);
+}
+
+// Edge descriptions for non-peer edges
+const EDGE_DESCRIPTIONS = {
+  signaling: 'WebSocket (Socket.IO) — carries signaling messages: SDP offers/answers, ICE candidates, room join/leave events. No media flows through this channel.',
+  stun: 'STUN binding requests — your browser sends a request to discover its public IP:port. The server echoes back your reflexive address so peers can attempt a direct connection.',
+  turn: 'TURN relay allocation — when direct P2P fails, media is relayed through this server. Adds latency but guarantees connectivity behind restrictive NATs/firewalls.',
+};
+
+export async function showEdgePopup(event, edge) {
+  // Remove any existing popup
+  document.querySelectorAll('.topo-stats-popup').forEach(p => p.remove());
+
+  const popup = document.createElement('div');
+  popup.className = 'topo-stats-popup';
+
+  // Determine if this is a peer media edge
+  const peerEndpoint = [edge.from, edge.to].find(id => id.startsWith('peer-'));
+  const isSelfEdge = [edge.from, edge.to].includes('self');
+  const isPeerMedia = edge.isMedia && peerEndpoint && isSelfEdge;
+
+  if (isPeerMedia) {
+    const userId = peerEndpoint.replace(/^peer-/, '');
+    const peer = this.peers.get(userId);
+
+    if (!peer || !peer.connection) {
+      popup.innerHTML = `<div class="topo-stats-header"><span class="topo-stats-name">Connection</span></div><div style="color:#64748b;">Peer not connected</div>`;
+    } else {
+      const pc = peer.connection;
+      let html = `<div class="topo-stats-header"><span class="topo-stats-name">Channels to ${this.escapeHtml(peer.username || 'Peer')}</span><span class="topo-stats-badge good">${edge.label}</span></div>`;
+
+      // Transceivers (media tracks)
+      const transceivers = pc.getTransceivers();
+      if (transceivers.length > 0) {
+        html += `<div class="topo-edge-section">Media Tracks</div>`;
+        for (const t of transceivers) {
+          const sender = t.sender;
+          const receiver = t.receiver;
+          const sTrack = sender && sender.track;
+          const rTrack = receiver && receiver.track;
+          const kind = sTrack ? sTrack.kind : (rTrack ? rTrack.kind : 'unknown');
+          const kindIcon = kind === 'audio' ? '🎤' : kind === 'video' ? '📹' : '❓';
+          const dir = t.direction || 'unknown';
+          const dirArrow = { sendrecv: '⇄', sendonly: '→', recvonly: '←', inactive: '⏸' }[dir] || dir;
+
+          // Track states
+          const sState = sTrack ? (sTrack.enabled ? (sTrack.muted ? 'muted' : 'live') : 'disabled') : '–';
+          const rState = rTrack ? (rTrack.enabled ? (rTrack.muted ? 'muted' : 'live') : 'disabled') : '–';
+
+          html += `<div class="topo-edge-channel">`;
+          html += `<span class="topo-edge-kind">${kindIcon} ${kind}</span>`;
+          html += `<span class="topo-edge-dir">${dirArrow} ${dir}</span>`;
+          html += `<span class="topo-edge-state">send: <em>${sState}</em> recv: <em>${rState}</em></span>`;
+          html += `</div>`;
+        }
+      }
+
+      // DataChannels
+      const dc = this.telemetryChannels ? this.telemetryChannels.get(userId) : null;
+      html += `<div class="topo-edge-section">Data Channels</div>`;
+      if (dc) {
+        const stateClass = dc.readyState === 'open' ? 'green' : (dc.readyState === 'connecting' ? 'yellow' : 'red');
+        html += `<div class="topo-edge-channel">`;
+        html += `<span class="topo-edge-kind">📡 ${dc.label || 'telemetry'}</span>`;
+        html += `<span class="topo-edge-state"><span class="topo-stats-dot ${stateClass}" style="display:inline-block;vertical-align:middle;margin-right:4px;"></span>${dc.readyState}</span>`;
+        html += `</div>`;
+      } else {
+        html += `<div class="topo-edge-channel"><span style="color:#64748b;">No DataChannels</span></div>`;
+      }
+
+      // Connection details from stats
+      try {
+        const stats = await pc.getStats();
+        let activePair = null;
+        const candidateMap = new Map();
+
+        stats.forEach(report => {
+          if (report.type === 'transport' && report.selectedCandidatePairId) {
+            stats.forEach(r => { if (r.id === report.selectedCandidatePairId) activePair = r; });
+          }
+          if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+            candidateMap.set(report.id, report);
+          }
+        });
+        if (!activePair) {
+          stats.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') activePair = r; });
+        }
+
+        if (activePair) {
+          const localCand = candidateMap.get(activePair.localCandidateId);
+          const remoteCand = candidateMap.get(activePair.remoteCandidateId);
+
+          html += `<div class="topo-edge-section">Active Candidate Pair</div>`;
+          if (localCand) {
+            html += `<div class="topo-stats-row wrap"><span class="topo-stats-label">Local</span><span class="topo-stats-value">${localCand.candidateType} ${localCand.protocol || ''} ${localCand.address || ''}:${localCand.port || ''}</span></div>`;
+          }
+          if (remoteCand) {
+            html += `<div class="topo-stats-row wrap"><span class="topo-stats-label">Remote</span><span class="topo-stats-value">${remoteCand.candidateType} ${remoteCand.protocol || ''} ${remoteCand.address || ''}:${remoteCand.port || ''}</span></div>`;
+          }
+        }
+      } catch (e) { /* stats unavailable */ }
+
+      // Connection state summary
+      html += `<div class="topo-edge-section">State</div>`;
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">Connection</span><span class="topo-stats-value">${pc.connectionState}</span></div>`;
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">ICE</span><span class="topo-stats-value">${pc.iceConnectionState}</span></div>`;
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">Signaling</span><span class="topo-stats-value">${pc.signalingState}</span></div>`;
+
+      popup.innerHTML = html;
+    }
+  } else {
+    // Non-media edge (signaling, STUN, TURN)
+    const desc = EDGE_DESCRIPTIONS[edge.style] || `${edge.label} connection`;
+    popup.innerHTML = `<div class="topo-stats-header"><span class="topo-stats-name">${edge.label}</span></div><div class="topo-stats-explain">${desc}</div>`;
+  }
+
+  addPopupCloseBtn(popup);
+  // Use a synthetic rect centered on the click point
+  const clickRect = { top: event.clientY, bottom: event.clientY, left: event.clientX - 1, width: 2 };
+  positionAndShowPopup(popup, clickRect, 8);
+}
+
 export function showTopologyStatsPopup(anchorEl, node) {
   // Remove any existing popup
   document.querySelectorAll('.topo-stats-popup').forEach(p => p.remove());
@@ -482,21 +773,41 @@ export function showTopologyStatsPopup(anchorEl, node) {
       popup.innerHTML = html;
     }
   } else if (node.type === 'self') {
-    // Self node — show own info
+    // Self node — show own info with aggregated stats from all peers
     const selfTs = this.connectionTimestamps.get('self');
     const uptime = selfTs ? Math.floor((Date.now() - selfTs.getTime()) / 1000) : 0;
     const peerCount = this.peers.size;
 
-    // Aggregate MOS from all peer entries
-    let mosScores = [];
+    // Aggregate stats from all peer entries in dashboardHistory
+    const mosArr = [], rttArr = [], jitterArr = [], lossArr = [];
+    const codecs = { audio: new Set(), video: new Set() };
+    const resolutions = { send: new Set(), recv: new Set() };
+
     if (this.dashboardHistory) {
       for (const [k, h] of this.dashboardHistory) {
         if (k === '__group__' || k.startsWith('remote-')) continue;
         const m = lastValid(h.mos);
-        if (m != null) mosScores.push(m);
+        const r = lastValid(h.rtt);
+        const j = lastValid(h.jitter);
+        const pl = lastValid(h.packetLoss);
+        if (m != null) mosArr.push(m);
+        if (r != null) rttArr.push(r);
+        if (j != null) jitterArr.push(j);
+        if (pl != null) lossArr.push(pl);
+        if (h.audioCodec) codecs.audio.add(stripCodecPrefix(h.audioCodec));
+        if (h.videoCodec) codecs.video.add(stripCodecPrefix(h.videoCodec));
+        const sr = lastValid(h.sendRes);
+        const rr = lastValid(h.recvRes);
+        if (sr) resolutions.send.add(sr);
+        if (rr) resolutions.recv.add(rr);
       }
     }
-    const avgMOS = mosScores.length > 0 ? mosScores.reduce((a, b) => a + b, 0) / mosScores.length : null;
+
+    const avg = arr => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+    const avgMOS = avg(mosArr);
+    const avgRTT = avg(rttArr);
+    const avgJitter = avg(jitterArr);
+    const avgLoss = avg(lossArr);
 
     let html = `<div class="topo-stats-header">`;
     if (avgMOS != null) html += `<span class="topo-stats-dot ${mosDotClass(avgMOS)}"></span>`;
@@ -507,9 +818,24 @@ export function showTopologyStatsPopup(anchorEl, node) {
     const rows = [];
     rows.push(['Peers', `${peerCount}`]);
     rows.push(['Session', formatUptime(uptime)]);
-    if (this.preferredResolution) rows.push(['Pref. Res', `${this.preferredResolution.width}x${this.preferredResolution.height}`]);
-    if (this.preferredAudioCodec) rows.push(['Pref. Audio', this.preferredAudioCodec]);
-    if (this.preferredVideoCodec) rows.push(['Pref. Video', this.preferredVideoCodec]);
+    if (avgRTT != null) rows.push(['Avg RTT', `${avgRTT.toFixed(0)} ms`]);
+    if (avgJitter != null) rows.push(['Avg Jitter', `${avgJitter.toFixed(1)} ms`]);
+    if (avgLoss != null) rows.push(['Avg Pkt Loss', `${avgLoss.toFixed(2)}%`]);
+    if (codecs.audio.size > 0) rows.push(['Audio', [...codecs.audio].join(', ')]);
+    if (codecs.video.size > 0) rows.push(['Video', [...codecs.video].join(', ')]);
+    if (resolutions.send.size > 0) rows.push(['Send Res', [...resolutions.send].join(', ')]);
+    if (resolutions.recv.size > 0) rows.push(['Recv Res', [...resolutions.recv].join(', ')]);
+    // Show effective preferences — explicit choice if set, otherwise the in-use/default value
+    const effRes = this.preferredResolution
+      ? `${this.preferredResolution.width}x${this.preferredResolution.height}`
+      : (resolutions.send.size > 0 ? [...resolutions.send][0] : 'auto');
+    const effAudio = this.preferredAudioCodec
+      || (codecs.audio.size > 0 ? [...codecs.audio][0] : 'auto');
+    const effVideo = this.preferredVideoCodec
+      || (codecs.video.size > 0 ? [...codecs.video][0] : 'auto');
+    rows.push(['Pref. Res', effRes]);
+    rows.push(['Pref. Audio', effAudio]);
+    rows.push(['Pref. Video', effVideo]);
     if (selfTs) rows.push(['Connected', selfTs.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })]);
 
     for (const [label, value] of rows) {
@@ -523,28 +849,6 @@ export function showTopologyStatsPopup(anchorEl, node) {
     popup.innerHTML = `<div class="topo-stats-header"><span class="topo-stats-name">${node.label.split('\n')[0]}</span></div><div class="topo-stats-explain">${explanation}</div>`;
   }
 
-  document.body.appendChild(popup);
-
-  // Position relative to anchor
-  const rect = anchorEl.getBoundingClientRect();
-  const popRect = popup.getBoundingClientRect();
-  const pad = 8;
-
-  // Try above first, fall back to below
-  let top = rect.top - popRect.height - pad;
-  if (top < pad) top = rect.bottom + pad;
-
-  // Horizontal: center on the node, keep within viewport
-  let left = rect.left + rect.width / 2 - popRect.width / 2;
-  if (left + popRect.width > window.innerWidth - pad) {
-    left = window.innerWidth - popRect.width - pad;
-  }
-  if (left < pad) left = pad;
-
-  popup.style.top = top + 'px';
-  popup.style.left = left + 'px';
-
-  // Dismiss on click-away
-  const dismiss = () => { popup.remove(); document.removeEventListener('click', dismiss); };
-  setTimeout(() => document.addEventListener('click', dismiss), 0);
+  addPopupCloseBtn(popup);
+  positionAndShowPopup(popup, anchorEl.getBoundingClientRect(), 8);
 }

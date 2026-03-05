@@ -45,18 +45,17 @@ function updateCodecDescription(selectId, descId, descriptions) {
   const select = document.getElementById(selectId);
   const desc = document.getElementById(descId);
   if (!select || !desc) return;
-  const val = select.value;
-  if (!val) {
-    desc.textContent = DEFAULT_DESCRIPTIONS[selectId] || '';
-  } else {
-    desc.textContent = descriptions[val] || '';
-  }
+  desc.textContent = select.value === '' ? (DEFAULT_DESCRIPTIONS[selectId] || '') : (descriptions[select.value] || '');
 }
 
 export function populateCodecOptions() {
-  // Audio codecs — sorted by descending quality
+  const AUDIO_DEFAULT = 'opus';
+  const VIDEO_DEFAULT = 'VP8';
+
+  // Audio codecs — "No Preference" first, then sorted by descending quality
   const audioSelect = document.getElementById('setting-audio-codec');
   while (audioSelect.options.length > 0) audioSelect.remove(0);
+  { const noPref = document.createElement('option'); noPref.value = ''; noPref.textContent = 'No Preference'; audioSelect.appendChild(noPref); }
 
   if (typeof RTCRtpSender !== 'undefined' && RTCRtpSender.getCapabilities) {
     const audioCaps = RTCRtpSender.getCapabilities('audio');
@@ -70,29 +69,27 @@ export function populateCodecOptions() {
         codecs.push({ name, clockRate: codec.clockRate });
       }
       codecs.sort((a, b) => (AUDIO_QUALITY[a.name] || 50) - (AUDIO_QUALITY[b.name] || 50));
-      // "Default" option first (browser negotiates freely)
-      const defOpt = document.createElement('option');
-      defOpt.value = '';
-      defOpt.textContent = 'Default';
-      audioSelect.appendChild(defOpt);
       codecs.forEach(codec => {
         const opt = document.createElement('option');
         opt.value = codec.name;
-        opt.textContent = `${codec.name} (${codec.clockRate}Hz)`;
+        const suffix = codec.name === AUDIO_DEFAULT ? ' - Default' : '';
+        opt.textContent = `${codec.name} (${codec.clockRate}Hz)${suffix}`;
         audioSelect.appendChild(opt);
       });
     }
   }
-  if (audioSelect.options.length === 0) {
+  if (audioSelect.options.length <= 1) {
+    // No codecs detected — add default as fallback
     const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = 'Default';
+    opt.value = AUDIO_DEFAULT;
+    opt.textContent = `${AUDIO_DEFAULT} - Default`;
     audioSelect.appendChild(opt);
   }
 
-  // Video codecs — sorted by descending quality
+  // Video codecs — "No Preference" first, then sorted by descending quality
   const videoSelect = document.getElementById('setting-video-codec');
   while (videoSelect.options.length > 0) videoSelect.remove(0);
+  { const noPref = document.createElement('option'); noPref.value = ''; noPref.textContent = 'No Preference'; videoSelect.appendChild(noPref); }
 
   if (typeof RTCRtpSender !== 'undefined' && RTCRtpSender.getCapabilities) {
     const videoCaps = RTCRtpSender.getCapabilities('video');
@@ -107,36 +104,37 @@ export function populateCodecOptions() {
         codecs.push({ name });
       }
       codecs.sort((a, b) => (VIDEO_QUALITY[a.name] || 50) - (VIDEO_QUALITY[b.name] || 50));
-      // "Default" option first (browser negotiates freely)
-      const defOpt = document.createElement('option');
-      defOpt.value = '';
-      defOpt.textContent = 'Default';
-      videoSelect.appendChild(defOpt);
       codecs.forEach(codec => {
         const opt = document.createElement('option');
         opt.value = codec.name;
-        opt.textContent = codec.name;
+        const suffix = codec.name === VIDEO_DEFAULT ? ' - Default' : '';
+        opt.textContent = `${codec.name}${suffix}`;
         videoSelect.appendChild(opt);
       });
     }
   }
-  if (videoSelect.options.length === 0) {
+  if (videoSelect.options.length <= 1) {
+    // No codecs detected — add default as fallback
     const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = 'Default';
+    opt.value = VIDEO_DEFAULT;
+    opt.textContent = `${VIDEO_DEFAULT} - Default`;
     videoSelect.appendChild(opt);
   }
 
-  // Resolution — mark the matching static option with "- Default" instead of top
+  // Resolution — tag the camera's native resolution as default
   const resSelect = document.getElementById('setting-resolution');
+  // Reset any previous "- Default" tags
+  for (const opt of resSelect.options) {
+    opt.textContent = opt.textContent.replace(/ - Default$/, '');
+  }
   if (this.localStream) {
     const videoTrack = this.localStream.getVideoTracks()[0];
     if (videoTrack) {
       const settings = videoTrack.getSettings();
       if (settings.width && settings.height) {
         const camH = settings.height;
-        for (let i = 1; i < resSelect.options.length; i++) {
-          const val = resSelect.options[i].value; // e.g. "854x480"
+        for (let i = 0; i < resSelect.options.length; i++) {
+          const val = resSelect.options[i].value;
           const optH = parseInt(val.split('x')[1]);
           if (optH === camH) {
             resSelect.options[i].textContent += ' - Default';
@@ -154,14 +152,14 @@ export function populateCodecOptions() {
 
 export function syncSettingsUI() {
   const resSelect = document.getElementById('setting-resolution');
-  if (this.preferredResolution) {
-    resSelect.value = `${this.preferredResolution.width}x${this.preferredResolution.height}`;
-  } else {
-    resSelect.value = '';
-  }
+  resSelect.value = this.preferredResolution
+    ? `${this.preferredResolution.width}x${this.preferredResolution.height}`
+    : '';
 
-  document.getElementById('setting-audio-codec').value = this.preferredAudioCodec || '';
-  document.getElementById('setting-video-codec').value = this.preferredVideoCodec || '';
+  const audioSelect = document.getElementById('setting-audio-codec');
+  const videoSelect = document.getElementById('setting-video-codec');
+  audioSelect.value = this.preferredAudioCodec || '';
+  videoSelect.value = this.preferredVideoCodec || '';
 
   updateCodecDescription('setting-audio-codec', 'audio-codec-desc', AUDIO_DESCRIPTIONS);
   updateCodecDescription('setting-video-codec', 'video-codec-desc', VIDEO_DESCRIPTIONS);
@@ -183,7 +181,7 @@ export async function applyResolution(value) {
         : {};
       try {
         await videoTrack.applyConstraints(constraints);
-        this.showToast(`Resolution: ${value || 'default'}`, 'success');
+        this.showToast(`Resolution: ${value || 'No Preference'}`, 'success');
       } catch (e) {
         this.showToast('Resolution not supported by device', 'error');
       }
@@ -195,14 +193,14 @@ export function applyAudioCodec(value) {
   this.preferredAudioCodec = value || null;
   this.renegotiateAllPeers();
   updateCodecDescription('setting-audio-codec', 'audio-codec-desc', AUDIO_DESCRIPTIONS);
-  this.showToast(`Audio codec: ${value || 'default'}`, 'success');
+  this.showToast(`Audio codec: ${value || 'No Preference'}`, 'success');
 }
 
 export function applyVideoCodec(value) {
   this.preferredVideoCodec = value || null;
   this.renegotiateAllPeers();
   updateCodecDescription('setting-video-codec', 'video-codec-desc', VIDEO_DESCRIPTIONS);
-  this.showToast(`Video codec: ${value || 'default'}`, 'success');
+  this.showToast(`Video codec: ${value || 'No Preference'}`, 'success');
 }
 
 export async function renegotiateAllPeers() {

@@ -794,7 +794,7 @@ body {
 
 .settings-codec-row .settings-select {
   flex-shrink: 0;
-  width: auto;
+  width: 220px;
 }
 
 .settings-codec-desc {
@@ -814,7 +814,7 @@ body {
 }
 
 .settings-select {
-  width: 100%;
+  width: 220px;
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -872,8 +872,8 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
+  z-index: 2;
   pointer-events: none;
-  z-index: 0;
 }
 
 .topo-canvas {
@@ -893,6 +893,16 @@ body {
   transform: translate(-50%, -50%);
   z-index: 1;
   cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.topo-node:not(.topo-node-placeholder):hover {
+  transform: translate(-50%, -50%) scale(1.12);
+  filter: brightness(1.2);
+}
+
+.topo-node:not(.topo-node-placeholder):hover .topo-node-icon {
+  box-shadow: 0 0 12px rgba(248, 250, 252, 0.4);
 }
 
 .topo-node-icon {
@@ -905,6 +915,7 @@ body {
   font-size: 20px;
   border: 2px solid #f8fafc;
   flex-shrink: 0;
+  transition: box-shadow 0.15s ease;
 }
 
 .topo-node-icon.server {
@@ -981,7 +992,7 @@ body {
   background: #0a0e1a;
   border: 1px solid #3b4d7a;
   border-radius: 8px;
-  padding: 14px 18px;
+  padding: 14px 28px 14px 18px;
   font-size: 13px;
   font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
   color: #e2e8f0;
@@ -991,6 +1002,23 @@ body {
   max-width: 480px;
   line-height: 1.6;
   pointer-events: auto;
+}
+
+.topo-popup-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.topo-popup-close:hover {
+  color: #e2e8f0;
 }
 
 .topo-stats-header {
@@ -1067,6 +1095,86 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   color: #94a3b8;
+}
+
+/* Edge popup channel styles */
+.topo-edge-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  padding-top: 6px;
+  border-top: 1px solid #1e293b;
+}
+
+.topo-edge-channel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.topo-edge-kind {
+  font-weight: 600;
+  color: #e2e8f0;
+  min-width: 70px;
+}
+
+.topo-edge-dir {
+  color: #94a3b8;
+  font-size: 11px;
+  min-width: 80px;
+}
+
+.topo-edge-state {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.topo-edge-state em {
+  font-style: normal;
+  color: #94a3b8;
+}
+
+/* Topology hint */
+.topo-hint {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 11px;
+  font-style: italic;
+  color: #94a3b8;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* TURN placeholder (upper-left, semi-transparent) */
+.topo-node.topo-node-placeholder {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Animated flowing edges */
+@keyframes topo-edge-flow {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+.topo-edge-animated {
+  animation: topo-edge-flow 0.8s linear infinite;
+}
+
+@keyframes topo-edge-flow-reverse {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 24; }
+}
+
+.topo-edge-animated-reverse {
+  animation: topo-edge-flow-reverse 0.8s linear infinite;
 }
 
 /* Dashboard panel — Mercury NOC aesthetic */

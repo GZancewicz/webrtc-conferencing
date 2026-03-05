@@ -50,10 +50,10 @@ export async function gatherTopologyData() {
   let signalingLabel = `Signaling Server\n${signalingUri}`;
   if (serverIp) signalingLabel += `\n${serverIp}`;
   nodes.push({ id: 'signaling', label: signalingLabel, type: 'infrastructure', connectedAt: this.connectionTimestamps.get('signaling') || null });
-  edges.push({ from: 'self', to: 'signaling', label: wsProtocol, style: 'signaling' });
+  edges.push({ from: 'self', to: 'signaling', label: wsProtocol, style: 'signaling', serverUrl: signalingUri, serverIp });
 
   // STUN/TURN servers from ICE config
-  const stunIds = [];
+  const stunServers = []; // { id, url }
   const turnId = [];
   if (this.iceServers && this.iceServers.iceServers) {
     let stunIndex = 0;
@@ -63,8 +63,8 @@ export async function gatherTopologyData() {
         if (url.startsWith('stun:')) {
           const id = `stun-${stunIndex++}`;
           nodes.push({ id, label: `STUN\n${url}`, type: 'stun', connectedAt: this.connectionTimestamps.get(id) || null });
-          stunIds.push(id);
-          edges.push({ from: 'self', to: id, label: 'stun:', style: 'stun' });
+          stunServers.push({ id, url });
+          edges.push({ from: 'self', to: id, label: 'stun:', style: 'stun', serverUrl: url });
         } else if (url.startsWith('turn:') || url.startsWith('turns:')) {
           const scheme = url.startsWith('turns:') ? 'turns:' : 'turn:';
           const id = 'turn';
@@ -84,11 +84,11 @@ export async function gatherTopologyData() {
     let peerLabel = peer.username || 'Peer';
 
     // Signaling edge for each peer
-    edges.push({ from: peerId, to: 'signaling', label: wsProtocol, style: 'signaling' });
+    edges.push({ from: peerId, to: 'signaling', label: wsProtocol, style: 'signaling', serverUrl: signalingUri, serverIp });
 
     // STUN edges for each peer (all peers discover their public IP via STUN)
-    for (const stunId of stunIds) {
-      edges.push({ from: peerId, to: stunId, label: 'stun:', style: 'stun' });
+    for (const stun of stunServers) {
+      edges.push({ from: peerId, to: stun.id, label: 'stun:', style: 'stun', serverUrl: stun.url });
     }
 
     // Determine connection type from active candidate pair
@@ -584,6 +584,19 @@ function addPopupCloseBtn(popup) {
   popup.appendChild(btn);
 }
 
+function centerPopup(popup) {
+  document.body.appendChild(popup);
+  popup.style.top = '50%';
+  popup.style.left = '50%';
+  popup.style.transform = 'translate(-50%, -50%)';
+  const dismiss = (e) => {
+    if (popup.contains(e.target)) return;
+    popup.remove();
+    document.removeEventListener('click', dismiss);
+  };
+  setTimeout(() => document.addEventListener('click', dismiss), 0);
+}
+
 function positionAndShowPopup(popup, anchorRect, pad) {
   document.body.appendChild(popup);
   const popRect = popup.getBoundingClientRect();
@@ -602,11 +615,12 @@ function positionAndShowPopup(popup, anchorRect, pad) {
   setTimeout(() => document.addEventListener('click', dismiss), 0);
 }
 
-// Edge descriptions for non-peer edges
+// Protocol descriptions for edge popups
 const EDGE_DESCRIPTIONS = {
   signaling: 'WebSocket (Socket.IO) — carries signaling messages: SDP offers/answers, ICE candidates, room join/leave events. No media flows through this channel.',
-  stun: 'STUN binding requests — your browser sends a request to discover its public IP:port. The server echoes back your reflexive address so peers can attempt a direct connection.',
-  turn: 'TURN relay allocation — when direct P2P fails, media is relayed through this server. Adds latency but guarantees connectivity behind restrictive NATs/firewalls.',
+  stun: 'STUN (Session Traversal Utilities for NAT) — your browser sends a binding request to discover its public IP:port. The server echoes back your reflexive address so peers can attempt a direct connection.',
+  turn: 'TURN (Traversal Using Relays around NAT) — when direct P2P fails, media is relayed through this server. Adds latency but guarantees connectivity behind restrictive NATs/firewalls.',
+  media: 'DTLS-SRTP — media is encrypted with DTLS (Datagram TLS) for the key exchange and SRTP (Secure Real-time Transport Protocol) for audio/video packets. Data flows directly between browsers over UDP.',
 };
 
 export async function showEdgePopup(event, edge) {
@@ -629,7 +643,9 @@ export async function showEdgePopup(event, edge) {
       popup.innerHTML = `<div class="topo-stats-header"><span class="topo-stats-name">Connection</span></div><div style="color:#64748b;">Peer not connected</div>`;
     } else {
       const pc = peer.connection;
-      let html = `<div class="topo-stats-header"><span class="topo-stats-name">Channels to ${this.escapeHtml(peer.username || 'Peer')}</span><span class="topo-stats-badge good">${edge.label}</span></div>`;
+      const selfName = this.username || 'You';
+      let html = `<div class="topo-stats-header"><span class="topo-stats-name">${this.escapeHtml(selfName)} ⇄ ${this.escapeHtml(peer.username || 'Peer')}</span><span class="topo-stats-badge good">${edge.label}</span></div>`;
+      html += `<div class="topo-stats-explain">${EDGE_DESCRIPTIONS.media}</div>`;
 
       // Transceivers (media tracks)
       const transceivers = pc.getTransceivers();
@@ -710,16 +726,170 @@ export async function showEdgePopup(event, edge) {
 
       popup.innerHTML = html;
     }
+  } else if (edge.isMedia) {
+    // Peer-to-peer media edge between two remote peers — show full details from our connections to each
+    const fromId = edge.from.replace(/^peer-/, '');
+    const toId = edge.to.replace(/^peer-/, '');
+    const fromPeer = this.peers.get(fromId);
+    const toPeer = this.peers.get(toId);
+    const fromName = fromPeer ? (fromPeer.username || 'Peer') : edge.from;
+    const toName = toPeer ? (toPeer.username || 'Peer') : edge.to;
+
+    let html = `<div class="topo-stats-header"><span class="topo-stats-name">${this.escapeHtml(fromName)} ⇄ ${this.escapeHtml(toName)}</span><span class="topo-stats-badge good">${edge.label}</span></div>`;
+    html += `<div class="topo-stats-explain">${EDGE_DESCRIPTIONS.media}</div>`;
+
+    // Show full connection details for each peer (from our connection to them)
+    for (const [userId, name] of [[fromId, fromName], [toId, toName]]) {
+      const peer = this.peers.get(userId);
+      if (!peer || !peer.connection) continue;
+      const pc = peer.connection;
+
+      html += `<div class="topo-edge-section">${this.escapeHtml(name)}</div>`;
+
+      // Transceivers
+      const transceivers = pc.getTransceivers();
+      if (transceivers.length > 0) {
+        for (const t of transceivers) {
+          const sTrack = t.sender && t.sender.track;
+          const rTrack = t.receiver && t.receiver.track;
+          const kind = sTrack ? sTrack.kind : (rTrack ? rTrack.kind : 'unknown');
+          const kindIcon = kind === 'audio' ? '🎤' : kind === 'video' ? '📹' : '❓';
+          const dir = t.direction || 'unknown';
+          const dirArrow = { sendrecv: '⇄', sendonly: '→', recvonly: '←', inactive: '⏸' }[dir] || dir;
+          const sState = sTrack ? (sTrack.enabled ? (sTrack.muted ? 'muted' : 'live') : 'disabled') : '–';
+          const rState = rTrack ? (rTrack.enabled ? (rTrack.muted ? 'muted' : 'live') : 'disabled') : '–';
+          html += `<div class="topo-edge-channel"><span class="topo-edge-kind">${kindIcon} ${kind}</span><span class="topo-edge-dir">${dirArrow} ${dir}</span><span class="topo-edge-state">send: <em>${sState}</em> recv: <em>${rState}</em></span></div>`;
+        }
+      }
+
+      // DataChannel
+      const dc = this.telemetryChannels ? this.telemetryChannels.get(userId) : null;
+      if (dc) {
+        const stateClass = dc.readyState === 'open' ? 'green' : (dc.readyState === 'connecting' ? 'yellow' : 'red');
+        html += `<div class="topo-edge-channel"><span class="topo-edge-kind">📡 ${dc.label || 'telemetry'}</span><span class="topo-edge-state"><span class="topo-stats-dot ${stateClass}" style="display:inline-block;vertical-align:middle;margin-right:4px;"></span>${dc.readyState}</span></div>`;
+      }
+
+      // Active candidate pair
+      try {
+        const stats = await pc.getStats();
+        let activePair = null;
+        const candidateMap = new Map();
+        stats.forEach(report => {
+          if (report.type === 'transport' && report.selectedCandidatePairId) {
+            stats.forEach(r => { if (r.id === report.selectedCandidatePairId) activePair = r; });
+          }
+          if (report.type === 'local-candidate' || report.type === 'remote-candidate') candidateMap.set(report.id, report);
+        });
+        if (!activePair) stats.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') activePair = r; });
+
+        if (activePair) {
+          const localCand = candidateMap.get(activePair.localCandidateId);
+          const remoteCand = candidateMap.get(activePair.remoteCandidateId);
+          if (localCand) html += `<div class="topo-stats-row wrap"><span class="topo-stats-label">Local</span><span class="topo-stats-value">${localCand.candidateType} ${localCand.protocol || ''} ${localCand.address || ''}:${localCand.port || ''}</span></div>`;
+          if (remoteCand) html += `<div class="topo-stats-row wrap"><span class="topo-stats-label">Remote</span><span class="topo-stats-value">${remoteCand.candidateType} ${remoteCand.protocol || ''} ${remoteCand.address || ''}:${remoteCand.port || ''}</span></div>`;
+        }
+      } catch (e) { /* stats unavailable */ }
+
+      // State
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">Connection</span><span class="topo-stats-value">${pc.connectionState}</span></div>`;
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">ICE</span><span class="topo-stats-value">${pc.iceConnectionState}</span></div>`;
+    }
+
+    popup.innerHTML = html;
+  } else if (edge.style === 'stun') {
+    // STUN edge — show server URL, endpoint, and discovered reflexive addresses
+    const stunNodeId = [edge.from, edge.to].find(id => id.startsWith('stun-'));
+    const endpointId = [edge.from, edge.to].find(id => id !== stunNodeId);
+    const isSelf = endpointId === 'self';
+    const endpointName = isSelf ? (this.username || 'You') : (() => {
+      const uid = endpointId.replace(/^peer-/, '');
+      const p = this.peers.get(uid);
+      return p ? (p.username || 'Peer') : 'Peer';
+    })();
+
+    const stunUrl = edge.serverUrl || 'STUN server';
+
+    let html = `<div class="topo-stats-header"><span class="topo-stats-name">${this.escapeHtml(endpointName)} → STUN</span><span class="topo-stats-badge">${this.escapeHtml(stunUrl)}</span></div>`;
+    html += `<div class="topo-stats-explain">${EDGE_DESCRIPTIONS.stun}</div>`;
+
+    // Gather srflx candidates from peer connections
+    const srflxAddresses = new Set();
+    if (isSelf) {
+      for (const [, peer] of this.peers) {
+        try {
+          const stats = await peer.connection.getStats();
+          stats.forEach(report => {
+            if (report.type === 'local-candidate' && report.candidateType === 'srflx' && report.address) {
+              srflxAddresses.add(`${report.protocol || 'udp'} ${report.address}:${report.port || ''}`);
+            }
+          });
+        } catch (e) { /* skip */ }
+      }
+    } else {
+      const uid = endpointId.replace(/^peer-/, '');
+      const peer = this.peers.get(uid);
+      if (peer && peer.connection) {
+        try {
+          const stats = await peer.connection.getStats();
+          stats.forEach(report => {
+            if (report.type === 'remote-candidate' && report.candidateType === 'srflx' && report.address) {
+              srflxAddresses.add(`${report.protocol || 'udp'} ${report.address}:${report.port || ''}`);
+            }
+          });
+        } catch (e) { /* skip */ }
+      }
+    }
+
+    if (srflxAddresses.size > 0) {
+      html += `<div class="topo-edge-section">Discovered Reflexive Address${srflxAddresses.size > 1 ? 'es' : ''}</div>`;
+      for (const addr of srflxAddresses) {
+        html += `<div class="topo-stats-row"><span class="topo-stats-label">srflx</span><span class="topo-stats-value">${this.escapeHtml(addr)}</span></div>`;
+      }
+    } else {
+      html += `<div class="topo-edge-section">Reflexive Addresses</div>`;
+      html += `<div class="topo-stats-row"><span class="topo-stats-value" style="color:#64748b;">No srflx candidates found</span></div>`;
+    }
+
+    popup.innerHTML = html;
+  } else if (edge.style === 'signaling') {
+    // Signaling edge — show server URL, IP, endpoint, and Socket.IO transport
+    const endpointId = [edge.from, edge.to].find(id => id !== 'signaling');
+    const isSelf = endpointId === 'self';
+    const endpointName = isSelf ? (this.username || 'You') : (() => {
+      const uid = endpointId.replace(/^peer-/, '');
+      const p = this.peers.get(uid);
+      return p ? (p.username || 'Peer') : 'Peer';
+    })();
+
+    let html = `<div class="topo-stats-header"><span class="topo-stats-name">${this.escapeHtml(endpointName)} → Signaling</span><span class="topo-stats-badge">${this.escapeHtml(edge.serverUrl || '')}</span></div>`;
+    html += `<div class="topo-stats-explain">${EDGE_DESCRIPTIONS.signaling}</div>`;
+
+    html += `<div class="topo-edge-section">Connection Details</div>`;
+    if (edge.serverUrl) {
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">URL</span><span class="topo-stats-value">${this.escapeHtml(edge.serverUrl)}</span></div>`;
+    }
+    if (edge.serverIp) {
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">Server IP</span><span class="topo-stats-value">${this.escapeHtml(edge.serverIp)}</span></div>`;
+    }
+
+    if (isSelf && this.socket) {
+      const transport = this.socket.io && this.socket.io.engine ? this.socket.io.engine.transport.name : null;
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">Transport</span><span class="topo-stats-value">${transport || 'unknown'}</span></div>`;
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">Socket ID</span><span class="topo-stats-value">${this.escapeHtml(this.socket.id || 'unknown')}</span></div>`;
+      html += `<div class="topo-stats-row"><span class="topo-stats-label">Connected</span><span class="topo-stats-value">${this.socket.connected ? 'Yes' : 'No'}</span></div>`;
+    } else if (!isSelf) {
+      html += `<div class="topo-stats-row"><span class="topo-stats-value" style="color:#64748b;">Detailed transport info only available for your own connection</span></div>`;
+    }
+
+    popup.innerHTML = html;
   } else {
-    // Non-media edge (signaling, STUN, TURN)
+    // Non-media edge (TURN, etc.)
     const desc = EDGE_DESCRIPTIONS[edge.style] || `${edge.label} connection`;
     popup.innerHTML = `<div class="topo-stats-header"><span class="topo-stats-name">${edge.label}</span></div><div class="topo-stats-explain">${desc}</div>`;
   }
 
   addPopupCloseBtn(popup);
-  // Use a synthetic rect centered on the click point
-  const clickRect = { top: event.clientY, bottom: event.clientY, left: event.clientX - 1, width: 2 };
-  positionAndShowPopup(popup, clickRect, 8);
+  centerPopup(popup);
 }
 
 export function showConfigurationsPopup() {

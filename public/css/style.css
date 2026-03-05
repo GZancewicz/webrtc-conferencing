@@ -1340,6 +1340,122 @@ body {
   font-size: 14px;
 }
 
+/* ICE Servers section */
+.dash-ice-section {
+  margin-bottom: 16px;
+  background: var(--dash-card);
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.dash-ice-title {
+  font-size: 12px;
+  color: var(--dash-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.dash-ice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dash-ice-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-family: var(--dash-mono);
+  color: var(--dash-text);
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+.dash-ice-type {
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--dash-text-secondary);
+  min-width: 35px;
+}
+
+.dash-ice-url {
+  color: var(--dash-text-muted);
+  word-break: break-all;
+}
+
+.dash-health-dot.blue {
+  background: var(--dash-blue);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+.dash-health-dot.cyan {
+  background: var(--dash-cyan);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+}
+
+/* Candidate lists */
+.dash-candidates-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dash-border);
+}
+
+.dash-candidates-title {
+  font-size: 11px;
+  color: var(--dash-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dash-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dash-candidate-item {
+  font-size: 11px;
+  font-family: var(--dash-mono);
+  color: var(--dash-text-muted);
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 3px;
+  border-left: 2px solid var(--dash-border-accent);
+}
+
+/* Received peer telemetry section */
+.dash-peer-telemetry-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid var(--dash-border);
+}
+
+.dash-peer-telemetry-section::before {
+  content: 'Remote Peer Telemetry';
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dash-text);
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+}
+
+.dash-peer-telemetry-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dash-text-muted);
+  font-family: var(--dash-mono);
+}
+
 .stats-no-peers {
   color: var(--text-secondary);
   text-align: center;

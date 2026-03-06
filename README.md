@@ -131,6 +131,28 @@ Your app will be live at `https://your-app-name.onrender.com`
 | [ui.js](public/js/ui.js) | UI utilities |
 | [main.js](public/js/main.js) | Landing page logic |
 
+## Standards Reference
+
+The [standards/](standards/) directory contains plain-text reference copies of the RFCs and W3C specifications that underpin this application, organized by protocol area:
+
+| Directory | Standards |
+|---|---|
+| `webrtc/` | RTP (RFC 3550), SRTP (RFC 3711), ICE (RFC 8445), JSEP (RFC 8829), DTLS for WebRTC (RFC 8827), WebRTC Security (RFC 8826) |
+| `quic/` | QUIC (RFC 9000) |
+| `http3/` | HTTP/3 (RFC 9114) |
+| `webtransport/` | WebTransport over HTTP/3 (RFC 9297) |
+| `webcodecs/` | W3C WebCodecs |
+
+## Retrospective
+
+The included [Real-Time Web Communication Standards - A Retrospective and Projection.pdf](Real-Time%20Web%20Communication%20Standards%20-%20A%20Retrospective%20and%20Projection.pdf) examines the evolution of real-time web communication standards from late 2021 through March 2026, with projections through 2031:
+
+- **Late 2021:** Only WebRTC was finalized with broad browser support, though with significant cross-browser gaps (Safari limited to H.264, no simulcast, broken iOS DataChannel). QUIC was newly standardized but not universal. HTTP/3 was pre-RFC. WebTransport was non-functional. WebCodecs existed in one browser.
+- **March 2026:** The core stack (WebRTC, QUIC, HTTP/3) is standardized and universal. WebCodecs is cross-browser with 94% coverage. Safari still lacks WebTransport (82% coverage) and Encoded Transforms for E2EE remain Chrome-only.
+- **2028–2031 projection:** WebTransport reaches Safari, Encoded Transforms become cross-browser, AV1 becomes practical for WebRTC as hardware encoding expands, and the "unbundled" architecture (WebTransport + WebCodecs + WebAssembly) becomes viable for specialized use cases.
+
+The paper also includes an information-theoretic analysis quantifying codec efficiency improvements (H.264 to AV1), QUIC's elimination of head-of-line blocking, and WebTransport's advantages over WebSocket for latency-sensitive applications.
+
 ## WebRTC Primer
 
 WebRTC enables browsers to exchange audio, video, and data directly without plugins or intermediary servers carrying the media.
@@ -199,10 +221,7 @@ web-conference/
 │   │   ├── configurations.js # Config display
 │   │   └── ui.js             # UI utilities
 │   └── images/               # Visual assets
-├── doc/
-│   ├── compliance-reports/   # RFC/W3C compliance analysis & remediation
-│   ├── retrospective/        # Standards evolution: 2021 vs 2026
-│   └── standards-latex/      # LaTeX reference docs for WebRTC, QUIC, HTTP/3, WebTransport
+├── standards/                # RFC & W3C spec reference texts
 ├── package.json
 ├── render.yaml               # Render.com deployment config
 ├── .env.example              # Environment variable template
@@ -214,24 +233,6 @@ web-conference/
 - **TURN server** — Strongly recommended for production. Without one, ~10–20% of users behind symmetric NATs or strict firewalls won't be able to connect. Free options include [Metered TURN](https://www.metered.ca/tools/openrelay/) and [Twilio Network Traversal](https://www.twilio.com/stun-turn).
 - **Scaling** — Rooms and participants are stored in memory on a single Node.js process. For multi-server deployments, add a Socket.IO Redis adapter and external state store.
 - **CORS** — Set `ALLOWED_ORIGINS` to your domain(s) in production rather than relying on the default wildcard.
-
-## Documentation
-
-The [doc/](doc/) directory contains technical reference material:
-
-| Directory | Contents |
-|---|---|
-| `compliance-reports/` | Compliance analysis of the codebase against RFC and W3C standards, plus a remediation plan |
-| `retrospective/` | What the standards enabled in browsers in late 2021 vs 2026 |
-| `standards-latex/` | LaTeX source for WebRTC (RTP, SRTP, ICE, JSEP, DTLS, Security), QUIC, HTTP/3, and WebTransport RFCs |
-
-LaTeX files can be compiled with:
-
-```bash
-/Library/TeX/texbin/pdflatex -interaction=nonstopmode <filename>.tex
-```
-
-Run twice for cross-references and hyperlink outlines to resolve.
 
 ## License
 

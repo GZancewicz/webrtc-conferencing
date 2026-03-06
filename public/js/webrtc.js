@@ -1,3 +1,55 @@
+function parseSdpMetadata(sdpString) {
+  const lines = sdpString.split('\r\n');
+  const mediaTypes = [];
+  const codecs = { audio: [], video: [] };
+  let iceUfrag = null, icePwd = null, fingerprint = null;
+  let setup = null, bundleGroup = null, rtcpMux = false;
+  let candidateCount = 0;
+  let currentMedia = null;
+
+  for (const line of lines) {
+    if (line.startsWith('m=')) {
+      currentMedia = line.split(' ')[0].substring(2);
+      mediaTypes.push(currentMedia);
+    } else if (line.startsWith('a=rtpmap:')) {
+      const codec = line.split(' ')[1];
+      if (currentMedia && codecs[currentMedia]) {
+        const name = codec.split('/')[0];
+        if (!codecs[currentMedia].includes(name)) codecs[currentMedia].push(name);
+      }
+    } else if (line.startsWith('a=ice-ufrag:')) {
+      iceUfrag = line.substring(12);
+    } else if (line.startsWith('a=ice-pwd:')) {
+      icePwd = line.substring(10);
+    } else if (line.startsWith('a=fingerprint:')) {
+      fingerprint = line.substring(14);
+    } else if (line.startsWith('a=setup:')) {
+      setup = line.substring(8);
+    } else if (line.startsWith('a=group:BUNDLE')) {
+      bundleGroup = line.substring(8);
+    } else if (line === 'a=rtcp-mux') {
+      rtcpMux = true;
+    } else if (line.startsWith('a=candidate:')) {
+      candidateCount++;
+    }
+  }
+
+  return { mediaTypes, codecs, iceUfrag, icePwd, fingerprint, setup, bundleGroup, rtcpMux, candidates: candidateCount };
+}
+
+export function recordSdp(userId, type, direction, sdpString) {
+  if (!this.sdpHistory.has(userId)) {
+    this.sdpHistory.set(userId, []);
+  }
+  this.sdpHistory.get(userId).push({
+    type,
+    direction,
+    sdp: sdpString,
+    timestamp: new Date(),
+    parsed: parseSdpMetadata(sdpString)
+  });
+}
+
 export function createPeerConnection(userId, username, initiator) {
   const connection = new RTCPeerConnection(this.iceServers);
 
@@ -103,6 +155,7 @@ export async function createAndSendOffer(userId, connection) {
   try {
     const offer = await connection.createOffer();
     await connection.setLocalDescription(offer);
+    this.recordSdp(userId, 'offer', 'outgoing', offer.sdp);
     this.socket.emit('offer', { to: userId, offer });
   } catch (error) {
     console.error('Error creating offer:', error);
@@ -152,6 +205,7 @@ export function removePeer(userId) {
   }
   this.pendingCandidates.delete(userId);
   this.iceCandidates.delete(userId);
+  this.sdpHistory.delete(userId);
 
   // Close telemetry channel for this peer
   const dc = this.telemetryChannels.get(userId);

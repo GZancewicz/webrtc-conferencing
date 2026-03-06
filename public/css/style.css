@@ -1142,6 +1142,109 @@ body {
   color: #94a3b8;
 }
 
+/* SDP Inspector */
+.sdp-inspector-entry {
+  margin-bottom: 4px;
+}
+
+.sdp-inspector-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 5px 8px;
+  background: #141926;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sdp-inspector-toggle::before {
+  content: '\25B6';
+  margin-right: 6px;
+  font-size: 8px;
+  transition: transform 0.2s;
+}
+
+.sdp-inspector-toggle.open::before {
+  transform: rotate(90deg);
+}
+
+.sdp-inspector-toggle:hover {
+  background: #1a2035;
+  border-color: #3b4d7a;
+  color: #e2e8f0;
+}
+
+.sdp-inspector-raw {
+  display: none;
+  margin: 0;
+  padding: 8px 10px;
+  background: #0d1117;
+  border: 1px solid #1e293b;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  color: #8b949e;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.sdp-inspector-raw.expanded {
+  display: block;
+}
+
+.sdp-inspector-raw::-webkit-scrollbar { width: 5px; }
+.sdp-inspector-raw::-webkit-scrollbar-track { background: transparent; }
+.sdp-inspector-raw::-webkit-scrollbar-thumb { background: #2a3354; border-radius: 3px; }
+.sdp-inspector-raw::-webkit-scrollbar-thumb:hover { background: #3b4d7a; }
+
+/* SDP Reference popup */
+.sdp-reference-body {
+  margin-top: 8px;
+}
+.sdp-ref-section-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #60a5fa;
+  margin: 12px 0 4px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(96, 165, 250, 0.2);
+}
+.sdp-ref-line {
+  margin: 2px 0;
+  padding: 3px 6px;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.sdp-ref-line:hover {
+  background: rgba(96, 165, 250, 0.08);
+}
+.sdp-ref-code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #e2e8f0;
+  word-break: break-all;
+  display: block;
+}
+.sdp-ref-annotation {
+  font-size: 10px;
+  color: #94a3b8;
+  display: block;
+  padding-left: 12px;
+  margin-top: 1px;
+  font-style: italic;
+}
+
 /* Topology hint */
 .topo-hint {
   position: absolute;

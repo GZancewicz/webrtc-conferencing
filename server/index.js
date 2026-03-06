@@ -139,6 +139,21 @@ app.get('/api/ai/status', (req, res) => {
   res.json({ available: !!openai });
 });
 
+// DNS resolve endpoint (resolves hostnames to IP addresses for topology display)
+const dns = require('dns');
+app.get('/api/dns-resolve', async (req, res) => {
+  const hostname = req.query.hostname;
+  if (!hostname) {
+    return res.status(400).json({ error: 'hostname parameter required' });
+  }
+  try {
+    const addresses = await dns.promises.resolve4(hostname);
+    res.json({ hostname, addresses });
+  } catch (error) {
+    res.json({ hostname, addresses: [], error: error.code });
+  }
+});
+
 // Server info endpoint (exposes server IP for topology diagram)
 const os = require('os');
 app.get('/api/server-info', (req, res) => {

@@ -42,6 +42,9 @@ class WebConference {
     // Per-peer ICE candidate tracking: Map<userId, {local: [], remote: []}>
     this.iceCandidates = new Map();
 
+    // SDP history: Map<userId, Array<{type, direction, sdp, timestamp, parsed}>>
+    this.sdpHistory = new Map();
+
     // Telemetry via DataChannel
     this.telemetryEnabled = true;
     this.telemetryChannels = new Map();
@@ -193,6 +196,9 @@ class WebConference {
     document.getElementById('toggle-topology').addEventListener('click', () => {
       this.toggleTopology();
     });
+    document.getElementById('topology-sdp-ref').addEventListener('click', () => {
+      this.showSdpReference();
+    });
     document.getElementById('topology-configs').addEventListener('click', () => {
       this.showConfigurationsPopup();
     });
@@ -308,6 +314,7 @@ class WebConference {
       try {
         const peer = this.peers.get(from) || this.createPeerConnection(from, username, false);
         await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));
+        this.recordSdp(from, 'offer', 'incoming', offer.sdp);
         this.flushPendingCandidates(from);
 
         // Look up remote peer's codec preferences (received via telemetry DataChannel)
@@ -324,6 +331,7 @@ class WebConference {
         this.applyCodecPreferences(peer.connection, remotePrefs);
         const answer = await peer.connection.createAnswer();
         await peer.connection.setLocalDescription(answer);
+        this.recordSdp(from, 'answer', 'outgoing', answer.sdp);
         this.socket.emit('answer', { to: from, answer });
       } catch (error) {
         console.error('Error handling offer:', error);
@@ -335,6 +343,7 @@ class WebConference {
         const peer = this.peers.get(from);
         if (peer) {
           await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));
+          this.recordSdp(from, 'answer', 'incoming', answer.sdp);
           this.flushPendingCandidates(from);
         }
       } catch (error) {

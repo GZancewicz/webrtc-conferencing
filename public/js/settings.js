@@ -209,6 +209,7 @@ export async function renegotiateAllPeers() {
       this.applyCodecPreferences(peer.connection);
       const offer = await peer.connection.createOffer();
       await peer.connection.setLocalDescription(offer);
+      this.recordSdp(userId, 'offer', 'outgoing', offer.sdp);
       this.socket.emit('offer', { to: userId, offer });
     } catch (e) {
       console.error('Renegotiation error for peer', userId, e);

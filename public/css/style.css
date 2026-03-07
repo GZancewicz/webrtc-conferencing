@@ -196,6 +196,7 @@ body {
 
 /* Video grid */
 .video-grid {
+  position: relative;
   flex: 1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -217,6 +218,133 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.video-container .expand-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background-color: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  transition: opacity 0.2s, background-color 0.2s;
+  z-index: 10;
+}
+
+.video-container:hover .expand-btn {
+  opacity: 1;
+}
+
+.video-container .expand-btn:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: var(--text-color);
+}
+
+.video-grid.has-expanded .video-container {
+  display: none;
+}
+
+.video-grid.has-expanded .video-container.expanded {
+  display: block;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  aspect-ratio: auto;
+  height: 100%;
+}
+
+.video-grid.has-expanded .video-container.expanded video {
+  object-fit: contain;
+}
+
+/* Peer ribbon in expanded view */
+.peer-ribbon {
+  display: none;
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 80%;
+  overflow-y: auto;
+}
+
+.video-grid.has-expanded .peer-ribbon.visible {
+  display: flex;
+}
+
+.peer-ribbon-thumb {
+  width: 120px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.peer-ribbon-thumb:hover {
+  border-color: var(--primary-color);
+}
+
+.peer-ribbon-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.peer-ribbon-thumb .ribbon-label {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.ribbon-toggle-btn {
+  position: absolute;
+  bottom: 40px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background-color: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  transition: background-color 0.2s;
+}
+
+.ribbon-toggle-btn:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: var(--text-color);
+}
+
+.video-grid.has-expanded .video-container.expanded .ribbon-toggle-btn {
+  display: flex;
 }
 
 .video-container.screen-share {
@@ -475,6 +603,21 @@ body {
 
 .control-icon {
   font-size: 24px;
+}
+
+.cam-icon {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.status-icon .cam-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.control-icon .cam-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .control-label {

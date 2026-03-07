@@ -144,7 +144,7 @@ export function updateVideoButton() {
   const statusIcon = document.getElementById('local-cam-status');
 
   btn.classList.toggle('active', !this.isVideoEnabled);
-  icon.textContent = this.isVideoEnabled ? '📷' : '📷';
+  icon.innerHTML = '<svg class="cam-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4V6.5l-4 4z"/></svg>';
   label.textContent = this.isVideoEnabled ? 'Stop Video' : 'Start Video';
   statusIcon.classList.toggle('disabled', !this.isVideoEnabled);
 }

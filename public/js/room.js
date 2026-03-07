@@ -253,6 +253,51 @@ class WebConference {
       this.toggleAI();
     });
 
+    // Expand/collapse video in grid
+    document.getElementById('video-grid').addEventListener('click', (e) => {
+      // Ribbon toggle
+      const ribbonBtn = e.target.closest('.ribbon-toggle-btn');
+      if (ribbonBtn) {
+        const ribbon = document.getElementById('peer-ribbon');
+        ribbon.classList.toggle('visible');
+        if (ribbon.classList.contains('visible')) {
+          this.populatePeerRibbon();
+        }
+        return;
+      }
+      // Expand button
+      const btn = e.target.closest('.expand-btn');
+      if (!btn) return;
+      const container = btn.closest('.video-container');
+      const grid = document.getElementById('video-grid');
+      const ribbon = document.getElementById('peer-ribbon');
+      const isExpanded = container.classList.contains('expanded');
+      // Collapse any currently expanded
+      grid.querySelectorAll('.video-container.expanded').forEach(el => el.classList.remove('expanded'));
+      grid.classList.remove('has-expanded');
+      ribbon.classList.remove('visible');
+      if (!isExpanded) {
+        container.classList.add('expanded');
+        grid.classList.add('has-expanded');
+      }
+    });
+
+    // Click ribbon thumbnail to swap expanded view
+    document.getElementById('peer-ribbon').addEventListener('click', (e) => {
+      const thumb = e.target.closest('.peer-ribbon-thumb');
+      if (!thumb) return;
+      const targetId = thumb.dataset.containerId;
+      const targetContainer = document.getElementById(targetId);
+      if (!targetContainer) return;
+      const grid = document.getElementById('video-grid');
+      const ribbon = document.getElementById('peer-ribbon');
+      grid.querySelectorAll('.video-container.expanded').forEach(el => el.classList.remove('expanded'));
+      targetContainer.classList.add('expanded');
+      ribbon.classList.remove('visible');
+      this.populatePeerRibbon();
+      ribbon.classList.add('visible');
+    });
+
     // Leave room
     document.getElementById('leave-room').addEventListener('click', () => {
       this.leaveRoom();

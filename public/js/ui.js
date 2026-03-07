@@ -16,6 +16,33 @@ export function escapeHtml(text) {
   return div.innerHTML;
 }
 
+export function populatePeerRibbon() {
+  const ribbon = document.getElementById('peer-ribbon');
+  const expandedContainer = document.querySelector('.video-container.expanded');
+  ribbon.innerHTML = '';
+  const containers = document.querySelectorAll('.video-container');
+  containers.forEach(container => {
+    if (container === expandedContainer) return;
+    const video = container.querySelector('video');
+    const label = container.querySelector('.video-label span');
+    if (!video) return;
+    const thumb = document.createElement('div');
+    thumb.className = 'peer-ribbon-thumb';
+    thumb.dataset.containerId = container.id;
+    const thumbVideo = document.createElement('video');
+    thumbVideo.srcObject = video.srcObject;
+    thumbVideo.autoplay = true;
+    thumbVideo.muted = true;
+    thumbVideo.playsInline = true;
+    thumb.appendChild(thumbVideo);
+    const nameLabel = document.createElement('div');
+    nameLabel.className = 'ribbon-label';
+    nameLabel.textContent = label ? label.textContent : '';
+    thumb.appendChild(nameLabel);
+    ribbon.appendChild(thumb);
+  });
+}
+
 export function copyInviteLink() {
   const link = `${window.location.origin}/?room=${encodeURIComponent(this.roomId)}`;
   navigator.clipboard.writeText(link).then(() => {

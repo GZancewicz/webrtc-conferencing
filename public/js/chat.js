@@ -59,7 +59,7 @@ export function addParticipant(userId, username) {
       <span class="participant-name">${this.escapeHtml(username)}</span>
       <div class="participant-status">
         <span class="status-icon" id="p-mic-${userId}">🎤</span>
-        <span class="status-icon" id="p-cam-${userId}">📷</span>
+        <span class="status-icon" id="p-cam-${userId}"><svg class="cam-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4V6.5l-4 4z"/></svg></span>
       </div>
     `;
     list.appendChild(item);

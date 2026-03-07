@@ -961,7 +961,7 @@ export async function showEdgePopup(event, edge) {
           const sTrack = sender && sender.track;
           const rTrack = receiver && receiver.track;
           const kind = sTrack ? sTrack.kind : (rTrack ? rTrack.kind : 'unknown');
-          const kindIcon = kind === 'audio' ? '🎤' : kind === 'video' ? '📹' : '❓';
+          const kindIcon = kind === 'audio' ? '🎤' : kind === 'video' ? '<svg class="cam-icon" viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4V6.5l-4 4z"/></svg>' : '❓';
           const dir = t.direction || 'unknown';
           const dirArrow = { sendrecv: '⇄', sendonly: '→', recvonly: '←', inactive: '⏸' }[dir] || dir;
 
@@ -1063,7 +1063,7 @@ export async function showEdgePopup(event, edge) {
           const sTrack = t.sender && t.sender.track;
           const rTrack = t.receiver && t.receiver.track;
           const kind = sTrack ? sTrack.kind : (rTrack ? rTrack.kind : 'unknown');
-          const kindIcon = kind === 'audio' ? '🎤' : kind === 'video' ? '📹' : '❓';
+          const kindIcon = kind === 'audio' ? '🎤' : kind === 'video' ? '<svg class="cam-icon" viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4V6.5l-4 4z"/></svg>' : '❓';
           const dir = t.direction || 'unknown';
           const dirArrow = { sendrecv: '⇄', sendonly: '→', recvonly: '←', inactive: '⏸' }[dir] || dir;
           const sState = sTrack ? (sTrack.enabled ? (sTrack.muted ? 'muted' : 'live') : 'disabled') : '–';

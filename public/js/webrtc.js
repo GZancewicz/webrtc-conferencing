@@ -177,8 +177,10 @@ export function addRemoteVideo(userId, username, stream) {
       </div>
       <div class="video-status">
         <span class="status-icon" id="mic-${userId}">🎤</span>
-        <span class="status-icon" id="cam-${userId}">📷</span>
+        <span class="status-icon" id="cam-${userId}"><svg class="cam-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4V6.5l-4 4z"/></svg></span>
       </div>
+      <button class="expand-btn" title="Expand">&#x26F6;</button>
+      <button class="ribbon-toggle-btn" title="Show participants">&#x1F465;</button>
     `;
     document.getElementById('video-grid').appendChild(container);
   }

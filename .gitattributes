@@ -1,0 +1,10 @@
+# Mark vendored W3C specification files so they don't skew language stats
+standards/** linguist-vendored
+
+# Hide non-primary languages from GitHub stats
+*.css linguist-detectable=false
+*.yaml linguist-detectable=false
+
+# Ensure correct language detection
+*.js linguist-language=JavaScript
+*.html linguist-language=HTML
